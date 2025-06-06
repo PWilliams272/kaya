@@ -1,0 +1,44 @@
+name: Deploy Kaya Lambda
+
+on:
+  push:
+    branches:
+      - prod
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Create deployment package directory
+        run: |
+          mkdir lambda_build
+          rsync -av --exclude 'app/' kaya/ lambda_build/kaya/
+          cp kaya/requirements.txt lambda_build/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install -r lambda_build/requirements.txt -t lambda_build/
+
+      - name: Zip deployment package
+        run: |
+          cd lambda_build
+          zip -r ../lambda_deploy.zip .
+
+      - name: Deploy to Lambda
+        uses: appleboy/lambda-action@v0.1.9
+        with:
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws_region: ${{ secrets.AWS_REGION || 'us-east-2' }}
+          function_name: kaya-data-updater
+          zip_file: lambda_deploy.zip
+          handler: kaya/update_data_script.lambda_handler
+          runtime: python3.11
