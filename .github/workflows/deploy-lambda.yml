@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - prod
-      - move-lambda-deployment-config  # Temporary for testing
 
 jobs:
   deploy:
