@@ -1,6 +1,5 @@
 import os
 import pandas as pd
-from dotenv import load_dotenv
 from sqlalchemy.engine import Engine
 from sqlalchemy import (
     create_engine, Table, MetaData, inspect, text, Column, String
@@ -9,12 +8,15 @@ from sqlalchemy.types import Boolean, Integer, Float
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 import logging
+from pathlib import Path
 
-load_dotenv()
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Set ~/.kaya as the base directory and create it if it doesn't exist
+BASE_DIR = Path().home() / ".kaya"
+os.makedirs(BASE_DIR, exist_ok=True)
+
 LOCAL_DB_URL_DEFAULT = (
-    f"sqlite:///{os.path.join(BASE_DIR, 'data', 'kaya_data.db')}"
+    f"sqlite:///{BASE_DIR / 'kaya_data.db'}"
 )
 
 LOCAL_DB_URL = os.getenv('LOCAL_DB_URL', LOCAL_DB_URL_DEFAULT)
