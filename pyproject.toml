@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kaya"
+version = "0.1.0"
+description = "Package for pulling and analyzing data from the Kaya climbing website."
+authors = [
+    { name = "Peter Williams", email = "pwilliams272@gmail.com" }
+]
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+
+# Add your main dependencies here
+# Example:
+dependencies = [
+    "requests>=2.25,<3.0",
+    "tqdm>=4.60,<5.0",
+    "pandas>=1.3,<3.0",
+    "numpy>=1.20,<2.0",
+    "scipy>=1.7,<2.0",
+    "gender-guesser>=0.4,<1.0",
+    "python-dotenv>=0.19,<2.0",
+    "sqlalchemy>=1.4,<3.0",
+    "psycopg2-binary>=2.9,<3.0",
+    "boto3>=1.17,<2.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/PWilliams272/kaya"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -8,3 +8,6 @@ kaya.egg-info/
 notebooks/
 *.db
 .DS_Store
+
+# Sphinx build output
+docs/build/
