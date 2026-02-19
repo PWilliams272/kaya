@@ -1,8 +1,9 @@
 import json
 import pandas as pd
 import logging
-from kaya.data_puller import update_gym_data
 import os
+from typing import Any, Dict, Optional
+from kaya.data_puller import update_gym_data
 
 # Set up logging for Lambda
 logger = logging.getLogger()
@@ -10,8 +11,17 @@ logger.setLevel(logging.INFO)
 
 
 def load_gyms_config(
-    config_path=None
-):
+    config_path: Optional[str] = None
+) -> pd.DataFrame:
+    """Load the gym configuration from a JSON file.
+
+    Args:
+        config_path (Optional[str], optional): Path to the gyms config JSON.
+            Defaults to None (uses default path).
+
+    Returns:
+        pd.DataFrame: DataFrame with columns ['gym_name', 'gym_id'].
+    """
     if config_path is None:
         config_path = os.path.join(
            os.path.dirname(__file__), 'config', 'gyms_to_update.json'
@@ -22,11 +32,25 @@ def load_gyms_config(
 
 
 def update_all_gyms(
-    mode='incremental',
-    use_aws=True,
-    batch_size=1000,
-    log_level=logging.INFO
-):
+    mode: str = 'incremental',
+    use_aws: bool = True,
+    batch_size: int = 1000,
+    log_level: int = logging.INFO
+) -> Dict[str, str]:
+    """Update all gyms listed in the configuration file.
+
+    Args:
+        mode (str, optional): Update mode ('incremental' or 'full'). Defaults
+            to 'incremental'.
+        use_aws (bool, optional): Whether to use AWS database. Defaults to
+            True.
+        batch_size (int, optional): Number of records to write per batch.
+            Defaults to 1000.
+        log_level (int, optional): Logging level. Defaults to logging.INFO.
+
+    Returns:
+        Dict[str, str]: Dictionary mapping gym names to update status.
+    """
     gyms_df = load_gyms_config()
     results = {}
     for _, row in gyms_df.iterrows():
@@ -49,12 +73,20 @@ def update_all_gyms(
 
 
 def lambda_handler(
-    event,
-    context
-):
-    """
-    AWS Lambda entrypoint.
-    Optionally, you can pass 'mode', 'batch_size', etc. in the event dict.
+    event: Dict[str, Any],
+    context: Any
+) -> Dict[str, str]:
+    """AWS Lambda entrypoint.
+
+    Optionally, can pass 'mode', 'batch_size', etc. in the event dict.
+
+    Args:
+        event (Dict[str, Any]): Lambda event dict. Can include 'mode',
+            'batch_size', 'log_level'.
+        context (Any): Lambda context object (unused).
+
+    Returns:
+        Dict[str, str]: Dictionary mapping gym names to update status.
     """
     mode = event.get('mode', 'incremental')
     batch_size = event.get('batch_size', 1000)

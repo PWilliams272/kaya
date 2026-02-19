@@ -1,10 +1,13 @@
 import os
 import pandas as pd
-from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine
 from dotenv import load_dotenv
-from sqlalchemy import Table, MetaData, inspect, text, Column, String
+from sqlalchemy.engine import Engine
+from sqlalchemy import (
+    create_engine, Table, MetaData, inspect, text, Column, String
+)
 from sqlalchemy.types import Boolean, Integer, Float
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 import logging
 
 load_dotenv()
@@ -21,12 +24,16 @@ logger = logging.getLogger(__name__)
 
 
 def get_engine(
-    use_aws=False
+    use_aws: bool = False
 ) -> Engine:
+    """Returns a SQLAlchemy engine for the local or AWS database.
+
+    Args:
+        use_aws (bool, optional): If True, use AWS DB. Defaults to False.
+
+    Returns:
+        Engine: SQLAlchemy engine instance.
     """
-    Returns a SQLAlchemy engine for the local or AWS database.
-    """
-    from sqlalchemy import text  # Ensure text is imported
     db_url = AWS_DB_URL if use_aws else LOCAL_DB_URL
     if db_url is None:
         raise ValueError(
@@ -47,11 +54,18 @@ def write_dataframe(
     table_name: str,
     use_aws: bool = False,
     if_exists: str = 'append'
-):
-    """
-    Write a DataFrame to the specified table in the selected database.
-    - Always creates the table if it doesn't exist, with send_id as unique.
-    - Upserts on send_id for both SQLite and Postgres.
+) -> None:
+    """Write a DataFrame to a database table.
+
+    Always creates the table if it doesn't exist, with send_id as unique.
+    Upserts on send_id for both SQLite and Postgres.
+
+    Args:
+        df (pd.DataFrame): DataFrame to write.
+        table_name (str): Table name.
+        use_aws (bool, optional): If True, use AWS DB. Defaults to False.
+        if_exists (str, optional): How to behave if the table exists.
+            Defaults to 'append'.
     """
     engine = get_engine(use_aws=use_aws)
     schema = os.getenv('AWS_DB_SCHEMA') if use_aws else None
@@ -128,7 +142,6 @@ def write_dataframe(
             conn.execute(new_table.insert(), records)
         elif if_exists == 'upsert':
             if use_aws:
-                from sqlalchemy.dialects.postgresql import insert as pg_insert
                 for row in records:
                     stmt = pg_insert(table).values(**row)
                     update_dict = {
@@ -142,7 +155,6 @@ def write_dataframe(
                     )
                     conn.execute(stmt)
             else:
-                from sqlalchemy.dialects.sqlite import insert as sqlite_insert
                 for row in records:
                     stmt = sqlite_insert(table).values(**row)
                     update_dict = {
@@ -167,13 +179,15 @@ def read_table(
     table_name: str,
     use_aws: bool = False
 ) -> pd.DataFrame:
-    """
-    Read a table from the selected database into a DataFrame.
+    """Read a database table into a DataFrame.
+
     Args:
-        table_name: Table name
-        use_aws: If True, read from AWS RDS; else, read from local DB
+        table_name (str): Table name.
+        use_aws (bool, optional): If True, read from AWS RDS; else,
+            read from local DB. Defaults to False.
+
     Returns:
-        DataFrame
+        pd.DataFrame: The table as a DataFrame.
     """
     engine = get_engine(use_aws=use_aws)
     schema = os.getenv('AWS_DB_SCHEMA') if use_aws else None

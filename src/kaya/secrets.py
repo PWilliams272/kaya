@@ -7,18 +7,37 @@ load_dotenv(override=True)
 
 
 def is_aws_lambda(
-    force_aws=False
-):
+    force_aws: bool = False
+) -> bool:
+    """Determine if should use AWS.
+
+    Determines if the code is running in an AWS Lambda environment, or will
+    also return True if force_aws is set as True.
+
+    Args:
+        force_aws (bool, optional): If True, force AWS mode. Defaults to
+            False.
+
+    Returns:
+        bool: True if running in AWS Lambda or force_aws is True.
+    """
     return force_aws or 'AWS_LAMBDA_FUNCTION_NAME' in os.environ
 
 
 def load_secrets(
-    force_aws=False
-):
-    """
-    Loads Kaya API secrets from .env (locally) or AWS Secrets Manager
-    (in AWS Lambda or force_aws). Sets os.environ for KAYA_API_TOKEN
-    and KAYA_REFRESH_TOKEN. Returns a dict with the secrets.
+    force_aws: bool = False
+) -> None:
+    """Loads Kaya API secrets.
+
+    Load Kaya API secrets from .env (locally) or AWS Secrets Manager (in AWS
+    Lambda or with force_aws). Sets os.environ for KAYA_API_TOKEN and
+    KAYA_REFRESH_TOKEN.
+
+    Args:
+        force_aws (bool, optional): If True, force AWS mode. Defaults to False.
+
+    Returns:
+        None
     """
     if is_aws_lambda(force_aws):
         client = boto3.client(
@@ -36,13 +55,20 @@ def load_secrets(
 
 
 def write_secrets(
-    new_access_token,
-    new_refresh_token,
-    force_aws=False
-):
-    """
-    Writes Kaya API secrets to .env (locally) or AWS Secrets Manager (in AWS
-    Lambda or force_aws). Updates os.environ for immediate use.
+    new_access_token: str,
+    new_refresh_token: str,
+    force_aws: bool = False
+) -> None:
+    """Write Kaya API secrets.
+
+    Write Kaya API secrets to .env (locally) or AWS Secrets Manager (in AWS
+    Lambda or with force_aws). Updates os.environ for immediate use.
+
+    Args:
+        new_access_token (str): The new access token.
+        new_refresh_token (str): The new refresh token.
+        force_aws (bool, optional): If True, force AWS mode. Defaults to
+            False.
     """
     os.environ["KAYA_API_TOKEN"] = new_access_token
     os.environ["KAYA_REFRESH_TOKEN"] = new_refresh_token
@@ -65,10 +91,10 @@ def write_secrets(
         env_path = os.path.abspath(env_path)
 
         def update_env_var(
-            lines,
-            var,
-            value
-        ):
+            lines: list,
+            var: str,
+            value: str
+        ) -> list:
             found = False
             for i, line in enumerate(lines):
                 if line.strip().startswith(f'{var}='):

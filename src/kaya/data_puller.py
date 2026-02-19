@@ -2,6 +2,7 @@ import requests
 import pandas as pd
 import os
 import time
+from typing import Any, Dict, List, Optional, Tuple, Union
 from kaya.db_manager import write_dataframe, get_engine
 from kaya.secrets import load_secrets, write_secrets
 import logging
@@ -29,13 +30,21 @@ logger.addHandler(logging.NullHandler())
 
 def update_tokens(
     force_aws: bool = False
-):
-    """
+) -> Tuple[str, str]:
+    """Refresh API tokens
+
     Refreshes the Kaya API access and refresh tokens using the current
     environment variables. Updates os.environ for immediate use, and
     updates the .env file if running locally, or AWS Secrets Manager if
     running in AWS Lambda or force_aws is True. Returns the new access and
     refresh tokens.
+
+    Args:
+        force_aws (bool, optional): If True, force update secrets in AWS.
+            Defaults to False.
+
+    Returns:
+        Tuple[str, str]: The new access token and refresh token.
     """
     load_secrets(force_aws=force_aws)
 
@@ -59,14 +68,27 @@ def update_tokens(
 
 
 def kaya_api_post(
-    url,
-    json_data,
-    max_retries=1,
-    **kwargs
-):
-    """
+    url: str,
+    json_data: Dict,
+    max_retries: int = 1,
+    **kwargs: Any
+) -> requests.Response:
+    """Helper for POST requests to Kaya.
     Helper for POST requests to Kaya. If a 401 error is encountered, refresh
     tokens and retry.
+
+    Args:
+        url (str): The URL to send the POST request to.
+        json_data (Dict): The JSON data to send in the request body.
+        max_retries (int, optional): Number of retries on 401 errors.
+            Defaults to 1.
+        **kwargs: Additional arguments to pass to requests.post.
+
+    Returns:
+        requests.Response: The response object from the POST request.
+
+    Raises:
+        Exception: If the request fails after retries.
     """
     KAYA_API_TOKEN = os.getenv("KAYA_API_TOKEN")
     HEADERS['authorization'] = f'Bearer {KAYA_API_TOKEN}'
@@ -110,8 +132,16 @@ def kaya_api_post(
 
 
 def search_for_gym(
-    search_term
-):
+    search_term: str
+) -> pd.DataFrame:
+    """Search for a gym using a search term.
+
+    Args:
+        search_term (str): The search term to look for gyms.
+
+    Returns:
+        pd.DataFrame: DataFrame containing gym search results.
+    """
     json_data = {
         'operationName': 'webSearchForGym',
         'variables': {
@@ -139,9 +169,18 @@ def search_for_gym(
 
 
 def get_data_for_gym(
-    gym_id,
-    offset=0
-):
+    gym_id: Union[str, int],
+    offset: int = 0
+) -> pd.DataFrame:
+    """Retrieve data for a specific gym.
+
+    Args:
+        gym_id (Union[str, int]): The gym ID to fetch data for.
+        offset (int, optional): Offset for pagination. Defaults to 0.
+
+    Returns:
+        pd.DataFrame: DataFrame containing ascent data for the gym.
+    """
     query = '''
         query webAscentsForGym($gym_id: ID!, $count: Int!, $offset: Int!) {
             webAscentsForGym(gym_id: $gym_id, count: $count, offset: $offset) {
@@ -367,9 +406,19 @@ def get_data_for_gym(
 
 
 def get_existing_send_ids(
-    gym_id,
-    use_aws=False
-):
+    gym_id: Union[str, int],
+    use_aws: bool = False
+) -> List[Any]:
+    """Get a list of existing send IDs for a gym from the database.
+
+    Args:
+        gym_id (Union[str, int]): The gym ID to query.
+        use_aws (bool, optional): Whether to use AWS database. Defaults to
+            False.
+
+    Returns:
+        List[Any]: List of send IDs.
+    """
     engine = get_engine(use_aws=use_aws)
     schema = os.getenv('AWS_DB_SCHEMA') if use_aws else None
     table = 'sends'
@@ -387,20 +436,31 @@ def get_existing_send_ids(
 
 
 def update_gym_data(
-    gym_id,
-    mode='incremental',
-    use_aws=False,
-    batch_size=1000,
-    start_offset=0,
-    log_level=None
-):
-    """
-    Pulls data for a gym and writes to the database in batches.
-    mode: 'full' for initial pull (all data), 'incremental' for daily
-        updates (stop if send_id exists)
-    batch_size: number of records to write per batch
-    log_level: set logging level for this function (e.g., logging.INFO,
-        logging.DEBUG)
+    gym_id: Union[str, int],
+    mode: str = 'incremental',
+    use_aws: bool = False,
+    batch_size: int = 1000,
+    start_offset: int = 0,
+    log_level: Optional[int] = None
+) -> Optional[pd.DataFrame]:
+    """Pull data for a gym and write to the database in batches.
+
+    Args:
+        gym_id (Union[str, int]): The gym ID to update data for.
+        mode (str, optional): 'full' for initial pull (all data), 'incremental'
+            for daily updates (stop if encounters send_id that exists).
+            Defaults to 'incremental'.
+        use_aws (bool, optional): Whether to use AWS database. Defaults to
+            False.
+        batch_size (int, optional): Number of records to write per batch.
+            Defaults to 1000.
+        start_offset (int, optional): Starting offset for data pull. Defaults
+            to 0.
+        log_level (Optional[int], optional): Logging level. Defaults to None.
+
+    Returns:
+        Optional[pd.DataFrame]: The final batch DataFrame if any data was
+            written, otherwise None.
     """
     if log_level is not None:
         logger.setLevel(log_level)
