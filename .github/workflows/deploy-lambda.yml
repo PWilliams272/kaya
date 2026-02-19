@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - prod
+      - move-lambda-deployment-config  # Temporary for testing
 
 jobs:
   deploy:
@@ -21,7 +22,7 @@ jobs:
         run: |
           mkdir lambda_build
           rsync -av --exclude 'app/' kaya/ lambda_build/kaya/
-          cp kaya/requirements_lambda.txt lambda_build/requirements.txt
+          cp lambda_deployment/requirements.txt lambda_build/requirements.txt
 
       - name: Install dependencies
         run: |
