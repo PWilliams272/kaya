@@ -194,3 +194,21 @@ def read_table(
     engine = get_engine(use_aws=use_aws)
     schema = os.getenv('AWS_DB_SCHEMA') if use_aws else None
     return pd.read_sql_table(table_name, engine, schema=schema)
+
+
+def sync_data():
+    """Sync data between AWS and local databases.
+
+    Reads in the AWS and local DataFrames, compares them, and identifies
+    new records based on send_id. Upserts the local db with the new records.
+    """
+    df_aws = read_table("sends", use_aws=True)
+    df_local = read_table("sends", use_aws=False)
+    df_new = df_aws[~df_aws['send_id'].isin(df_local['send_id'])]
+
+    write_dataframe(
+        df_new,
+        "sends",
+        use_aws=False,
+        if_exists='upsert'
+    )
