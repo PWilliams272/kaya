@@ -1,6 +1,5 @@
 import os
 import pandas as pd
-from dotenv import load_dotenv
 from sqlalchemy.engine import Engine
 from sqlalchemy import (
     create_engine, Table, MetaData, inspect, text, Column, String
@@ -9,12 +8,15 @@ from sqlalchemy.types import Boolean, Integer, Float
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 import logging
+from pathlib import Path
 
-load_dotenv()
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Set ~/.kaya as the base directory and create it if it doesn't exist
+BASE_DIR = Path().home() / ".kaya"
+os.makedirs(BASE_DIR, exist_ok=True)
+
 LOCAL_DB_URL_DEFAULT = (
-    f"sqlite:///{os.path.join(BASE_DIR, 'data', 'kaya_data.db')}"
+    f"sqlite:///{BASE_DIR / 'kaya_data.db'}"
 )
 
 LOCAL_DB_URL = os.getenv('LOCAL_DB_URL', LOCAL_DB_URL_DEFAULT)
@@ -192,3 +194,21 @@ def read_table(
     engine = get_engine(use_aws=use_aws)
     schema = os.getenv('AWS_DB_SCHEMA') if use_aws else None
     return pd.read_sql_table(table_name, engine, schema=schema)
+
+
+def sync_data():
+    """Sync data between AWS and local databases.
+
+    Reads in the AWS and local DataFrames, compares them, and identifies
+    new records based on send_id. Upserts the local db with the new records.
+    """
+    df_aws = read_table("sends", use_aws=True)
+    df_local = read_table("sends", use_aws=False)
+    df_new = df_aws[~df_aws['send_id'].isin(df_local['send_id'])]
+
+    write_dataframe(
+        df_new,
+        "sends",
+        use_aws=False,
+        if_exists='upsert'
+    )
