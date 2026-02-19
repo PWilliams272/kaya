@@ -20,7 +20,7 @@ jobs:
       - name: Create deployment package directory
         run: |
           mkdir lambda_build
-          rsync -av --exclude 'app/' kaya/ lambda_build/kaya/
+          rsync -av --exclude 'app/' src/kaya/ lambda_build/kaya/
           cp lambda_deployment/requirements.txt lambda_build/requirements.txt
 
       - name: Install dependencies
