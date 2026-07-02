@@ -1,5 +1,5 @@
 tqdm>=4.60,<5.0
+requests>=2.25,<3.0
 gender-guesser>=0.4,<1.0
 sqlalchemy>=1.4,<3.0
-psycopg2-binary>=2.9,<3.0
 python-dotenv>=0.19,<2.0

@@ -5,6 +5,12 @@ import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 from kaya.db_manager import write_dataframe, get_engine
 from kaya.secrets import load_secrets, write_secrets
+from kaya.s3_storage import (
+    S3SendRunWriter,
+    has_s3_storage_config,
+    read_recent_send_ids,
+    write_recent_send_state,
+)
 import logging
 
 USER_AGENT = (
@@ -26,6 +32,72 @@ HEADERS = {
 # Set up logger for this module
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+
+def _resolve_storage_backend(
+    storage_backend: str,
+    use_aws: bool
+) -> str:
+    """Resolve the send storage backend for the current run."""
+    if storage_backend not in {'auto', 'db', 's3'}:
+        raise ValueError(
+            "storage_backend must be one of 'auto', 'db', or 's3'."
+        )
+    if storage_backend == 'auto':
+        if use_aws and has_s3_storage_config():
+            return 's3'
+        return 'db'
+    if storage_backend == 's3' and not has_s3_storage_config():
+        raise ValueError(
+            "KAYA_S3_BUCKET must be set when storage_backend='s3'."
+        )
+    return storage_backend
+
+
+def _prepare_batch_dataframe(
+    batch_df: pd.DataFrame
+) -> pd.DataFrame:
+    """Normalize batch dtypes before persistence."""
+    batch_df = batch_df.copy()
+    if 'is_private' in batch_df.columns:
+        batch_df['is_private'] = batch_df['is_private'].fillna(0).astype(int)
+    if 'is_premium' in batch_df.columns:
+        batch_df['is_premium'] = batch_df['is_premium'].fillna(0).astype(int)
+    if 'stiffness' in batch_df.columns:
+        batch_df['stiffness'] = batch_df['stiffness'].astype(int)
+    if 'ascent_count' in batch_df.columns:
+        batch_df['ascent_count'] = batch_df['ascent_count'].astype(int)
+    return batch_df
+
+
+def _write_batch(
+    batch_df: pd.DataFrame,
+    gym_id: Union[str, int],
+    use_aws: bool,
+    storage_backend: str,
+    s3_writer: Optional[S3SendRunWriter],
+    batch_index: int,
+) -> None:
+    """Persist a batch to the selected storage backend."""
+    if storage_backend == 's3':
+        if s3_writer is None:
+            raise ValueError("S3 writer is required for S3 storage backend.")
+        key = s3_writer.write_batch(batch_df, batch_index=batch_index)
+        logger.info(
+            "Wrote %s rows for gym_id=%s to s3://%s/%s",
+            len(batch_df),
+            gym_id,
+            s3_writer.bucket,
+            key,
+        )
+        return
+
+    write_dataframe(
+        batch_df,
+        'sends',
+        use_aws=use_aws,
+        if_exists='upsert'
+    )
 
 
 def update_tokens(
@@ -407,7 +479,8 @@ def get_data_for_gym(
 
 def get_existing_send_ids(
     gym_id: Union[str, int],
-    use_aws: bool = False
+    use_aws: bool = False,
+    storage_backend: str = 'auto'
 ) -> List[Any]:
     """Get a list of existing send IDs for a gym from the database.
 
@@ -419,6 +492,13 @@ def get_existing_send_ids(
     Returns:
         List[Any]: List of send IDs.
     """
+    resolved_storage_backend = _resolve_storage_backend(
+        storage_backend,
+        use_aws=use_aws
+    )
+    if resolved_storage_backend == 's3':
+        return read_recent_send_ids(str(gym_id))
+
     engine = get_engine(use_aws=use_aws)
     schema = os.getenv('AWS_DB_SCHEMA') if use_aws else None
     table = 'sends'
@@ -439,8 +519,10 @@ def update_gym_data(
     gym_id: Union[str, int],
     mode: str = 'incremental',
     use_aws: bool = False,
+    storage_backend: str = 'auto',
     batch_size: int = 1000,
     start_offset: int = 0,
+    max_offset_retries: int = 3,
     log_level: Optional[int] = None
 ) -> Optional[pd.DataFrame]:
     """Pull data for a gym and write to the database in batches.
@@ -452,10 +534,15 @@ def update_gym_data(
             Defaults to 'incremental'.
         use_aws (bool, optional): Whether to use AWS database. Defaults to
             False.
+        storage_backend (str, optional): Storage backend to use for writes and
+            incremental state. One of 'auto', 'db', or 's3'. Defaults to
+            'auto'.
         batch_size (int, optional): Number of records to write per batch.
             Defaults to 1000.
         start_offset (int, optional): Starting offset for data pull. Defaults
             to 0.
+        max_offset_retries (int, optional): Maximum retries for the same API
+            offset before failing the current gym update. Defaults to 3.
         log_level (Optional[int], optional): Logging level. Defaults to None.
 
     Returns:
@@ -469,15 +556,39 @@ def update_gym_data(
             formatter = logging.Formatter('[%(levelname)s] %(message)s')
             handler.setFormatter(formatter)
             logger.addHandler(handler)
+    storage_backend = _resolve_storage_backend(
+        storage_backend,
+        use_aws=use_aws
+    )
     offset = start_offset
     all_data = []
     total_written = 0
+    batch_index = 0
+    fetched_send_ids: List[str] = []
+    existing_recent_send_ids: List[str] = []
+    s3_writer: Optional[S3SendRunWriter] = None
+    offset_retry_count = 0
+
+    if storage_backend == 's3':
+        s3_writer = S3SendRunWriter(str(gym_id))
+        logger.info(
+            "Using S3 storage backend for gym_id=%s into bucket '%s'.",
+            gym_id,
+            s3_writer.bucket,
+        )
 
     if mode == 'incremental':
         logger.debug(
             f"Reading existing send_ids from table 'sends' (use_aws={use_aws})"
         )
-        seen_send_ids = set(get_existing_send_ids(gym_id, use_aws=use_aws))
+        existing_recent_send_ids = [
+            str(send_id) for send_id in get_existing_send_ids(
+                gym_id,
+                use_aws=use_aws,
+                storage_backend=storage_backend
+            )
+        ]
+        seen_send_ids = set(existing_recent_send_ids)
     else:
         seen_send_ids = set()
 
@@ -498,15 +609,37 @@ def update_gym_data(
         logger.debug(f"Fetching data for gym_id={gym_id} at offset={offset}")
         try:
             df = get_data_for_gym(gym_id, offset=offset)
+            offset_retry_count = 0
         except Exception as e:
-            logger.debug(f"Error at offset {offset}: {e}")
-            logger.warning(f"Error at offset {offset}: {e}")
-            time.sleep(0.5)
+            offset_retry_count += 1
+            logger.debug(
+                "Error at offset %s for gym_id=%s (attempt %s/%s): %s",
+                offset,
+                gym_id,
+                offset_retry_count,
+                max_offset_retries,
+                e,
+            )
+            logger.warning(
+                "Error at offset %s for gym_id=%s (attempt %s/%s): %s",
+                offset,
+                gym_id,
+                offset_retry_count,
+                max_offset_retries,
+                e,
+            )
+            if offset_retry_count >= max_offset_retries:
+                raise RuntimeError(
+                    f"Exceeded max retries at offset {offset} for gym "
+                    f"{gym_id}."
+                ) from e
+            time.sleep(min(0.5 * offset_retry_count, 5.0))
             continue
         if df.empty:
             logger.debug(f"No data returned at offset {offset}. Stopping.")
             break
         logger.debug(f"Pulled {len(df)} rows at offset {offset}.")
+        fetched_send_ids.extend(str(send_id) for send_id in df['send_id'])
         if mode == 'incremental':
             if seen_send_ids:
                 overlap = set(df['send_id']) & seen_send_ids
@@ -525,40 +658,28 @@ def update_gym_data(
             seen_send_ids.update(df['send_id'])
         all_data.append(df)
         if sum(len(d) for d in all_data) >= batch_size:
-            batch_df = pd.concat(all_data, ignore_index=True)
-            # Ensure correct dtypes before writing
-            if 'is_private' in batch_df.columns:
-                batch_df['is_private'] = (
-                    batch_df['is_private'].fillna(0).astype(int)
-                )
-            if 'is_premium' in batch_df.columns:
-                batch_df['is_premium'] = (
-                    batch_df['is_premium'].fillna(0).astype(int)
-                )
-            if 'stiffness' in batch_df.columns:
-                batch_df['stiffness'] = (
-                    batch_df['stiffness'].astype(int)
-                )
-            if 'ascent_count' in batch_df.columns:
-                batch_df['ascent_count'] = (
-                    batch_df['ascent_count'].astype(int)
-                )
+            batch_df = _prepare_batch_dataframe(
+                pd.concat(all_data, ignore_index=True)
+            )
             logger.debug(
                 f"Writing batch of {len(batch_df)} rows to table 'sends' "
-                f"(use_aws={use_aws})"
+                f"(backend={storage_backend}, use_aws={use_aws})"
             )
             logger.info(
                 f"Writing batch of {len(batch_df)} rows to table 'sends' "
-                f"(use_aws={use_aws})"
+                f"(backend={storage_backend}, use_aws={use_aws})"
             )
-            write_dataframe(
+            _write_batch(
                 batch_df,
-                'sends',
+                gym_id=gym_id,
                 use_aws=use_aws,
-                if_exists='upsert'
+                storage_backend=storage_backend,
+                s3_writer=s3_writer,
+                batch_index=batch_index,
             )
             total_written += len(batch_df)
             all_data = []
+            batch_index += 1
         if len(df) < 15:
             logger.debug(
                 f"Fewer than 15 rows returned at offset {offset}. "
@@ -571,41 +692,40 @@ def update_gym_data(
 
     # Write any remaining data
     if all_data:
-        batch_df = pd.concat(all_data, ignore_index=True)
-        # Ensure correct dtypes before writing
-        if 'is_private' in batch_df.columns:
-            batch_df['is_private'] = (
-                batch_df['is_private'].fillna(0).astype(int)
-            )
-        if 'is_premium' in batch_df.columns:
-            batch_df['is_premium'] = (
-                batch_df['is_premium'].fillna(0).astype(int)
-            )
-        if 'stiffness' in batch_df.columns:
-            batch_df['stiffness'] = (
-                batch_df['stiffness'].astype(int)
-            )
-        if 'ascent_count' in batch_df.columns:
-            batch_df['ascent_count'] = (
-                batch_df['ascent_count'].astype(int)
-            )
+        batch_df = _prepare_batch_dataframe(
+            pd.concat(all_data, ignore_index=True)
+        )
         logger.debug(
             f"Writing final batch of {len(batch_df)} rows to table 'sends' "
-            f"(use_aws={use_aws})"
+            f"(backend={storage_backend}, use_aws={use_aws})"
         )
         logger.info(
             f"Writing final batch of {len(batch_df)} rows to table 'sends' "
-            f"(use_aws={use_aws})"
+            f"(backend={storage_backend}, use_aws={use_aws})"
         )
-        write_dataframe(
+        _write_batch(
             batch_df,
-            'sends',
+            gym_id=gym_id,
             use_aws=use_aws,
-            if_exists='upsert'
+            storage_backend=storage_backend,
+            s3_writer=s3_writer,
+            batch_index=batch_index,
         )
         total_written += len(batch_df)
         logger.info(f"Done writing data. Total rows written: {total_written}")
-        return batch_df
+        final_batch_df = batch_df
     else:
         logger.info(f"No new data found. Total rows written: {total_written}")
-        return None
+        final_batch_df = None
+
+    if storage_backend == 's3' and s3_writer is not None:
+        write_recent_send_state(
+            gym_id=str(gym_id),
+            new_send_ids=fetched_send_ids,
+            existing_send_ids=existing_recent_send_ids,
+            total_written=total_written,
+            run_id=s3_writer.run_id,
+            run_started_at=s3_writer.run_started_at,
+        )
+
+    return final_batch_df

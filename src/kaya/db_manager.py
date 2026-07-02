@@ -11,18 +11,26 @@ import logging
 from pathlib import Path
 
 
-# Set ~/.kaya as the base directory and create it if it doesn't exist
-BASE_DIR = Path().home() / ".kaya"
+# Use /tmp in Lambda because the home directory is read-only there.
+if 'AWS_LAMBDA_FUNCTION_NAME' in os.environ:
+    BASE_DIR = Path('/tmp/.kaya')
+else:
+    BASE_DIR = Path().home() / '.kaya'
 os.makedirs(BASE_DIR, exist_ok=True)
 
 LOCAL_DB_URL_DEFAULT = (
     f"sqlite:///{BASE_DIR / 'kaya_data.db'}"
 )
 
-LOCAL_DB_URL = os.getenv('LOCAL_DB_URL', LOCAL_DB_URL_DEFAULT)
-AWS_DB_URL = os.getenv('AWS_DB_URL')
-
 logger = logging.getLogger(__name__)
+
+
+def _get_local_db_url() -> str:
+    return os.getenv('LOCAL_DB_URL', LOCAL_DB_URL_DEFAULT)
+
+
+def _get_aws_db_url() -> str | None:
+    return os.getenv('AWS_DB_URL')
 
 
 def get_engine(
@@ -36,14 +44,14 @@ def get_engine(
     Returns:
         Engine: SQLAlchemy engine instance.
     """
-    db_url = AWS_DB_URL if use_aws else LOCAL_DB_URL
+    db_url = _get_aws_db_url() if use_aws else _get_local_db_url()
     if db_url is None:
         raise ValueError(
             "Database URL not set. Please set LOCAL_DB_URL or "
             "AWS_DB_URL in your .env file."
         )
     engine = create_engine(db_url)
-    if use_aws:
+    if use_aws and engine.dialect.name == 'postgresql':
         schema = os.getenv('AWS_DB_SCHEMA', 'public')
         # Set the PostgreSQL search_path to the desired schema
         with engine.connect() as conn:
@@ -193,6 +201,10 @@ def read_table(
     """
     engine = get_engine(use_aws=use_aws)
     schema = os.getenv('AWS_DB_SCHEMA') if use_aws else None
+    print(
+        f"Reading table {table_name} from {'AWS' if use_aws else 'local'} "
+        f"database..."
+    )
     return pd.read_sql_table(table_name, engine, schema=schema)
 
 
@@ -206,6 +218,7 @@ def sync_data():
     df_local = read_table("sends", use_aws=False)
     df_new = df_aws[~df_aws['send_id'].isin(df_local['send_id'])]
 
+    print("Writing new records to local database...")
     write_dataframe(
         df_new,
         "sends",
