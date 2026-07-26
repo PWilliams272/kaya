@@ -3,14 +3,51 @@ name: Deploy Kaya Lambda
 on:
   push:
     branches:
+      - main
       - prod
+  workflow_dispatch:
+    inputs:
+      target_environment:
+        description: "Deployment environment"
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - prod
+
+concurrency:
+  group: kaya-deploy-${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
+    name: Deploy ${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || github.ref_name }} Lambda
+    if: >-
+      github.ref_name == 'prod' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.ref_name == 'main' && vars.LAMBDA_FUNCTION_NAME != '')
     runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || (github.ref_name == 'prod' && 'prod' || 'dev') }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || secrets.AWS_REGION || 'us-east-2' }}
+      LAMBDA_FUNCTION_NAME: ${{ vars.LAMBDA_FUNCTION_NAME || (github.ref_name == 'prod' && 'kaya-data-updater' || '') }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref_name || github.ref }}
+
+      - name: Validate deployment target
+        run: |
+          if [ -z "$LAMBDA_FUNCTION_NAME" ]; then
+            echo "No LAMBDA_FUNCTION_NAME configured for this environment."
+            echo "Set an environment-scoped variable before enabling this deploy path."
+            exit 1
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -37,8 +74,8 @@ jobs:
         with:
           aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws_region: ${{ secrets.AWS_REGION || 'us-east-2' }}
-          function_name: kaya-data-updater
+          aws_region: ${{ env.AWS_REGION }}
+          function_name: ${{ env.LAMBDA_FUNCTION_NAME }}
           zip_file: lambda_deploy.zip
           handler: kaya/update_data_script.lambda_handler
           runtime: python3.11
