@@ -2,7 +2,7 @@ import gzip
 import json
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 from uuid import uuid4
 
 import boto3
@@ -18,6 +18,21 @@ DEFAULT_HISTORICAL_EXPORT_NAME = "rds-backfill"
 def has_s3_storage_config() -> bool:
     """Return True when the S3-backed updater path is configured."""
     return bool(os.getenv("KAYA_S3_BUCKET"))
+
+
+def get_s3_bucket() -> str:
+    """Return the configured Kaya S3 bucket name."""
+    return _get_bucket()
+
+
+def get_s3_prefix() -> str:
+    """Return the configured Kaya S3 prefix."""
+    return _get_prefix()
+
+
+def get_s3_client() -> Any:
+    """Return an S3 client using the same resolution logic as the updater."""
+    return _get_s3_client()
 
 
 def _get_bucket() -> str:
@@ -79,6 +94,72 @@ def read_recent_send_ids(gym_id: str) -> List[str]:
     body = response["Body"].read().decode("utf-8")
     state = json.loads(body)
     return [str(send_id) for send_id in state.get("recent_send_ids", [])]
+
+
+def read_recent_send_state(gym_id: str) -> Optional[Dict[str, Any]]:
+    """Read the full recent-send state payload for one gym from S3."""
+    client = _get_s3_client()
+    try:
+        response = client.get_object(Bucket=_get_bucket(), Key=_state_key(gym_id))
+    except ClientError as exc:
+        error_code = exc.response.get("Error", {}).get("Code")
+        if error_code in {"NoSuchKey", "404"}:
+            return None
+        raise
+
+    body = response["Body"].read().decode("utf-8")
+    state = json.loads(body)
+    state["gym_id"] = str(state.get("gym_id", gym_id))
+    state["recent_send_ids"] = [
+        str(send_id) for send_id in state.get("recent_send_ids", [])
+    ]
+    return state
+
+
+def list_recent_send_states(
+    gym_ids: Optional[Sequence[str]] = None,
+) -> List[Dict[str, Any]]:
+    """Read recent-send state payloads for the requested gyms or all gyms."""
+    if gym_ids:
+        states: List[Dict[str, Any]] = []
+        for gym_id in gym_ids:
+            state = read_recent_send_state(str(gym_id))
+            if state is not None:
+                states.append(state)
+        return states
+
+    client = _get_s3_client()
+    bucket = _get_bucket()
+    prefix = f"{_get_prefix()}/state/"
+    continuation_token: Optional[str] = None
+    states = []
+
+    while True:
+        request: Dict[str, Any] = {
+            "Bucket": bucket,
+            "Prefix": prefix,
+        }
+        if continuation_token is not None:
+            request["ContinuationToken"] = continuation_token
+
+        response = client.list_objects_v2(**request)
+        for item in response.get("Contents", []):
+            key = item["Key"]
+            state_response = client.get_object(Bucket=bucket, Key=key)
+            body = state_response["Body"].read().decode("utf-8")
+            state = json.loads(body)
+            inferred_gym_id = key.rsplit("gym_id=", 1)[-1].removesuffix(".json")
+            state["gym_id"] = str(state.get("gym_id", inferred_gym_id))
+            state["recent_send_ids"] = [
+                str(send_id) for send_id in state.get("recent_send_ids", [])
+            ]
+            states.append(state)
+
+        if not response.get("IsTruncated"):
+            break
+        continuation_token = response.get("NextContinuationToken")
+
+    return states
 
 
 def write_recent_send_state(

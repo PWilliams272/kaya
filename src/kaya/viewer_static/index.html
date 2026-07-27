@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kaya Local Viewer</title>
+    <meta name="kaya-viewer-data-mode" content="api" />
+    <link rel="stylesheet" href="/static/tokens.css" />
+    <link rel="stylesheet" href="/static/app.css?v=2" />
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <div class="eyebrow">Kaya</div>
+          <div class="brand-title">Local Viewer</div>
+          <div class="brand-subtitle">SQLite-backed interactive exploration</div>
+        </div>
+
+        <div class="sidebar-note card compact-card">
+          <div class="eyebrow">Data Source</div>
+          <div class="metric-inline" id="local-db-path">Loading...</div>
+          <p class="muted-copy">This viewer reads from your local SQLite materialization and the shared data-access layer.</p>
+        </div>
+
+        <div class="sidebar-note card compact-card">
+          <div class="eyebrow">Segment Rule</div>
+          <p class="muted-copy">Active users satisfy the notebook-aligned send, day, and sends-per-day thresholds.</p>
+        </div>
+      </aside>
+
+      <main class="main-shell">
+        <header class="topbar">
+          <div>
+            <div class="eyebrow">Exploration</div>
+            <h1>Kaya Activity Console</h1>
+          </div>
+          <div class="topbar-actions">
+            <div class="status-pill info-pill">Local Only</div>
+            <button id="theme-toggle" class="theme-toggle-button" type="button" aria-label="Toggle theme"></button>
+          </div>
+        </header>
+
+        <div class="tab-bar">
+          <button class="tab-button active" type="button" data-tab="gym-comparison">Gym Comparison</button>
+          <button class="tab-button" type="button" data-tab="body-morphology">Body Morphology</button>
+          <button class="tab-button" type="button" data-tab="user-segmentation">User Segmentation</button>
+          <button class="tab-button" type="button" data-tab="data-overview">Data Overview</button>
+        </div>
+
+        <section id="tab-gym-comparison" class="tab-pane active">
+          <div class="section-title-row">
+            <div>
+              <div class="eyebrow">Comparison</div>
+              <h2>Gym-To-Gym Performance</h2>
+            </div>
+          </div>
+
+          <div class="card chart-card compare-toolbar">
+            <div class="control-grid control-grid-compact">
+              <label class="inline-select-control">
+                <span>Reference gym</span>
+                <div id="compare-ref-gym-select" class="combo-select">
+                  <div class="combo-control">
+                    <input class="combo-input" type="text" placeholder="Select a gym" autocomplete="off" />
+                  </div>
+                  <div class="combo-panel" hidden>
+                    <div class="combo-options"></div>
+                  </div>
+                </div>
+              </label>
+              <label class="inline-select-control">
+                <span>Compare against</span>
+                <div id="compare-focus-gym-select" class="combo-select">
+                  <div class="combo-control">
+                    <input class="combo-input" type="text" placeholder="Select a gym" autocomplete="off" />
+                  </div>
+                  <div class="combo-panel" hidden>
+                    <div class="combo-options"></div>
+                  </div>
+                </div>
+              </label>
+              <label class="inline-select-control">
+                <span>Discipline</span>
+                <select id="compare-discipline-select">
+                  <option value="bouldering">Bouldering</option>
+                  <option value="routes">Routes</option>
+                </select>
+              </label>
+              <label class="inline-select-control">
+                <span>Minimum days at gym</span>
+                <select id="compare-min-days-select">
+                  <option value="1">1 day</option>
+                  <option value="2" selected>2 days</option>
+                  <option value="3">3 days</option>
+                  <option value="4">4 days</option>
+                  <option value="5">5 days</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="card compact-card note-card">
+            <div id="gym-comparison-note" class="muted-copy">Loading comparison note...</div>
+          </div>
+
+          <div id="gym-comparison-focus-row" class="comparison-grid"></div>
+
+          <div class="card chart-card compare-toolbar">
+            <div class="control-grid control-grid-stack">
+              <div>
+                <div class="control-label">Comparison gyms (grade delta histogram)</div>
+                <div id="compare-gyms-picker" class="combo-select">
+                  <div class="combo-control">
+                    <div class="combo-pills"></div>
+                    <input class="combo-input" type="text" placeholder="Choose gyms" autocomplete="off" />
+                  </div>
+                  <div class="combo-panel" hidden>
+                    <div class="combo-options"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card chart-card">
+            <div class="section-heading">Grade Delta Distribution</div>
+            <div id="gym-comparison-delta-chart" class="chart-host chart-host-short"></div>
+          </div>
+        </section>
+
+        <section id="tab-body-morphology" class="tab-pane">
+          <div class="section-title-row">
+            <div>
+              <div class="eyebrow">Morphology</div>
+              <h2>Height, Ape Index, And Max Grade</h2>
+            </div>
+          </div>
+
+          <div class="card chart-card compare-toolbar">
+            <div class="control-grid control-grid-compact">
+              <label class="inline-select-control">
+                <span>Audience</span>
+                <select id="body-active-only-select">
+                  <option value="all">All users</option>
+                  <option value="active" selected>Active users only</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="card compact-card note-card">
+            <div id="body-morphology-note" class="muted-copy">Loading morphology note...</div>
+          </div>
+
+          <div class="chart-grid two-up-grid">
+            <div class="card chart-card">
+              <div class="section-heading">Boulder Grade vs Height</div>
+              <div id="boulder-height-grade-chart" class="chart-host"></div>
+            </div>
+            <div class="card chart-card">
+              <div class="section-heading">Route Grade vs Height</div>
+              <div id="route-height-grade-chart" class="chart-host"></div>
+            </div>
+            <div class="card chart-card">
+              <div class="section-heading">Boulder Grade vs Ape Index</div>
+              <div id="boulder-ape-grade-chart" class="chart-host"></div>
+            </div>
+            <div class="card chart-card">
+              <div class="section-heading">Route Grade vs Ape Index</div>
+              <div id="route-ape-grade-chart" class="chart-host"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-user-segmentation" class="tab-pane">
+          <div class="section-title-row">
+            <div>
+              <div class="eyebrow">Segmentation</div>
+              <h2>Activity Splits And Behavior Shape</h2>
+            </div>
+          </div>
+
+          <div class="kpi-grid">
+            <div class="card kpi-card"><div class="eyebrow">Active Users</div><div class="kpi-value" id="segment-active-count">-</div></div>
+            <div class="card kpi-card"><div class="eyebrow">Inactive Users</div><div class="kpi-value" id="segment-inactive-count">-</div></div>
+            <div class="card kpi-card"><div class="eyebrow">Corner Sample</div><div class="kpi-value" id="segment-sample-count">-</div></div>
+          </div>
+
+          <div class="card compact-card note-card">
+            <div id="segment-note" class="muted-copy">Loading segment rule...</div>
+          </div>
+
+          <div class="chart-grid two-up-grid">
+            <div class="card chart-card">
+              <div class="section-heading">Height Distribution</div>
+              <div id="segment-height-chart" class="chart-host chart-host-short"></div>
+            </div>
+            <div class="card chart-card">
+              <div class="section-heading">Ape Index Distribution</div>
+              <div id="segment-ape-chart" class="chart-host chart-host-short"></div>
+            </div>
+            <div class="card chart-card chart-card-wide">
+              <div class="section-heading">Corner Plot</div>
+              <div id="segment-corner-chart" class="chart-host chart-host-corner"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-data-overview" class="tab-pane">
+          <div class="section-title-row">
+            <div>
+              <div class="eyebrow">Data</div>
+              <h2>Tracked Coverage And Send Volume</h2>
+            </div>
+          </div>
+
+          <div class="kpi-grid">
+            <div class="card kpi-card"><div class="eyebrow">Total Sends</div><div class="kpi-value" id="total-sends">-</div></div>
+            <div class="card kpi-card"><div class="eyebrow">Unique Users</div><div class="kpi-value" id="unique-users">-</div></div>
+            <div class="card kpi-card"><div class="eyebrow">Tracked Gyms</div><div class="kpi-value" id="unique-gyms">-</div></div>
+            <div class="card kpi-card"><div class="eyebrow">Date Range</div><div class="kpi-value kpi-value-small" id="date-range">-</div></div>
+          </div>
+
+          <div class="card chart-card compare-toolbar">
+            <div class="control-grid control-grid-compact">
+              <label class="inline-select-control">
+                <span>Sends overlay gym</span>
+                <select id="time-gym-select">
+                  <option value="">All gyms</option>
+                </select>
+              </label>
+              <label class="inline-select-control">
+                <span>Time grain</span>
+                <select id="freq-select">
+                  <option value="D">Daily</option>
+                  <option value="W">Weekly</option>
+                  <option value="M">Monthly</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="control-grid control-grid-stack">
+              <div>
+                <div class="control-label">Grade-distribution overlays</div>
+                <div id="grade-overlay-picker" class="combo-select">
+                  <div class="combo-control">
+                    <div class="combo-pills"></div>
+                    <input class="combo-input" type="text" placeholder="Choose gyms" autocomplete="off" />
+                  </div>
+                  <div class="combo-panel" hidden>
+                    <div class="combo-options"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="chart-grid two-up-grid">
+            <div class="card chart-card chart-card-wide">
+              <div class="section-heading">Sends Over Time</div>
+              <div id="time-series-chart" class="chart-host"></div>
+            </div>
+            <div class="card chart-card">
+              <div class="section-heading">Bouldering Grade Distribution</div>
+              <div id="boulder-grade-chart" class="chart-host"></div>
+            </div>
+            <div class="card chart-card">
+              <div class="section-heading">Routes Grade Distribution</div>
+              <div id="route-grade-chart" class="chart-host"></div>
+            </div>
+            <div class="card chart-card chart-card-wide">
+              <div class="section-heading">Number Of Data Points By Gym</div>
+              <div id="gym-counts-chart" class="chart-host chart-host-tall"></div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="/static/app.js?v=5"></script>
+  </body>
+</html>
