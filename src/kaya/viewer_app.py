@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -12,11 +13,25 @@ from kaya.viewer_payloads import VIEWER_ARTIFACTS_DIR, ViewerPayloadBuilder
 
 STATIC_DIR = Path(__file__).with_name('viewer_static')
 
+# Set KAYA_VIEWER_ENV=production (e.g. via the systemd unit's EnvironmentFile)
+# to disable dev-only behavior: the reloader in main(), the wildcard/no-cache
+# defaults below, and the no-cache-everything middleware.
+IS_PRODUCTION = os.getenv('KAYA_VIEWER_ENV', 'development') == 'production'
+
+# No real site origin is known yet (subdomain not finalized/deployed), so this
+# stays configurable rather than hardcoded. Comma-separated, e.g.
+# KAYA_VIEWER_ALLOWED_ORIGINS=https://kaya.peterwilliams.dev
+_allowed_origins_env = os.getenv('KAYA_VIEWER_ALLOWED_ORIGINS', '')
+ALLOWED_ORIGINS = [origin.strip() for origin in _allowed_origins_env.split(',') if origin.strip()]
+
 app = FastAPI(title='Kaya Local Viewer')
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'],
-    allow_credentials=True,
+    # allow_origins=['*'] with allow_credentials=True is a combination
+    # browsers reject outright, so credentials only turn on once real
+    # origins are configured.
+    allow_origins=ALLOWED_ORIGINS or ['*'],
+    allow_credentials=bool(ALLOWED_ORIGINS),
     allow_methods=['*'],
     allow_headers=['*'],
 )
@@ -24,12 +39,15 @@ app.add_middleware(
 
 @app.middleware('http')
 async def disable_caching(request: Request, call_next):
-    # This is a local-only dev tool that's actively iterated on; stale browser
-    # caches of static JSON/JS have repeatedly hidden real fixes, so make
-    # every response explicitly non-cacheable rather than rely on reloads.
+    # This is a local-only dev-loop hack: stale browser caches of static
+    # JSON/JS have repeatedly hidden real fixes, so every response is
+    # explicitly non-cacheable rather than relying on reloads. Skipped in
+    # production so the ~80KB JS bundle and multi-MB JSON payloads can
+    # actually be cached.
     response = await call_next(request)
-    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
-    response.headers['Pragma'] = 'no-cache'
+    if not IS_PRODUCTION:
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
     return response
 
 app.mount('/static', StaticFiles(directory=STATIC_DIR), name='static')
@@ -121,7 +139,11 @@ def get_state_preview(limit: int = 20) -> List[Dict[str, Any]]:
 
 
 def main() -> None:
-    uvicorn.run('kaya.viewer_app:app', host='127.0.0.1', port=8000, reload=True)
+    # Production is meant to be launched via the systemd unit invoking
+    # `uvicorn kaya.viewer_app:app` directly (see KAYA_VIEWER_DESIGN_HANDOFF.md),
+    # which bypasses this function entirely. reload is still gated here too,
+    # so main() itself is never accidentally hot-reloading in production.
+    uvicorn.run('kaya.viewer_app:app', host='127.0.0.1', port=8000, reload=not IS_PRODUCTION)
 
 
 if __name__ == '__main__':

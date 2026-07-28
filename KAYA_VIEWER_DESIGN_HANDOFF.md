@@ -386,3 +386,40 @@ What to actually do:
    no-cache middleware).
 4. Decide the data-sync approach.
 5. Only then is this ready to hand back for the nginx/systemd side of the work.
+
+## Update — 2026-07-27: steps 1-3 done, data-path decided, deployment execution still pending
+
+Recolor/retheme (step 1-2, plus the follow-up sidebar/background/pill corrections from the
+other update sections above) and production hardening (step 3) are both done in this repo.
+The data-sync decision (step 4, deployment item 6) was also made: **static JSON, not a
+SQLite host-sync**. Reasoning: every `fetchViewerData` call site in `app.js` was audited —
+nothing ever requests a date-range filter (no date-picker UI exists), and the only
+gym-scoped live queries (`timeSeries`, `gradeDistribution`) already have precomputed
+per-gym static files. So static mode loses nothing the current UI actually uses, and it's
+simpler ops (no cron-driven sync job, no 213MB file to keep fresh on the host) — consistent
+with this repo's own storage notes favoring curated/viewer-cache S3 artifacts over live DB
+coupling. `index.html`'s data-mode meta tag now defaults to `static`.
+
+Production hardening in `viewer_app.py`, all gated behind one env var so local dev behavior
+is unchanged by default:
+
+- `KAYA_VIEWER_ENV=production` — disables the reloader in `main()` (though production is
+  expected to invoke `uvicorn kaya.viewer_app:app` directly per the systemd template below,
+  bypassing `main()` entirely either way) and disables the no-cache-everything middleware.
+- `KAYA_VIEWER_ALLOWED_ORIGINS=https://kaya.peterwilliams.dev` (comma-separated if more than
+  one) — scopes CORS to real origins and enables `allow_credentials`; unset, it falls back
+  to the current wildcard/no-credentials dev behavior.
+
+Both belong in the systemd unit's `EnvironmentFile` once that gets set up.
+
+**Explicitly not done, and not to be treated as approved by any of the above**: the actual
+S3 upload of precomputed artifacts against the production bucket, and any real Lambda
+deploy. The Lambda *pattern* is decided — a separate scheduled Lambda for viewer-cache
+generation, not a new mode bolted onto `kaya-data-updater`, matching this pipeline's
+existing preference for decomposition (dispatch → SQS fanout → per-gym workers) over
+bundling unrelated failure modes into one function. But deciding the pattern is not the
+same as executing it — both the S3 upload and the Lambda deploy are hard-to-reverse,
+production-affecting actions that need a deliberate go/no-go from the repo owner, not
+something to green-light as a side effect of an architecture choice. Nothing here should be
+read as that go-ahead. The systemd unit and DNS/nginx/`auth_request` pieces remain blocked
+on real EC2 host access, same as before.
