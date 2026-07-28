@@ -1,20 +1,40 @@
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/static/fonts/ibm-plex-sans-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/static/fonts/ibm-plex-sans-700.woff2') format('woff2');
+}
+
 :root {
-  --lg-bg: #0a0a0a;
-  --lg-surface: #111111;
-  --lg-card: #1a1a1a;
-  --lg-border: #2a2a2a;
-  --lg-border-h: #3a3a3a;
-  --lg-active: rgba(255,255,255,0.06);
+  --lg-bg: #f6f8f9;
+  --lg-surface: #ffffff;
+  --lg-card: #ffffff;
+  --lg-border: #cdd6e0;
+  --lg-border-h: color-mix(in srgb, var(--lg-border), var(--lg-text) 18%);
+  --lg-active: rgba(0,0,0,0.03);
 
-  --lg-text: #ffffff;
-  --lg-text-2: #a0a0a0;
-  --lg-text-3: #666666;
+  --lg-text: #171d27;
+  --lg-text-2: #57657a;
+  --lg-text-3: color-mix(in srgb, var(--lg-text-2), var(--lg-bg) 35%);
 
-  --lg-gold: #ffc000;
-  --lg-success: #16a34a;
-  --lg-warning: #d97706;
-  --lg-danger: #dc2626;
-  --lg-info: #2563eb;
+  --lg-gold: #1976d2;
+  --lg-gold-soft: rgba(25, 118, 210, 0.10);
+  --lg-highlight: #b8752e;
+  --lg-success: #2e8b57;
+  --lg-warning: #a9821b;
+  --lg-danger: #b8382e;
+  --lg-info: #1565c0;
+
+  --lg-shadow-sm: 0 1px 2px rgba(15, 23, 32, 0.07);
+  --lg-shadow-md: 0 6px 16px rgba(15, 23, 32, 0.10);
 
   --fs-2xs: 9px;
   --fs-xs: 10px;
@@ -31,34 +51,69 @@
   --lg-gap: 12px;
   --lg-pad: 24px;
 
-  --lg-radius-xs: 4px;
-  --lg-radius-sm: 6px;
-  --lg-radius-md: 8px;
-  --lg-radius-lg: 10px;
-  --lg-radius-xl: 12px;
+  --lg-radius-xs: 3px;
+  --lg-radius-sm: 3px;
+  --lg-radius-md: 4px;
+  --lg-radius-lg: 5px;
+  --lg-radius-xl: 6px;
 
   --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
   --dur-fast: 150ms;
   --dur-normal: 250ms;
 
-  font-family: 'Nicky Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: var(--fs-base);
   color: var(--lg-text);
   background: var(--lg-bg);
 }
 
-[data-theme='light'] {
-  --lg-bg: #f9fafb;
-  --lg-surface: #ffffff;
-  --lg-card: #ffffff;
-  --lg-border: #e5e7eb;
-  --lg-border-h: #d1d5db;
-  --lg-active: rgba(0,0,0,0.03);
+/* Auto by default: follow the OS/browser preference. [data-theme] on <html>
+   (set by the toggle, persisted to localStorage) overrides it explicitly. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --lg-bg: #0d1420;
+    --lg-surface: #161f2c;
+    --lg-card: #161f2c;
+    --lg-border: #293344;
+    --lg-active: rgba(255,255,255,0.06);
 
-  --lg-text: #111111;
-  --lg-text-2: #555555;
-  --lg-text-3: #999999;
+    --lg-text: #e7ecf3;
+    --lg-text-2: #8fa0b5;
+
+    --lg-gold: #4da6ff;
+    --lg-gold-soft: rgba(77, 166, 255, 0.20);
+    --lg-highlight: #d99a52;
+    --lg-success: #6cc794;
+    --lg-warning: #d9b54a;
+    --lg-danger: #e0685f;
+    --lg-info: #7ac2ff;
+
+    --lg-shadow-sm: 0 0 0 1px rgba(255, 255, 255, 0.03);
+    --lg-shadow-md: 0 8px 20px rgba(0, 0, 0, 0.35);
+  }
+}
+
+:root[data-theme='dark'] {
+  --lg-bg: #0d1420;
+  --lg-surface: #161f2c;
+  --lg-card: #161f2c;
+  --lg-border: #293344;
+  --lg-active: rgba(255,255,255,0.06);
+
+  --lg-text: #e7ecf3;
+  --lg-text-2: #8fa0b5;
+
+  --lg-gold: #4da6ff;
+  --lg-gold-soft: rgba(77, 166, 255, 0.20);
+  --lg-highlight: #d99a52;
+  --lg-success: #6cc794;
+  --lg-warning: #d9b54a;
+  --lg-danger: #e0685f;
+  --lg-info: #7ac2ff;
+
+  --lg-shadow-sm: 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --lg-shadow-md: 0 8px 20px rgba(0, 0, 0, 0.35);
 }
 
 *, *::before, *::after {

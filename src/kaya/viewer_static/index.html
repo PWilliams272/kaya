@@ -1,40 +1,22 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Kaya Local Viewer</title>
-    <meta name="kaya-viewer-data-mode" content="api" />
+    <meta name="kaya-viewer-data-mode" content="static" />
     <link rel="stylesheet" href="/static/tokens.css" />
     <link rel="stylesheet" href="/static/app.css?v=2" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   </head>
   <body>
     <div class="app-shell">
-      <aside class="sidebar">
-        <div class="brand-block">
-          <div class="eyebrow">Kaya</div>
-          <div class="brand-title">Local Viewer</div>
-          <div class="brand-subtitle">SQLite-backed interactive exploration</div>
-        </div>
-
-        <div class="sidebar-note card compact-card">
-          <div class="eyebrow">Data Source</div>
-          <div class="metric-inline" id="local-db-path">Loading...</div>
-          <p class="muted-copy">This viewer reads from your local SQLite materialization and the shared data-access layer.</p>
-        </div>
-
-        <div class="sidebar-note card compact-card">
-          <div class="eyebrow">Segment Rule</div>
-          <p class="muted-copy">Active users satisfy the notebook-aligned send, day, and sends-per-day thresholds.</p>
-        </div>
-      </aside>
-
       <main class="main-shell">
         <header class="topbar">
           <div>
             <div class="eyebrow">Exploration</div>
             <h1>Kaya Activity Console</h1>
+            <div class="brand-subtitle">SQLite-backed interactive exploration</div>
           </div>
           <div class="topbar-actions">
             <div class="status-pill info-pill">Local Only</div>
@@ -156,20 +138,36 @@
 
           <div class="chart-grid two-up-grid">
             <div class="card chart-card">
-              <div class="section-heading">Boulder Grade vs Height</div>
+              <div class="section-heading">Boulder Grade vs Height (Scatter)</div>
               <div id="boulder-height-grade-chart" class="chart-host"></div>
             </div>
             <div class="card chart-card">
-              <div class="section-heading">Route Grade vs Height</div>
+              <div class="section-heading">Boulder Grade vs Height (Density Heatmap)</div>
+              <div id="boulder-height-grade-heatmap" class="chart-host"></div>
+            </div>
+            <div class="card chart-card">
+              <div class="section-heading">Route Grade vs Height (Scatter)</div>
               <div id="route-height-grade-chart" class="chart-host"></div>
             </div>
             <div class="card chart-card">
-              <div class="section-heading">Boulder Grade vs Ape Index</div>
+              <div class="section-heading">Route Grade vs Height (Density Heatmap)</div>
+              <div id="route-height-grade-heatmap" class="chart-host"></div>
+            </div>
+            <div class="card chart-card">
+              <div class="section-heading">Boulder Grade vs Ape Index (Scatter)</div>
               <div id="boulder-ape-grade-chart" class="chart-host"></div>
             </div>
             <div class="card chart-card">
-              <div class="section-heading">Route Grade vs Ape Index</div>
+              <div class="section-heading">Boulder Grade vs Ape Index (Density Heatmap)</div>
+              <div id="boulder-ape-grade-heatmap" class="chart-host"></div>
+            </div>
+            <div class="card chart-card">
+              <div class="section-heading">Route Grade vs Ape Index (Scatter)</div>
               <div id="route-ape-grade-chart" class="chart-host"></div>
+            </div>
+            <div class="card chart-card">
+              <div class="section-heading">Route Grade vs Ape Index (Density Heatmap)</div>
+              <div id="route-ape-grade-heatmap" class="chart-host"></div>
             </div>
           </div>
         </section>
@@ -213,6 +211,18 @@
             <div>
               <div class="eyebrow">Data</div>
               <h2>Tracked Coverage And Send Volume</h2>
+            </div>
+          </div>
+
+          <div class="chart-grid two-up-grid">
+            <div class="card compact-card note-card">
+              <div class="eyebrow">Data Source</div>
+              <div class="metric-inline" id="local-db-path">Loading...</div>
+              <p class="muted-copy">This viewer reads from your local SQLite materialization and the shared data-access layer.</p>
+            </div>
+            <div class="card compact-card note-card">
+              <div class="eyebrow">Segment Rule</div>
+              <p class="muted-copy">Active users satisfy the notebook-aligned send, day, and sends-per-day thresholds.</p>
             </div>
           </div>
 

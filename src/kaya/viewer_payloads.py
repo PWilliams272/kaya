@@ -4,24 +4,30 @@ from math import isnan
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import numpy as np
 import pandas as pd
+from pygam import LinearGAM, s as gam_spline
 
 from kaya.data_access import (
+    BOULDER_GRADE_TO_NUM,
     KayaDataAccessor,
     boulder_grade_ticks,
-    grade_to_num,
     normalize_climb_discipline,
+    route_grade_to_num,
     route_grade_ticks,
 )
-from kaya.s3_storage import has_s3_storage_config
+from kaya.s3_storage import get_s3_bucket, get_s3_client, get_s3_prefix, has_s3_storage_config
 
-
+VIEWER_CACHE_S3_SUBPREFIX = 'viewer-cache'
 VIEWER_ARTIFACTS_DIR = Path(__file__).resolve().parents[2] / 'data' / 'viewer_payloads' / 'latest'
 ACTIVE_SEGMENT_RULES: Dict[str, float] = {
     'n_sends': 3.0,
     'n_sesh': 2.5,
     'n_sends_per_sesh': 2.5,
 }
+GAM_MIN_POINTS = 15
+GAM_GRID_POINTS = 60
+GAM_CI_WIDTH = 0.68  # matches the ~1-SD convention already used elsewhere in the viewer
 
 SEGMENT_DIMENSIONS: List[Dict[str, str]] = [
     {'key': 'n_sends', 'label': '# Sends'},
@@ -35,6 +41,8 @@ class ViewerPayloadBuilder:
 
     def __init__(self, accessor: Optional[KayaDataAccessor] = None) -> None:
         self.accessor = accessor or KayaDataAccessor()
+        self._cached_gym_comparison_base: Optional[Dict[str, Any]] = None
+        self._cached_gym_comparison_base_version: Optional[float] = None
 
     def coerce_gym_ids(self, gym_id: Optional[str]) -> Optional[List[str]]:
         if not gym_id:
@@ -220,7 +228,80 @@ class ViewerPayloadBuilder:
             'grade_label_column': grade_label_column,
             'grade_ticks': self._build_grade_ticks(active_df[grade_num_column], normalized_discipline),
             'segment_rules': ACTIVE_SEGMENT_RULES,
+            'gam_curves': {
+                'height': self._build_gam_curves(active_df, 'height', grade_num_column, 52.0, 80.0),
+                'ape_index': self._build_gam_curves(active_df, 'ape_index', grade_num_column, -10.0, 10.0),
+            },
         }
+
+    @staticmethod
+    def _fit_gam_curve(
+        x_values: np.ndarray,
+        y_values: np.ndarray,
+        x_grid: np.ndarray,
+    ) -> Optional[Dict[str, List[float]]]:
+        """Fit grade ~ s(x) with pygam and predict a mean curve + 68% CI on a grid.
+
+        Deliberately fit on raw (unrounded) per-user x/y pairs, not the
+        rounded buckets used for the scatter/heatmap, and deliberately a
+        smooth spline term rather than a straight line or fixed-degree
+        polynomial — the whole point is to let a non-monotonic shape (e.g.
+        height helping up to a point, then hurting) emerge from the data
+        instead of assuming one.
+
+        Plain .fit() uses a fixed, fairly permissive smoothing penalty
+        (lam=0.6) with no cross-validation, which lets the curve chase
+        individual points in sparse regions — e.g. route ape-index has zero
+        observations between -10 and -4, and an under-penalized fit swung
+        to wildly implausible predictions there (grade -25, then +24) just
+        from a couple of points near the edge of support. gridsearch over a
+        higher lam floor picks a properly cross-validated penalty instead
+        of a fixed guess, and fewer spline knots (10 vs 15) further limits
+        how much local wiggle the model can express in the first place —
+        together these keep a real signal (e.g. the height sweet-spot
+        curve) while no longer letting one or two sparse/unusual points
+        swing the whole shape.
+        """
+        if len(x_values) < GAM_MIN_POINTS:
+            return None
+        gam = LinearGAM(gam_spline(0, n_splines=10)).gridsearch(
+            x_values.reshape(-1, 1),
+            y_values,
+            lam=np.logspace(0, 5, 15),
+            progress=False,
+        )
+        grid = x_grid.reshape(-1, 1)
+        mean = gam.predict(grid)
+        lower, upper = gam.confidence_intervals(grid, width=GAM_CI_WIDTH).T
+        return {
+            'x': x_grid.tolist(),
+            'mean': mean.tolist(),
+            'lower': lower.tolist(),
+            'upper': upper.tolist(),
+        }
+
+    def _build_gam_curves(
+        self,
+        active_df: pd.DataFrame,
+        x_column: str,
+        grade_num_column: str,
+        x_min: float,
+        x_max: float,
+    ) -> Dict[str, Optional[Dict[str, List[float]]]]:
+        x_grid = np.linspace(x_min, x_max, GAM_GRID_POINTS)
+        curves: Dict[str, Optional[Dict[str, List[float]]]] = {}
+        for gender in ('male', 'female'):
+            subset = active_df[
+                (active_df['plot_gender'] == gender)
+                & active_df[x_column].notna()
+                & active_df[grade_num_column].notna()
+            ]
+            curves[gender] = self._fit_gam_curve(
+                subset[x_column].to_numpy(dtype=float),
+                subset[grade_num_column].to_numpy(dtype=float),
+                x_grid,
+            )
+        return curves
 
     @staticmethod
     def _build_morphology_histograms(users_df: pd.DataFrame, metric: str) -> List[Dict[str, Any]]:
@@ -298,6 +379,32 @@ class ViewerPayloadBuilder:
         }
 
     def build_gym_comparison_base(self) -> Dict[str, Any]:
+        """Build the full per-user/gym/discipline max-grade table used by the
+        gym comparison tab's client-side filtering.
+
+        Cached at the instance level, matching KayaDataAccessor.read_user_profiles
+        — this result doesn't depend on which reference/comparison gyms the
+        user has selected (that filtering happens client-side against the
+        full record set already in the browser), so there's nothing "live"
+        about recomputing it from 1.8M+ raw send rows on every request. It
+        was previously uncached, which combined with a row-by-row
+        DataFrame.apply() over the full sends table made every gym
+        comparison load take ~20s regardless of how many times the
+        underlying data had actually changed.
+        """
+        version = self.accessor._local_db_version()
+        if (
+            self._cached_gym_comparison_base is not None
+            and self._cached_gym_comparison_base_version == version
+        ):
+            return self._cached_gym_comparison_base
+
+        result = self._build_gym_comparison_base()
+        self._cached_gym_comparison_base = result
+        self._cached_gym_comparison_base_version = version
+        return result
+
+    def _build_gym_comparison_base(self) -> Dict[str, Any]:
         sends_df = self.accessor.read_sends(
             source='local_db',
             columns=['user_id', 'gym_id', 'date', 'grade', 'climb_type'],
@@ -306,11 +413,26 @@ class ViewerPayloadBuilder:
         if sends_df.empty:
             return {'records': []}
 
-        sends_df['discipline'] = sends_df['climb_type'].apply(normalize_climb_discipline)
-        sends_df['grade_num'] = sends_df.apply(
-            lambda row: grade_to_num(row.get('grade'), row.get('climb_type')),
-            axis=1,
+        # Vectorized discipline classification + grade lookup instead of a
+        # row-by-row .apply(axis=1) — over ~1.8M send rows that apply() was
+        # the dominant cost (tens of seconds). Bouldering is a plain dict
+        # lookup (fully vectorizable via .map()); only the much smaller
+        # routes subset needs the regex-based route_grade_to_num, applied to
+        # just that subset rather than the whole table.
+        climb_type_lower = sends_df['climb_type'].fillna('').astype(str).str.lower()
+        is_boulder = climb_type_lower.str.contains('boulder')
+        is_route = climb_type_lower.str.contains('route') | climb_type_lower.str.contains('rope')
+        sends_df['discipline'] = np.select(
+            [is_boulder, is_route],
+            ['bouldering', 'routes'],
+            default=climb_type_lower,
         )
+
+        grade_num = pd.Series(np.nan, index=sends_df.index, dtype=float)
+        grade_num.loc[is_boulder] = sends_df.loc[is_boulder, 'grade'].map(BOULDER_GRADE_TO_NUM)
+        grade_num.loc[is_route] = sends_df.loc[is_route, 'grade'].apply(route_grade_to_num)
+        sends_df['grade_num'] = grade_num
+
         sends_df = sends_df[
             sends_df['discipline'].isin(['bouldering', 'routes'])
             & sends_df['grade_num'].notna()
@@ -361,8 +483,14 @@ class ViewerPayloadBuilder:
             'time_series_monthly': self.build_time_series(freq='M'),
             'grade_distribution_bouldering': self.build_grade_distribution('bouldering'),
             'grade_distribution_routes': self.build_grade_distribution('routes'),
+            # Two variants each so the Audience toggle (active vs all users)
+            # works fully from precomputed data — previously only
+            # active_only=True was precomputed, so switching to "All users"
+            # silently fell back to a live (uncached) computation.
             'body_metrics_bouldering': self.build_body_metrics('bouldering', active_only=True),
+            'body_metrics_bouldering_all': self.build_body_metrics('bouldering', active_only=False),
             'body_metrics_routes': self.build_body_metrics('routes', active_only=True),
+            'body_metrics_routes_all': self.build_body_metrics('routes', active_only=False),
             'user_segmentation': self.build_user_segmentation(),
             'gym_comparison_base': self.build_gym_comparison_base(),
             'time_series_by_gym': {
@@ -399,7 +527,9 @@ class ViewerPayloadBuilder:
             'grade_distribution_bouldering': 'grade-distribution-bouldering.json',
             'grade_distribution_routes': 'grade-distribution-routes.json',
             'body_metrics_bouldering': 'body-metrics-bouldering.json',
+            'body_metrics_bouldering_all': 'body-metrics-bouldering-all.json',
             'body_metrics_routes': 'body-metrics-routes.json',
+            'body_metrics_routes_all': 'body-metrics-routes-all.json',
             'user_segmentation': 'user-segmentation.json',
             'gym_comparison_base': 'gym-comparison-base.json',
         }
@@ -432,6 +562,47 @@ class ViewerPayloadBuilder:
             'output_dir': str(output_dir),
             'files_written': sorted(file_map.values()),
             'gym_artifact_count': len(artifacts['gyms']),
+        }
+
+    def upload_static_artifacts_to_s3(
+        self,
+        output_dir: Path = VIEWER_ARTIFACTS_DIR,
+        s3_prefix: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Upload a previously written static-artifacts directory to S3.
+
+        Walks `output_dir` for JSON files (including the nested
+        time-series/grade-distribution per-gym files) and uploads each one
+        under `s3_prefix`, preserving the local relative path as the S3 key
+        suffix so the layout on S3 mirrors the local `viewer_payloads/latest`
+        directory.
+        """
+        if not has_s3_storage_config():
+            raise RuntimeError('KAYA_S3_BUCKET is not set; cannot upload viewer artifacts to S3.')
+        if not output_dir.exists():
+            raise FileNotFoundError(f'{output_dir} does not exist; run write_static_artifacts() first.')
+
+        bucket = get_s3_bucket()
+        prefix = s3_prefix if s3_prefix is not None else f'{get_s3_prefix()}/{VIEWER_CACHE_S3_SUBPREFIX}'
+        client = get_s3_client()
+
+        uploaded_keys = []
+        for file_path in sorted(output_dir.rglob('*.json')):
+            relative_key = file_path.relative_to(output_dir).as_posix()
+            key = f'{prefix}/{relative_key}'
+            client.put_object(
+                Bucket=bucket,
+                Key=key,
+                Body=file_path.read_bytes(),
+                ContentType='application/json',
+            )
+            uploaded_keys.append(key)
+
+        return {
+            'bucket': bucket,
+            'prefix': prefix,
+            'files_uploaded': len(uploaded_keys),
+            'keys': uploaded_keys,
         }
 
     @staticmethod

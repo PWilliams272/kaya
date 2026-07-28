@@ -36,20 +36,80 @@ const segmentPalette = {
   Active: '#9ad0ff',
   Inactive: '#ffc36b',
 };
-const genderPalette = {
-  'All Users': '#9a9fa8',
-  Male: '#5fa8ff',
-  Female: '#c974e8',
-};
+// Function rather than a static object: reads genderBaseColors live, so it
+// reflects the color pickers immediately (matching the Male/Female colors
+// used by the body-morphology scatter/heatmap/GAM) instead of a fixed
+// snapshot taken at module load.
+function currentGenderPalette() {
+  return {
+    'All Users': '#9a9fa8',
+    Male: genderBaseColors.male,
+    Female: genderBaseColors.female,
+  };
+}
 
-// Fades from fully-transparent to fully-opaque blue rather than a fixed
-// light-to-dark scale (e.g. Plotly's built-in 'Blues'), so zero density
-// shows the card's own background — white in light mode, dark in dark mode
-// — instead of a fixed pale-blue tint that clashes with dark backgrounds.
+// Fades from fully-transparent to blue rather than a fixed light-to-dark
+// scale (e.g. Plotly's built-in 'Blues'), so zero density shows the card's
+// own background — white in light mode, dark in dark mode — instead of a
+// fixed pale-blue tint that clashes with dark backgrounds. Capped at 0.8
+// alpha rather than fully opaque: when two of these heatmaps overlap
+// (male/female on the same plot), traces draw in array order — whichever
+// is added second sits fully on top — so a fully-opaque peak would
+// completely hide the other gender underneath it. Capping both below 1
+// means every overlap is a genuine alpha-composited blend of both colors,
+// regardless of draw order, rather than one occluding the other.
+// This is the general app accent blue, used by the (gender-agnostic)
+// gym-comparison heatmap only — NOT tied to the body-morphology gender
+// palette below, which is separately adjustable.
 const HEATMAP_DENSITY_COLORSCALE = [
   [0, 'rgba(37, 99, 235, 0)'],
-  [1, 'rgba(37, 99, 235, 1)'],
+  [1, 'rgba(37, 99, 235, 0.8)'],
 ];
+
+// Body-morphology's fixed male/female base colors. Everything derived from
+// these (marker fill/border, GAM line, CI band, heatmap colorscale) stays
+// in sync automatically since it's all generated from one hex value per
+// gender via buildGenderColorSet, instead of separate hand-written rgba
+// strings scattered across each chart.
+const genderBaseColors = {
+  male: '#518AE6', // rgb(81, 138, 230)
+  female: '#F039F3', // rgb(240, 57, 243)
+};
+
+function hexToRgbTuple(hex) {
+  const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!match) {
+    return [0, 0, 0];
+  }
+  return match.slice(1).map((part) => parseInt(part, 16));
+}
+
+function buildGenderColorSet(hex) {
+  const [r, g, b] = hexToRgbTuple(hex);
+  const rgb = `${r}, ${g}, ${b}`;
+  return {
+    line: `rgba(${rgb}, 0.95)`,
+    fill: `rgba(${rgb}, 0.06)`,
+    band: `rgba(${rgb}, 0.32)`,
+    heatmapColorscale: [
+      [0, `rgba(${rgb}, 0)`],
+      [1, `rgba(${rgb}, 0.8)`],
+    ],
+  };
+}
+
+// The alpha-fade colorscales map linearly from a grid's min to max density,
+// so a lone/sparse point (tiny density relative to the busiest bucket)
+// lands near-zero alpha and is effectively invisible — the same
+// "smoothing hides outliers" problem as elsewhere, just visual this time.
+// Normalizing to [0,1] by the grid's own peak and applying gamma<1 boosts
+// low values much more than high ones (e.g. 1% of peak density goes from
+// 1% opacity to ~18%) without moving the peak itself, so sparse buckets
+// stay visible alongside the dense core.
+function boostSparseDensity(zGrid, gamma = 0.45) {
+  const maxZ = Math.max(...zGrid.flat(), 1e-12);
+  return zGrid.map((row) => row.map((value) => (value > 0 ? (value / maxZ) ** gamma : 0)));
+}
 
 function hexToRgba(hex, alpha) {
   const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -59,6 +119,7 @@ function hexToRgba(hex, alpha) {
   const [r, g, b] = match.slice(1).map((part) => parseInt(part, 16));
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
+
 
 const viewerConfig = {
   dataMode: new URLSearchParams(window.location.search).get('dataMode')
@@ -163,8 +224,14 @@ async function fetchViewerData(key, params = {}) {
       routes: '/viewer-data/grade-distribution-routes.json',
     },
     bodyMetrics: {
-      bouldering: '/viewer-data/body-metrics-bouldering.json',
-      routes: '/viewer-data/body-metrics-routes.json',
+      bouldering: {
+        active: '/viewer-data/body-metrics-bouldering.json',
+        all: '/viewer-data/body-metrics-bouldering-all.json',
+      },
+      routes: {
+        active: '/viewer-data/body-metrics-routes.json',
+        all: '/viewer-data/body-metrics-routes-all.json',
+      },
     },
   };
 
@@ -183,10 +250,8 @@ async function fetchViewerData(key, params = {}) {
     }
     if (key === 'bodyMetrics') {
       const discipline = params.discipline || 'bouldering';
-      if (params.active_only === false || params.active_only === 'false') {
-        return fetchJson(`/api/charts/body-metrics${buildQuery({ discipline, active_only: false })}`);
-      }
-      return fetchJson(staticMap.bodyMetrics[discipline]);
+      const audience = (params.active_only === false || params.active_only === 'false') ? 'all' : 'active';
+      return fetchJson(staticMap.bodyMetrics[discipline][audience]);
     }
     return fetchJson(staticMap[key]);
   }
@@ -202,32 +267,14 @@ async function fetchViewerData(key, params = {}) {
     bodyMetrics: `/api/charts/body-metrics${buildQuery(params)}`,
   };
 
-  const canUseArtifactCache = (
-    key === 'gymComparisonBase'
-    || key === 'userSegmentation'
-    || key === 'topGyms'
-    || key === 'bodyMetrics'
-    || (key === 'gradeDistribution' && !params.gym_id)
-  ) && !params.start_date && !params.end_date;
-
-  if (canUseArtifactCache) {
-    let artifactPath = null;
-    if (key === 'bodyMetrics') {
-      artifactPath = staticMap.bodyMetrics[params.discipline || 'bouldering'];
-    } else if (key === 'gradeDistribution') {
-      artifactPath = staticMap.gradeDistribution[params.discipline || 'bouldering'];
-    } else {
-      artifactPath = staticMap[key];
-    }
-    if (artifactPath) {
-      try {
-        return await fetchJson(artifactPath);
-      } catch (error) {
-        // Fall through to the API when artifact files are unavailable.
-      }
-    }
-  }
-
+  // Deliberately no static-artifact shortcut here (only dataMode:'static'
+  // above uses those prebuilt files). An earlier version of this function
+  // silently substituted a cached artifact for bodyMetrics/etc. even in
+  // normal 'api' mode without ever checking params like active_only —
+  // meaning the Audience toggle had no effect, and any snapshot staleness
+  // (e.g. a field added to the live payload after the artifact was last
+  // built) persisted invisibly. Always hitting the live endpoint directly
+  // is fast enough and guarantees the response matches the request.
   return fetchJson(apiMap[key]);
 }
 
@@ -1192,20 +1239,42 @@ function maxUserCount(rowsByGender) {
 
 // Plotly's sizemode:'area' + sizemin clamps small values to a flat floor, so a
 // 1-user point and a 3-user point can render at the identical clamped size.
-// Interpolating the pixel diameter directly (sqrt of the count ratio, so area
-// stays proportional to n_users) keeps every bucket visually distinct while
-// still bounding the largest bubble to a reasonable size.
-function bubbleDiameterPx(count, maxCount, minPx = 6, maxPx = 32) {
+// Interpolating the pixel diameter directly avoids that hard clamp, but a
+// plain sqrt(count/maxCount) ratio has the same practical effect when
+// maxCount is large relative to most buckets (e.g. "All users" audience,
+// where a few very common height/grade combos can hit 300+ while most
+// buckets sit at 1-5): sqrt compresses the low end so hard that a 1-user
+// and 3-user bubble differ by ~1px, imperceptible on screen. log1p
+// compresses the *high* end instead, which is exactly what's needed here —
+// it leaves far more visual room near the bottom of the range where most
+// of the real differences we care about live.
+function bubbleDiameterPx(count, maxCount, minPx = 2, maxPx = 32) {
   if (!count) {
     return 0;
   }
-  const ratio = Math.sqrt(count / Math.max(maxCount, 1));
+  const ratio = Math.log1p(count) / Math.log1p(Math.max(maxCount, 1));
   return minPx + ((maxPx - minPx) * ratio);
 }
 
+const APE_INDEX_MIN = -10;
+const APE_INDEX_MAX = 10;
+
 function renderBodyMorphologyNote() {
   const audience = appState.filters.bodyActiveOnly ? 'Active users only' : 'All users';
-  document.getElementById('body-morphology-note').textContent = `${audience} for the grade scatter panels. Height and ape-index histograms stay on the original all-users, male-users, female-users split, with height and ape values clipped to the notebook ranges and bubble diameter scaled by sqrt(users in each exact bucket).`;
+  document.getElementById('body-morphology-note').textContent = `${audience} for the grade panels. Each pair is a scatter (exact bucket counts, plus a GAM-fit mean curve + 68% CI band per gender) next to a combined density heatmap (both genders, same plot) — click "Male"/"Female" in either panel's legend to isolate one. Height and ape-index histograms stay on the original all-users, male-users, female-users split, with height and ape values clipped to the notebook ranges and bubble diameter scaled by sqrt(users in each exact bucket).`;
+}
+
+function bodyMetricAxisConfig(metricsForDiscipline, xIsHeight) {
+  const disciplineLabel = metricsForDiscipline.discipline === 'routes' ? 'Route' : 'Boulder';
+  const ticks = metricsForDiscipline.grade_ticks || [];
+  const tickVals = ticks.map((tick) => tick.value);
+  const tickText = ticks.map((tick) => tick.label);
+  const gradeCol = metricsForDiscipline.grade_num_column;
+  const xRange = xIsHeight
+    ? [HEIGHT_AXIS_MIN - 2, HEIGHT_AXIS_MAX + 2]
+    : [APE_INDEX_MIN - 1, APE_INDEX_MAX + 1];
+  const yRange = tickVals.length ? [Math.min(...tickVals) - 1, Math.max(...tickVals) + 1] : undefined;
+  return { disciplineLabel, tickVals, tickText, gradeCol, xRange, yRange };
 }
 
 function renderBodyMetrics() {
@@ -1214,26 +1283,76 @@ function renderBodyMetrics() {
   }
   renderBodyMorphologyNote();
 
-  const maleColors = { line: 'rgba(147, 211, 255, 0.95)', fill: 'rgba(147, 211, 255, 0.06)' };
-  const femaleColors = { line: 'rgba(255, 146, 196, 0.95)', fill: 'rgba(255, 146, 196, 0.06)' };
+  const maleColors = buildGenderColorSet(genderBaseColors.male);
+  const femaleColors = buildGenderColorSet(genderBaseColors.female);
 
   function colorsForGender(genderKey) {
     return genderKey === 'male' ? maleColors : femaleColors;
   }
 
+  // GAM fit (grade ~ smooth(x), fit on raw per-user pairs — see
+  // _fit_gam_curve in viewer_payloads.py) as a mean line + 68% CI ribbon.
+  // Shared by the scatter and heatmap panels so both show it identically.
+  // Returned as two separate arrays so the caller can control z-order
+  // (e.g. ribbons behind the scatter, mean line on top of it). Both share
+  // the gender's legendgroup so toggling "Male"/"Female" hides its GAM fit
+  // along with its scatter points / heatmap layer.
+  function buildGamOverlayTraces(metricsForDiscipline, xIsHeight) {
+    const gamKey = xIsHeight ? 'height' : 'ape_index';
+    const gamCurvesByGender = (metricsForDiscipline.gam_curves || {})[gamKey] || {};
+    const bandTraces = [];
+    const lineTraces = [];
+    ['male', 'female'].forEach((genderKey) => {
+      const curve = gamCurvesByGender[genderKey];
+      if (!curve) {
+        return;
+      }
+      const colors = colorsForGender(genderKey);
+      bandTraces.push(
+        {
+          x: curve.x, y: curve.lower, type: 'scatter', mode: 'lines',
+          line: { width: 0 }, legendgroup: genderKey, showlegend: false, hoverinfo: 'skip',
+        },
+        {
+          x: curve.x, y: curve.upper, type: 'scatter', mode: 'lines',
+          line: { width: 0 }, fill: 'tonexty', fillcolor: colors.band,
+          legendgroup: genderKey, showlegend: false, hoverinfo: 'skip',
+        }
+      );
+      // Halo technique: a wider dark line drawn first, then the true
+      // gender-colored line drawn narrower directly on top, leaving a thin
+      // dark border visible on both edges. Keeps the line's real color
+      // legible (no darkening/desaturating it) while still guaranteeing
+      // contrast against whatever's underneath — scatter dots, heatmap
+      // fill, doesn't matter, the halo works against any background.
+      lineTraces.push(
+        {
+          x: curve.x, y: curve.mean, type: 'scatter', mode: 'lines',
+          line: { color: 'rgba(10, 10, 10, 0.8)', width: 3.8 },
+          legendgroup: genderKey, showlegend: false, hoverinfo: 'skip',
+        },
+        {
+          x: curve.x, y: curve.mean, type: 'scatter', mode: 'lines',
+          line: { color: colors.line, width: 2.5 },
+          legendgroup: genderKey, showlegend: false, hoverinfo: 'skip',
+        }
+      );
+    });
+    return { bandTraces, lineTraces };
+  }
+
   function renderDisciplineScatter(chartId, axisTitle, metricsForDiscipline, rowsKey, xField, xIsHeight = false) {
-    const disciplineLabel = metricsForDiscipline.discipline === 'routes' ? 'Route' : 'Boulder';
-    const ticks = metricsForDiscipline.grade_ticks || [];
-    const tickVals = ticks.map((tick) => tick.value);
-    const tickText = ticks.map((tick) => tick.label);
+    const { disciplineLabel, tickVals, tickText, gradeCol, xRange, yRange } = bodyMetricAxisConfig(metricsForDiscipline, xIsHeight);
     const rowsByGender = metricsForDiscipline[rowsKey] || { male: [], female: [] };
     const maxCount = maxUserCount(rowsByGender);
-    const traces = ['male', 'female'].map((genderKey) => {
+    const { bandTraces: gamBandTraces, lineTraces: gamLineTraces } = buildGamOverlayTraces(metricsForDiscipline, xIsHeight);
+
+    const scatterTraces = ['male', 'female'].map((genderKey) => {
       const rows = rowsByGender[genderKey] || [];
       const colors = colorsForGender(genderKey);
       return {
         x: rows.map((row) => row[xField]),
-        y: rows.map((row) => row[metricsForDiscipline.grade_num_column]),
+        y: rows.map((row) => row[gradeCol]),
         customdata: rows.map((row) => [
           row[metricsForDiscipline.grade_label_column],
           row.n_users,
@@ -1245,11 +1364,12 @@ function renderBodyMetrics() {
           color: colors.fill,
           line: {
             color: colors.line,
-            width: 2,
+            width: 1.2,
           },
-          opacity: 0.98,
+          opacity: 0.7,
           symbol: 'circle',
         },
+        legendgroup: genderKey,
         name: genderKey === 'male' ? 'Male' : 'Female',
         hovertemplate:
           `${genderKey === 'male' ? 'Male' : 'Female'}<br>`
@@ -1261,13 +1381,15 @@ function renderBodyMetrics() {
 
     Plotly.react(
       chartId,
-      traces,
+      [...gamBandTraces, ...scatterTraces, ...gamLineTraces],
       {
         ...chartLayout(axisTitle),
-        height: 480,
+        height: 440,
+        legend: { ...chartLayout(axisTitle).legend, groupclick: 'togglegroup' },
         xaxis: {
           ...chartLayout(axisTitle).xaxis,
           ...(xIsHeight ? { tickmode: 'array', ...heightAxisTicks() } : {}),
+          range: xRange,
         },
         yaxis: {
           ...chartLayout(axisTitle).yaxis,
@@ -1277,7 +1399,75 @@ function renderBodyMetrics() {
           ticktext: thinTickLabels(tickText),
           // Plotly's default autorange padding is too tight here, crowding
           // the top/bottom rows of points against the plot edge.
-          range: tickVals.length ? [Math.min(...tickVals) - 1, Math.max(...tickVals) + 1] : undefined,
+          range: yRange,
+        },
+      },
+      { responsive: true, displayModeBar: false }
+    );
+  }
+
+  // Both genders' density heatmaps overlaid on the same plot (not side by
+  // side) — each uses a transparent-to-opaque colorscale so overlapping
+  // regions blend rather than one occluding the other. layout.legend's
+  // groupclick:'togglegroup' means clicking "Male"/"Female" toggles that
+  // gender's heatmap.
+  function renderDisciplineHeatmap(chartId, axisTitle, metricsForDiscipline, rowsKey, xField, xIsHeight = false) {
+    const { disciplineLabel, tickVals, tickText, gradeCol, xRange, yRange } = bodyMetricAxisConfig(metricsForDiscipline, xIsHeight);
+    const rowsByGender = metricsForDiscipline[rowsKey] || { male: [], female: [] };
+
+    function heatmapTrace(genderKey) {
+      const rows = rowsByGender[genderKey] || [];
+      const points = rows
+        .map((row) => ({ x: row[xField], y: row[gradeCol], n: row.n_users }))
+        .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y) && point.n > 0);
+      if (!points.length || !gradeCol || !yRange) {
+        return null;
+      }
+      const grid = bayesianBootstrap2DKdeGrid(points, {
+        xKey: 'x', yKey: 'y', countKey: 'n', xRange, yRange, gridPoints: 50, iterations: 30,
+      });
+      return {
+        type: 'heatmap',
+        x: grid.x,
+        y: grid.y,
+        z: boostSparseDensity(grid.z),
+        zmin: 0,
+        zmax: 1,
+        colorscale: colorsForGender(genderKey).heatmapColorscale,
+        showscale: false,
+        hoverinfo: 'skip',
+        legendgroup: genderKey,
+        name: genderKey === 'male' ? 'Male' : 'Female',
+        showlegend: true,
+      };
+    }
+
+    const heatmapTraces = [
+      heatmapTrace('male'),
+      heatmapTrace('female'),
+    ].filter(Boolean);
+
+    const { bandTraces: gamBandTraces, lineTraces: gamLineTraces } = buildGamOverlayTraces(metricsForDiscipline, xIsHeight);
+
+    Plotly.react(
+      chartId,
+      [...heatmapTraces, ...gamBandTraces, ...gamLineTraces],
+      {
+        ...chartLayout(axisTitle),
+        height: 440,
+        legend: { ...chartLayout(axisTitle).legend, groupclick: 'togglegroup' },
+        xaxis: {
+          ...chartLayout(axisTitle).xaxis,
+          ...(xIsHeight ? { tickmode: 'array', ...heightAxisTicks() } : {}),
+          range: xRange,
+        },
+        yaxis: {
+          ...chartLayout(axisTitle).yaxis,
+          title: `${disciplineLabel} grade`,
+          tickmode: 'array',
+          tickvals: tickVals,
+          ticktext: thinTickLabels(tickText),
+          range: yRange,
         },
       },
       { responsive: true, displayModeBar: false }
@@ -1285,9 +1475,13 @@ function renderBodyMetrics() {
   }
 
   renderDisciplineScatter('boulder-height-grade-chart', 'Height', appState.data.boulderBodyMetrics || {}, 'height_vs_grade_by_gender', 'height_rounded', true);
+  renderDisciplineHeatmap('boulder-height-grade-heatmap', 'Height', appState.data.boulderBodyMetrics || {}, 'height_vs_grade_by_gender', 'height_rounded', true);
   renderDisciplineScatter('route-height-grade-chart', 'Height', appState.data.routeBodyMetrics || {}, 'height_vs_grade_by_gender', 'height_rounded', true);
+  renderDisciplineHeatmap('route-height-grade-heatmap', 'Height', appState.data.routeBodyMetrics || {}, 'height_vs_grade_by_gender', 'height_rounded', true);
   renderDisciplineScatter('boulder-ape-grade-chart', 'Ape Index (inches)', appState.data.boulderBodyMetrics || {}, 'ape_vs_grade_by_gender', 'ape_index_rounded');
+  renderDisciplineHeatmap('boulder-ape-grade-heatmap', 'Ape Index (inches)', appState.data.boulderBodyMetrics || {}, 'ape_vs_grade_by_gender', 'ape_index_rounded');
   renderDisciplineScatter('route-ape-grade-chart', 'Ape Index (inches)', appState.data.routeBodyMetrics || {}, 'ape_vs_grade_by_gender', 'ape_index_rounded');
+  renderDisciplineHeatmap('route-ape-grade-heatmap', 'Ape Index (inches)', appState.data.routeBodyMetrics || {}, 'ape_vs_grade_by_gender', 'ape_index_rounded');
 }
 
 function renderUserSegmentation() {
@@ -1302,6 +1496,7 @@ function renderUserSegmentation() {
   document.getElementById('segment-sample-count').textContent = formatNumber(payload.sample_size);
   document.getElementById('segment-note').textContent = `${payload.criteria_text || ''} Corner plots are shown on a log scale with notebook-style thresholds.`;
 
+  const genderPalette = currentGenderPalette();
   const heightTraces = (payload.height_histogram || []).map((series) => ({
     x: series.values,
     type: 'histogram',
@@ -2029,12 +2224,28 @@ function bindTabs() {
   });
 }
 
+// data-theme is only set once the user has explicitly toggled (persisted to
+// localStorage); before that, <html> has no attribute at all and the theme
+// is whatever prefers-color-scheme resolves to, so callers that care about
+// the *effective* theme must fall back to the media query rather than
+// assuming unset means light or dark.
+function isEffectivelyLightTheme() {
+  const explicitTheme = document.documentElement.dataset.theme;
+  if (explicitTheme === 'light') {
+    return true;
+  }
+  if (explicitTheme === 'dark') {
+    return false;
+  }
+  return !window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
 function updateThemeToggleIcon() {
   const button = document.getElementById('theme-toggle');
   if (!button) {
     return;
   }
-  const isLight = document.documentElement.dataset.theme === 'light';
+  const isLight = isEffectivelyLightTheme();
   // Icon shows the mode a click switches TO: moon while it's light out, sun
   // while it's dark out.
   button.textContent = isLight ? '🌙' : '☀️';
@@ -2091,7 +2302,7 @@ function bindControls() {
 
   bindIfPresent('theme-toggle', 'click', () => {
     const root = document.documentElement;
-    const nextTheme = root.dataset.theme === 'light' ? 'dark' : 'light';
+    const nextTheme = isEffectivelyLightTheme() ? 'dark' : 'light';
     root.dataset.theme = nextTheme;
     localStorage.setItem('kaya-viewer-theme', nextTheme);
     updateThemeToggleIcon();
