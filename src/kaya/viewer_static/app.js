@@ -700,8 +700,8 @@ function getGradeTicks(discipline) {
 }
 
 function toDensity(rows) {
-  const total = rows.reduce((sum, row) => sum + (row.send_count || 0), 0);
-  return rows.map((row) => ({ ...row, density: total ? row.send_count / total : 0 }));
+  const total = rows.reduce((sum, row) => sum + (row.climb_count || 0), 0);
+  return rows.map((row) => ({ ...row, density: total ? row.climb_count / total : 0 }));
 }
 
 function renderPlotMessage(hostId, message, height = 260) {
@@ -738,7 +738,6 @@ function renderSummary() {
   document.getElementById('unique-users').textContent = formatNumber(summary.unique_users);
   document.getElementById('unique-gyms').textContent = formatNumber(summary.unique_gyms);
   document.getElementById('date-range').textContent = formatDateRange(summary);
-  document.getElementById('local-db-path').textContent = summary.local_db_path || 'Unknown';
 }
 
 function renderTimeSeries() {
@@ -753,8 +752,6 @@ function renderTimeSeries() {
       y: rows.map((row) => row.send_count),
       mode: 'lines',
       line: { color: cssVar('--lg-info'), width: 2.5 },
-      fill: 'tozeroy',
-      fillcolor: 'rgba(37,99,235,0.12)',
       name: 'All gyms',
       yaxis: 'y',
     },
@@ -778,10 +775,9 @@ function renderTimeSeries() {
       ...chartLayout('Date'),
       yaxis: {
         ...chartLayout('Date').yaxis,
-        title: 'All gyms sends',
+        title: 'Number of logged sends',
       },
       yaxis2: {
-        title: appState.filters.timeGymId ? `${gymName(appState.filters.timeGymId)} sends` : '',
         overlaying: 'y',
         side: 'right',
         showgrid: false,
@@ -871,7 +867,7 @@ function renderGradeDistribution() {
       },
       yaxis: {
         ...chartLayout('Boulder Grade').yaxis,
-        title: 'Share of sends',
+        title: 'Percent of Climbs',
         tickformat: '.0%',
       },
       bargap: 0.08,
@@ -893,7 +889,7 @@ function renderGradeDistribution() {
       },
       yaxis: {
         ...chartLayout('Route Grade').yaxis,
-        title: 'Share of sends',
+        title: 'Percent of Climbs',
         tickformat: '.0%',
       },
       bargap: 0.08,
@@ -1260,13 +1256,14 @@ const APE_INDEX_MIN = -10;
 const APE_INDEX_MAX = 10;
 
 function renderBodyMorphologyNote() {
-  document.getElementById('body-morphology-note').textContent = 'A climber\'s height and wingspan have a huge impact on the perceived difficulty of a given climb. '
-    + 'A "reachy" climb will benefit a tall climber, or a climber with long arms who can reach holds more easily, while a "boxy" '
+  document.getElementById('body-morphology-note').textContent = 'A climber\'s height and wingspan have a huge influence on the perceived difficulty of a given climb. '
+    + 'A "reachy" climb will benefit tall climbers and those with long arms who can reach holds more easily, while a "boxy" '
     + 'climb might benefit smaller climbers who can more easily maneuver around tight spaces. The plots on this page examine the '
     + 'maximum grades logged as a function of the user\'s height and ape index (wingspan - height). Versions are available for '
-    + '"Active" users of the app and the entire population, and are separated by gender. The solid line and shaded band in each '
-    + 'scatter panel are a GAM (Generalized Additive Model) fit — a flexible curve that follows the data\'s actual shape rather '
-    + 'than assuming a straight-line relationship, regularized against overfitting to sparse buckets.';
+    + '"Active" users of the app and the entire population, and are separated by gender.';
+  document.getElementById('body-morphology-gam-note').textContent = 'A GAM (Generalized Additive Model) fit is shown as the solid line and shaded band in each scatter panel — a '
+    + 'flexible curve that follows the data\'s actual shape rather than assuming a straight-line relationship, regularized '
+    + 'against overfitting to sparse buckets.';
 }
 
 function bodyMetricAxisConfig(metricsForDiscipline, xIsHeight) {
@@ -1498,8 +1495,7 @@ function renderUserSegmentation() {
   const countBySegment = Object.fromEntries(counts.map((row) => [row.segment, row.user_count]));
   document.getElementById('segment-active-count').textContent = formatNumber(countBySegment.Active);
   document.getElementById('segment-inactive-count').textContent = formatNumber(countBySegment.Inactive);
-  document.getElementById('segment-sample-count').textContent = formatNumber(payload.sample_size);
-  document.getElementById('segment-note').textContent = `${payload.criteria_text || ''} Corner plots are shown on a log scale with notebook-style thresholds.`;
+  document.getElementById('segment-note').textContent = payload.criteria_text || '';
 
   const genderPalette = currentGenderPalette();
   const heightTraces = (payload.height_histogram || []).map((series) => ({
@@ -1568,6 +1564,10 @@ function renderUserSegmentation() {
     });
   });
 
+  // Bottom-left corner plot: row 0 (top, Plotly's default row order) has
+  // only its diagonal cell populated; the last row is fully populated. The
+  // empty upper-right triangle left over is where the legend gets anchored
+  // below, instead of floating above the whole figure.
   dimensions.forEach((dimension, rowIndex) => {
     const rowKey = dimension.key;
     const rowValues = points.map((point) => point[`${rowKey}_log10`]).filter((value) => value !== null && value !== undefined);
@@ -1614,10 +1614,29 @@ function renderUserSegmentation() {
     // No fixed height here: the host div is a fixed-aspect-ratio square
     // (.chart-host-corner), so Plotly's responsive:true sizes to match it
     // and each of the gridSize x gridSize cells comes out square too.
-    margin: { l: 54, r: 16, t: 40, b: 48 },
+    margin: { l: 54, r: 16, t: 16, b: 48 },
     showlegend: true,
-    legend: { ...chartLayout('').legend, y: 1.03 },
-    grid: { rows: gridSize, columns: gridSize, pattern: 'independent' },
+    // Anchored inside the plot's own top-right corner (paper coords, not
+    // floating above the figure) — that's the empty upper-right triangle
+    // left over by the bottom-left layout, so the legend fills otherwise
+    // dead space instead of taking margin away from the grid.
+    legend: {
+      orientation: 'v',
+      xanchor: 'right',
+      x: 0.99,
+      yanchor: 'top',
+      y: 0.99,
+      bgcolor: 'rgba(0,0,0,0)',
+    },
+    grid: {
+      rows: gridSize,
+      columns: gridSize,
+      pattern: 'independent',
+      // Default gap reads as loose/disconnected for a corner plot, where
+      // adjacent cells sharing an axis are meant to read as one dense grid.
+      xgap: 0.04,
+      ygap: 0.04,
+    },
     shapes: [],
     annotations: [],
   };
@@ -2037,7 +2056,7 @@ function renderGymComparisonFocusRow() {
   const pair = model.pairs[0];
   const overlapUserCount = pair.points.reduce((sum, point) => sum + point.n_users, 0);
   if (note) {
-    note.textContent = `${formatNumber(overlapUserCount)} users met the minimum-days-at-each-gym requirement at both gyms and are included below.`;
+    note.textContent = `${formatNumber(overlapUserCount)} users have logged at both gyms at least ${appState.filters.compareMinDays} times and are shown below.`;
   }
   const ticks = getGradeTicks(appState.filters.compareDiscipline);
   const tickVals = ticks.map((tick) => tick.value);

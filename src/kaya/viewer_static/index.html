@@ -6,7 +6,7 @@
     <title>Kaya Local Viewer</title>
     <meta name="kaya-viewer-data-mode" content="static" />
     <link rel="stylesheet" href="/static/tokens.css" />
-    <link rel="stylesheet" href="/static/app.css?v=5" />
+    <link rel="stylesheet" href="/static/app.css?v=6" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   </head>
   <body>
@@ -26,7 +26,7 @@
         <div class="tab-bar">
           <button class="tab-button active" type="button" data-tab="gym-comparison">Gym Comparison</button>
           <button class="tab-button" type="button" data-tab="body-morphology">Height and Wingspan</button>
-          <button class="tab-button" type="button" data-tab="user-segmentation">User Segmentation</button>
+          <button class="tab-button" type="button" data-tab="user-segmentation">User Analysis</button>
           <button class="tab-button" type="button" data-tab="data-overview">Data Overview</button>
         </div>
 
@@ -37,7 +37,7 @@
               <p class="section-description">
                 Climbing grades are subjective, and different gyms are known for "stiff" or "soft" grading.
                 This tool finds users who have logged sends at multiple gyms and compares their highest sent
-                grade at each. Since it's unlikely someone will send their hardest grade in only one or two
+                grade at each gym. Since it's unlikely someone will send their hardest grade in only one or two
                 visits, it is useful to increase the minimum logged days at each gym — but this comes at the
                 expense of the total number of users available for analysis.
               </p>
@@ -112,7 +112,7 @@
           </div>
 
           <div class="card chart-card">
-            <div class="section-heading">Grade Delta Distribution</div>
+            <div class="section-heading">Grade Difference Distribution</div>
             <div id="gym-comparison-delta-chart" class="chart-host chart-host-short"></div>
           </div>
         </section>
@@ -120,15 +120,16 @@
         <section id="tab-body-morphology" class="tab-pane">
           <div class="section-title-row">
             <div class="section-title-block">
-              <h2>Effect of Height and Wingspan on Max Grade</h2>
+              <h2>Impact of Height and Wingspan on Max Grade Sent</h2>
               <p id="body-morphology-note" class="section-description">Loading morphology note...</p>
+              <p id="body-morphology-gam-note" class="section-description"></p>
             </div>
           </div>
 
           <div class="card chart-card compare-toolbar">
             <div class="control-grid control-grid-compact">
               <label class="inline-select-control">
-                <span>Audience</span>
+                <span>User Segment</span>
                 <select id="body-active-only-select">
                   <option value="all">All users</option>
                   <option value="active" selected>Active users only</option>
@@ -175,20 +176,21 @@
 
         <section id="tab-user-segmentation" class="tab-pane">
           <div class="section-title-row">
-            <div>
-              <div class="eyebrow">Segmentation</div>
-              <h2>Activity Splits And Behavior Shape</h2>
+            <div class="section-title-block">
+              <h2>User Base</h2>
+              <p class="section-description">
+                Data quality depends on the accuracy of user input. Some users misrepresent their height
+                (note the break in the expected bell curve shape for Men at the 5'11"-to-6'0" threshold), or
+                might choose not to record pieces of information.
+              </p>
+              <p class="section-description">
+                Obvious outliers (e.g. |ape index| &gt; 10 inches, where ape index is wingspan minus height)
+                are removed from analyses involving those metrics. Genders are inferred using the Python
+                gender guesser package with reported first
+                names, which, while imperfect, enables incorporation of gender into analyses at a statistical
+                level.
+              </p>
             </div>
-          </div>
-
-          <div class="kpi-grid">
-            <div class="card kpi-card"><div class="eyebrow">Active Users</div><div class="kpi-value" id="segment-active-count">-</div></div>
-            <div class="card kpi-card"><div class="eyebrow">Inactive Users</div><div class="kpi-value" id="segment-inactive-count">-</div></div>
-            <div class="card kpi-card"><div class="eyebrow">Corner Sample</div><div class="kpi-value" id="segment-sample-count">-</div></div>
-          </div>
-
-          <div class="card compact-card note-card">
-            <div id="segment-note" class="muted-copy">Loading segment rule...</div>
           </div>
 
           <div class="chart-grid two-up-grid">
@@ -200,8 +202,46 @@
               <div class="section-heading">Ape Index Distribution</div>
               <div id="segment-ape-chart" class="chart-host chart-host-short"></div>
             </div>
+          </div>
+
+          <div class="section-title-row">
+            <div class="section-title-block">
+              <h2>User Segmentation</h2>
+              <p class="section-description">
+                Data are limited to successfully completed climbs, or "sends," that users actually log. Some users use the
+                app to fully log all their climbing sessions, some only log sends they're proud of, and others
+                try it once or twice and never come back. In all cases, we are blind to all failed climbing
+                attempts.
+              </p>
+              <p class="section-description">
+                Since the different logging characteristics have different downstream effects on our analysis,
+                we first segment the user base. For now, we'll simply categorize them as "Active" or
+                "Inactive" based on the total number of sends they've logged, total number of distinct climbing
+                sessions they've logged, and their average number of sends per session.
+              </p>
+            </div>
+          </div>
+
+          <div class="card chart-card segment-stat-card">
+            <div class="segment-stat-row">
+              <div class="segment-stat">
+                <span class="kpi-value" id="segment-active-count">-</span>
+                <span class="segment-stat-label">Active</span>
+              </div>
+              <div class="segment-stat-sep">/</div>
+              <div class="segment-stat">
+                <span class="kpi-value" id="segment-inactive-count">-</span>
+                <span class="segment-stat-label">Inactive</span>
+              </div>
+            </div>
+            <div class="segment-stat-divider"></div>
+            <p id="segment-note" class="muted-copy">Loading segment rule...</p>
+          </div>
+
+          <div class="chart-grid two-up-grid">
             <div class="card chart-card chart-card-wide">
               <div class="section-heading">Corner Plot</div>
+              <p class="muted-copy chart-caption">Shown on a log scale, with dashed lines marking the active/inactive thresholds.</p>
               <div id="segment-corner-chart" class="chart-host chart-host-corner"></div>
             </div>
           </div>
@@ -210,25 +250,13 @@
         <section id="tab-data-overview" class="tab-pane">
           <div class="section-title-row">
             <div>
-              <div class="eyebrow">Data</div>
-              <h2>Tracked Coverage And Send Volume</h2>
-            </div>
-          </div>
-
-          <div class="chart-grid two-up-grid">
-            <div class="card compact-card note-card">
-              <div class="eyebrow">Data Source</div>
-              <div class="metric-inline" id="local-db-path">Loading...</div>
-              <p class="muted-copy">This viewer reads from your local SQLite materialization and the shared data-access layer.</p>
-            </div>
-            <div class="card compact-card note-card">
-              <div class="eyebrow">Segment Rule</div>
-              <p class="muted-copy">Active users satisfy the notebook-aligned send, day, and sends-per-day thresholds.</p>
+              <h2>Data Coverage</h2>
+              <!-- TODO: add a section-description paragraph here about data capture (author: Peter) -->
             </div>
           </div>
 
           <div class="kpi-grid">
-            <div class="card kpi-card"><div class="eyebrow">Total Sends</div><div class="kpi-value" id="total-sends">-</div></div>
+            <div class="card kpi-card"><div class="eyebrow">Total Logged Sends</div><div class="kpi-value" id="total-sends">-</div></div>
             <div class="card kpi-card"><div class="eyebrow">Unique Users</div><div class="kpi-value" id="unique-users">-</div></div>
             <div class="card kpi-card"><div class="eyebrow">Tracked Gyms</div><div class="kpi-value" id="unique-gyms">-</div></div>
             <div class="card kpi-card"><div class="eyebrow">Date Range</div><div class="kpi-value kpi-value-small" id="date-range">-</div></div>
@@ -237,7 +265,7 @@
           <div class="card chart-card compare-toolbar">
             <div class="control-grid control-grid-compact">
               <label class="inline-select-control">
-                <span>Sends overlay gym</span>
+                <span>Gym-specific coverage</span>
                 <select id="time-gym-select">
                   <option value="">All gyms</option>
                 </select>
@@ -251,27 +279,28 @@
                 </select>
               </label>
             </div>
-
-            <div class="control-grid control-grid-stack">
-              <div>
-                <div class="control-label">Grade-distribution overlays</div>
-                <div id="grade-overlay-picker" class="combo-select">
-                  <div class="combo-control">
-                    <input class="combo-input" type="text" placeholder="Choose gyms" autocomplete="off" />
-                  </div>
-                  <div class="combo-pills"></div>
-                  <div class="combo-panel" hidden>
-                    <div class="combo-options"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
 
           <div class="chart-grid two-up-grid">
             <div class="card chart-card chart-card-wide">
               <div class="section-heading">Sends Over Time</div>
               <div id="time-series-chart" class="chart-host"></div>
+            </div>
+            <div class="card chart-card compare-toolbar chart-card-wide">
+              <div class="control-grid control-grid-stack">
+                <div>
+                  <div class="control-label">Grade Distribution Overlays</div>
+                  <div id="grade-overlay-picker" class="combo-select">
+                    <div class="combo-control">
+                      <input class="combo-input" type="text" placeholder="Add gym to overlay..." autocomplete="off" />
+                    </div>
+                    <div class="combo-pills"></div>
+                    <div class="combo-panel" hidden>
+                      <div class="combo-options"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
             <div class="card chart-card">
               <div class="section-heading">Bouldering Grade Distribution</div>
@@ -282,13 +311,13 @@
               <div id="route-grade-chart" class="chart-host"></div>
             </div>
             <div class="card chart-card chart-card-wide">
-              <div class="section-heading">Number Of Data Points By Gym</div>
+              <div class="section-heading">Sends by Gym</div>
               <div id="gym-counts-chart" class="chart-host chart-host-tall"></div>
             </div>
           </div>
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=11"></script>
+    <script src="/static/app.js?v=19"></script>
   </body>
 </html>

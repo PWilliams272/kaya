@@ -401,13 +401,15 @@ class KayaDataAccessor:
         climb_type: Optional[str] = None,
         discipline: Optional[str] = None,
     ) -> pd.DataFrame:
-        """Aggregate send counts by grade."""
+        """Aggregate distinct climbs by grade — one count per unique climb_id,
+        not one per logged send, so a climb that got sent 50 times doesn't
+        outweigh 50 different climbs sent once each."""
         sends_df = self.read_sends(
             source=source,
             gym_ids=gym_ids,
             start_date=start_date,
             end_date=end_date,
-            columns=['grade', 'climb_type'],
+            columns=['grade', 'climb_type', 'climb_id'],
             parse_dates=False,
             order_by=False,
         )
@@ -423,13 +425,13 @@ class KayaDataAccessor:
             ]
         if sends_df.empty:
             return pd.DataFrame(
-                columns=['grade', 'send_count', 'grade_num', 'discipline']
+                columns=['grade', 'climb_count', 'grade_num', 'discipline']
             )
 
         grouped = (
-            sends_df.groupby(['discipline', 'grade'], dropna=False)
-            .size()
-            .rename('send_count')
+            sends_df.groupby(['discipline', 'grade'], dropna=False)['climb_id']
+            .nunique()
+            .rename('climb_count')
             .reset_index()
         )
         grouped['grade_num'] = grouped.apply(

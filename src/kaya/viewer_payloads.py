@@ -328,7 +328,10 @@ class ViewerPayloadBuilder:
         if users_df.empty:
             return {
                 'criteria': ACTIVE_SEGMENT_RULES,
-                'criteria_text': 'Active if n_sends >= 3, n_sesh >= 2.5, and n_sends_per_sesh >= 2.5.',
+                'criteria_text': (
+                    'Active users have logged at least 3 sends, across at least 3 climbing '
+                    'sessions, averaging at least 2.5 sends per session.'
+                ),
                 'segment_counts': [],
                 'height_histogram': [],
                 'ape_index_histogram': [],
@@ -372,7 +375,10 @@ class ViewerPayloadBuilder:
 
         return {
             'criteria': ACTIVE_SEGMENT_RULES,
-            'criteria_text': 'Active if n_sends >= 3, n_sesh >= 2.5, and n_sends_per_sesh >= 2.5.',
+            'criteria_text': (
+                'Active users have logged at least 3 sends, across at least 3 climbing '
+                'sessions, averaging at least 2.5 sends per session.'
+            ),
             'segment_counts': segment_counts.to_dict(orient='records'),
             'height_histogram': height_histogram,
             'ape_index_histogram': ape_index_histogram,

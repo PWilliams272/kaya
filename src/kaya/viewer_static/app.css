@@ -216,6 +216,49 @@ body {
   line-height: 1.35;
 }
 
+.segment-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.segment-stat-row {
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.segment-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.segment-stat .kpi-value {
+  margin-top: 0;
+}
+
+.segment-stat-label {
+  font-size: var(--fs-sm);
+  color: var(--lg-text-2);
+}
+
+.segment-stat-sep {
+  color: var(--lg-text-3);
+  font-size: var(--fs-lg);
+}
+
+.segment-stat-divider {
+  border-top: 1px solid var(--lg-border);
+}
+
+.chart-caption {
+  margin-top: -6px;
+  margin-bottom: 12px;
+  font-size: var(--fs-xs);
+}
+
 .compare-toolbar {
   display: flex;
   flex-direction: column;
@@ -406,7 +449,7 @@ body {
 
 .chart-host-corner {
   width: 100%;
-  max-width: 800px;
+  max-width: 640px;
   aspect-ratio: 1 / 1;
   margin: 0 auto;
 }
