@@ -1,10 +1,18 @@
 # Viewer-cache Lambda — deployment runbook
 
-Everything in this doc is **prepared but not executed**. It's the concrete,
-copy-pasteable sequence for turning on the daily viewer-cache precompute job,
-decided as: a new, isolated Lambda (container image) on an EventBridge
-schedule, separate from `kaya-data-updater`, syncing a persisted SQLite
-snapshot from S3 rather than a fresh full-history rebuild every run.
+**Status: live in production as of 2026-07-28.** The `kaya-viewer-cache`
+Lambda, its IAM role, the ECR repo, and the `kaya-viewer-cache-daily`
+EventBridge rule all exist and a manual invoke completed successfully
+end-to-end (sync → curated Parquet → viewer JSON → both S3 uploads). The one
+remaining piece is wiring up `deploy-viewer-cache-lambda.yml`'s GitHub
+Actions variables (step 6 below), which needs GitHub web/`gh` CLI access
+neither agent session had — everything else in this doc has already been run
+once and is recorded here as the actual configuration, not just a plan.
+
+This is the concrete, copy-pasteable sequence used to turn on the daily
+viewer-cache precompute job: a new, isolated Lambda (container image) on an
+EventBridge schedule, separate from `kaya-data-updater`, syncing a persisted
+SQLite snapshot from S3 rather than a fresh full-history rebuild every run.
 
 Code involved:
 - `src/kaya/build_viewer_cache_lambda.py` — the handler
@@ -165,7 +173,13 @@ pushed and the function created manually:
 aws ecr get-login-password --region us-east-2 | \
   docker login --username AWS --password-stdin <account-id>.dkr.ecr.us-east-2.amazonaws.com
 
-docker build -f lambda_deployment/viewer_cache.Dockerfile \
+# --platform linux/amd64 matters on Apple Silicon dev machines — without it,
+# Docker builds for arm64 by default. --provenance=false --sbom=false matters
+# everywhere: modern Buildx attaches an attestation manifest by default, and
+# Lambda's CreateFunction rejects that image format outright
+# ("InvalidParameterValueException: ... media type ... is not supported").
+docker build --platform linux/amd64 --provenance=false --sbom=false \
+  -f lambda_deployment/viewer_cache.Dockerfile \
   -t <account-id>.dkr.ecr.us-east-2.amazonaws.com/kaya-viewer-cache:bootstrap .
 docker push <account-id>.dkr.ecr.us-east-2.amazonaws.com/kaya-viewer-cache:bootstrap
 
@@ -174,15 +188,28 @@ aws lambda create-function \
   --package-type Image \
   --code ImageUri=<account-id>.dkr.ecr.us-east-2.amazonaws.com/kaya-viewer-cache:bootstrap \
   --role arn:aws:iam::<account-id>:role/kaya-viewer-cache-lambda-role \
-  --timeout 300 \
-  --memory-size 1024 \
+  --timeout 900 \
+  --memory-size 3008 \
+  --ephemeral-storage Size=3008 \
   --environment "Variables={KAYA_S3_BUCKET=my-kaya-data-545009868532-us-east-2,KAYA_S3_PREFIX=kaya}"
 ```
 
-`--timeout 300` (5 min) and `--memory-size 1024` (1GB) are starting points —
-today's full local `write_static_artifacts()` run took roughly a minute plus
-the sync/upload steps, so this leaves real headroom; adjust after watching
-actual CloudWatch duration/memory-used on the first few real runs.
+**Actual first-run numbers** (2026-07-28, ~18K new rows synced): 10m35s
+duration, 2,577MB memory used. `--timeout 900` is Lambda's hard ceiling — that
+run used about 70% of it, so there's real but not huge margin. If a future
+run ever approaches 900s (larger daily volume, more months touched at once),
+the fix is making the job itself faster, not raising the timeout further —
+there's nowhere higher to go.
+
+`--memory-size 1024` (the original starting guess) is **not enough** —
+Lambda's CPU allocation scales with configured memory, and at 1024MB the
+`write_static_artifacts()` step (GAM fits, Bayesian bootstrap, ~461 files)
+was still running when the original 300s timeout hit. 3008MB comfortably
+covers the observed 2,577MB peak with room to spare.
+
+`--ephemeral-storage Size=3008` (default is 512MB) is required — the
+materialized SQLite snapshot alone is ~520MB, which doesn't fit in the
+default `/tmp`.
 
 ### 5. Create the EventBridge scheduled rule
 
@@ -208,8 +235,11 @@ aws events put-targets \
   --targets "Id"="1","Arn"="arn:aws:lambda:us-east-2:<account-id>:function:kaya-viewer-cache"
 ```
 
-`cron(0 12 * * ? *)` is a placeholder (noon UTC) — replace with whatever time
-actually follows `kaya-data-updater`'s schedule.
+`cron(0 12 * * ? *)` = noon UTC, used as-is (not just a placeholder) — checked
+`kaya-data-updater`'s actual rule (`run-every-day`, `cron(0 3 * * ? *)`) and
+picked a 9-hour buffer, since that rule only *dispatches* per-gym SQS jobs at
+3am; actual ingestion completes asynchronously over some window afterward
+that wasn't measured precisely, so the buffer is deliberately generous.
 
 ### 6. Wire up the GitHub Actions workflow
 
@@ -232,6 +262,31 @@ step 2 above.
 
 After that, future deploys are just: run the "Deploy Viewer Cache Lambda"
 workflow via `workflow_dispatch`.
+
+## Bugs found only by actually deploying (both already fixed in code)
+
+Neither of these showed up in any local testing — both are specific to the
+Lambda's exact runtime environment.
+
+1. **`INSERT ... ON CONFLICT DO UPDATE` failed with `near "ON": syntax
+   error`.** AWS's `public.ecr.aws/lambda/python:3.11` base image bundles
+   `libsqlite3` version **3.7.17** (from 2013) — the SQLite upsert clause
+   needs >= 3.24 (2018). A local Mac's Python typically links a far newer
+   system SQLite (3.53.x as of this writing), so this was invisible until
+   the code actually ran inside the Lambda. Fixed in `db_manager.py`'s
+   SQLite branch of `write_dataframe()` by switching to `INSERT OR REPLACE`
+   (a SQLite extension supported since essentially any version), which is
+   equivalent here since every upserted record always carries the full row.
+2. **`numpy` tried to build from source and failed** (`Unknown compiler(s):
+   [gcc, clang, ...]`) inside the base image, which has no C compiler.
+   Root cause: pip resolving an unpinned/loose `numpy` constraint pulled in
+   a version without a prebuilt wheel for this exact environment as a
+   nested build-time dependency of another package, rather than using an
+   existing wheel. Fixed by pinning `numpy==1.26.4` (matching what's
+   already proven working locally) and adding `--only-binary=numpy,scipy,
+   pandas,pyarrow` to the Dockerfile's `pip install`, so any future
+   resolution mismatch like this fails fast and clearly instead of silently
+   attempting a doomed source build.
 
 ## Verifying a run
 

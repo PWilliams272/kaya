@@ -184,16 +184,16 @@ def write_dataframe(
                     )
                     conn.execute(stmt)
             else:
-                for row in records:
-                    stmt = sqlite_insert(table).values(**row)
-                    update_dict = {
-                        c: row[c] for c in df.columns if c != 'send_id'
-                    }
-                    stmt = stmt.on_conflict_do_update(
-                        index_elements=['send_id'],
-                        set_=update_dict
-                    )
-                    conn.execute(stmt)
+                # SQLite's ON CONFLICT ... DO UPDATE upsert syntax needs
+                # SQLite >= 3.24 (2018). AWS's Lambda Python 3.11 base image
+                # bundles libsqlite3 3.7.17 (2013), which doesn't have it —
+                # confirmed by a real "near ON: syntax error" failure on an
+                # actual Lambda invoke, not a local machine. INSERT OR
+                # REPLACE is a SQLite-specific extension supported since
+                # essentially any version, and is equivalent here since
+                # every record always carries the full row already.
+                stmt = table.insert().prefix_with('OR REPLACE')
+                conn.execute(stmt, records)
         else:
             df.to_sql(
                 table_name,
