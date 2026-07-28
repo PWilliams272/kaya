@@ -56,6 +56,15 @@ def get_engine(
         # Set the PostgreSQL search_path to the desired schema
         with engine.connect() as conn:
             conn.execute(text(f"SET search_path TO {schema}"))
+    elif engine.dialect.name == 'sqlite':
+        # WAL is a persistent, file-level setting (survives across
+        # connections once set), so this is a fast no-op after the first
+        # call. Default (delete) journal mode blocks concurrent readers
+        # during a write transaction; WAL lets reads proceed alongside it —
+        # relevant since the viewer and a local/Lambda sync can run at the
+        # same time against the same file.
+        with engine.connect() as conn:
+            conn.execute(text('PRAGMA journal_mode=WAL'))
     return engine
 
 
@@ -121,6 +130,16 @@ def write_dataframe(
                 autoload_with=conn,
                 schema=schema
             )
+
+        if not use_aws and table_name == 'sends':
+            # gym_id and date are the only columns ever used in a SQL WHERE
+            # clause (see KayaDataAccessor._build_db_filters) — every
+            # gym/date-scoped query up to now has been a full table scan.
+            # grade classification happens in pandas after the read, so an
+            # index there wouldn't be used by anything today. IF NOT EXISTS
+            # makes this a fast no-op on every call after the first.
+            conn.execute(text('CREATE INDEX IF NOT EXISTS ix_sends_gym_id ON sends (gym_id)'))
+            conn.execute(text('CREATE INDEX IF NOT EXISTS ix_sends_date ON sends (date)'))
 
         # Upsert logic
         records = df.to_dict(orient='records')

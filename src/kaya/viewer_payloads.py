@@ -1,4 +1,5 @@
 import json
+import os
 from functools import lru_cache
 from math import isnan
 from pathlib import Path
@@ -19,7 +20,13 @@ from kaya.data_access import (
 from kaya.s3_storage import get_s3_bucket, get_s3_client, get_s3_prefix, has_s3_storage_config
 
 VIEWER_CACHE_S3_SUBPREFIX = 'viewer-cache'
-VIEWER_ARTIFACTS_DIR = Path(__file__).resolve().parents[2] / 'data' / 'viewer_payloads' / 'latest'
+
+# The package directory is read-only in Lambda (same reasoning as db_manager's
+# BASE_DIR) — default to /tmp there instead of a path under the deployed code.
+if 'AWS_LAMBDA_FUNCTION_NAME' in os.environ:
+    VIEWER_ARTIFACTS_DIR = Path('/tmp/viewer_payloads/latest')
+else:
+    VIEWER_ARTIFACTS_DIR = Path(__file__).resolve().parents[2] / 'data' / 'viewer_payloads' / 'latest'
 ACTIVE_SEGMENT_RULES: Dict[str, float] = {
     'n_sends': 3.0,
     'n_sesh': 2.5,

@@ -1,0 +1,73 @@
+name: Deploy Viewer Cache Lambda
+
+# Manual-only for now, unlike deploy-lambda.yml's push-triggered deploy: this
+# workflow updates an existing Lambda function's container image, and that
+# function does not exist yet (creating it is a separate, deliberate step —
+# see lambda_deployment/VIEWER_CACHE_RUNBOOK.md). Once it exists and this
+# workflow has been run successfully at least once, wiring a push trigger
+# similar to deploy-lambda.yml's is a reasonable follow-up.
+on:
+  workflow_dispatch:
+    inputs:
+      target_environment:
+        description: "Deployment environment"
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - prod
+
+concurrency:
+  group: kaya-viewer-cache-deploy-${{ inputs.target_environment }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.target_environment }} viewer-cache Lambda
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target_environment }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || secrets.AWS_REGION || 'us-east-2' }}
+      LAMBDA_FUNCTION_NAME: ${{ vars.VIEWER_CACHE_LAMBDA_FUNCTION_NAME }}
+      ECR_REPOSITORY: ${{ vars.VIEWER_CACHE_ECR_REPOSITORY || 'kaya-viewer-cache' }}
+    steps:
+      - name: Validate deployment target
+        run: |
+          if [ -z "$LAMBDA_FUNCTION_NAME" ]; then
+            echo "No VIEWER_CACHE_LAMBDA_FUNCTION_NAME configured for this environment."
+            echo "Set an environment-scoped variable before running this deploy."
+            exit 1
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+        run: |
+          IMAGE_URI="$ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}"
+          docker build -f lambda_deployment/viewer_cache.Dockerfile -t "$IMAGE_URI" .
+          docker push "$IMAGE_URI"
+          echo "IMAGE_URI=$IMAGE_URI" >> "$GITHUB_ENV"
+
+      - name: Update Lambda function code
+        run: |
+          aws lambda update-function-code \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --image-uri "$IMAGE_URI"

@@ -560,6 +560,7 @@ class KayaDataAccessor:
 
         rows_written = 0
         dropped_columns: set[str] = set()
+        months_touched: set[str] = set()
         for item in objects:
             batch_df = self._read_s3_object(item['key'])
             if batch_df.empty:
@@ -575,12 +576,21 @@ class KayaDataAccessor:
                 if_exists='upsert',
             )
             rows_written += len(local_batch_df)
+            if 'date' in local_batch_df.columns:
+                # 'date' is stored/queried as an ISO 8601 string (see
+                # _build_db_filters), so the first 7 characters are always
+                # YYYY-MM without needing to parse it — used to know which
+                # curated Parquet month-partitions need rebuilding.
+                months_touched.update(
+                    local_batch_df['date'].dropna().astype(str).str[:7].unique()
+                )
 
         return {
             'objects_processed': len(objects),
             'rows_written': rows_written,
             'local_db_path': str(self.local_db_path),
             'dropped_columns': sorted(dropped_columns),
+            'months_touched': sorted(months_touched),
         }
 
     def sync_latest_s3_to_local_db(
@@ -605,6 +615,37 @@ class KayaDataAccessor:
         )
         result['run_dates'] = run_dates
         return result
+
+    def write_curated_month_parquet(self, year_month: str) -> Dict[str, Any]:
+        """Rebuild one curated Parquet month-partition from the local DB.
+
+        Per DATA_STORAGE_NOTES.md's suggested layout
+        (kaya/curated/sends/year=YYYY/month=MM/...), and reads the whole
+        month fresh each time rather than appending — Parquet files aren't
+        appendable in place, and a full-month reread is fast now that `date`
+        is indexed (see write_dataframe's index-ensuring step).
+        """
+        year_str, month_str = year_month.split('-')
+        year, month = int(year_str), int(month_str)
+        start = f'{year:04d}-{month:02d}-01'
+        end = f'{year + 1:04d}-01-01' if month == 12 else f'{year:04d}-{month + 1:02d}-01'
+
+        month_df = pd.read_sql_query(
+            text('SELECT * FROM sends WHERE date >= :start AND date < :end ORDER BY date'),
+            get_engine(use_aws=False),
+            params={'start': start, 'end': end},
+        )
+
+        local_path = Path(f'/tmp/curated_sends_{year_month}.parquet') if 'AWS_LAMBDA_FUNCTION_NAME' in os.environ \
+            else self.local_db_path.parent / f'curated_sends_{year_month}.parquet'
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        month_df.to_parquet(local_path, engine='pyarrow', index=False)
+
+        key = f'{get_s3_prefix()}/curated/sends/year={year:04d}/month={month:02d}/data.parquet'
+        get_s3_client().upload_file(str(local_path), get_s3_bucket(), key)
+        local_path.unlink()
+
+        return {'year_month': year_month, 'rows': len(month_df), 's3_key': key}
 
     def normalize_sends_frame(
         self,
