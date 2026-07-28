@@ -468,7 +468,7 @@ function mountSearchableMultiSelect(rootId, options, selectedValues, onChange, p
       pill.appendChild(remove);
       pillsContainer.appendChild(pill);
     });
-    input.placeholder = state.selectedValues.length ? '' : placeholder;
+    input.placeholder = placeholder;
   }
 
   function renderOptions() {
@@ -646,7 +646,7 @@ function populateGymControls() {
         }
         renderGymComparisonVisuals();
       },
-      'Choose gyms'
+      'Add gym to comparison...'
     );
   } else {
     appState.widgets['compare-gyms-picker'].update(options, appState.filters.compareGymIds);
@@ -1260,8 +1260,13 @@ const APE_INDEX_MIN = -10;
 const APE_INDEX_MAX = 10;
 
 function renderBodyMorphologyNote() {
-  const audience = appState.filters.bodyActiveOnly ? 'Active users only' : 'All users';
-  document.getElementById('body-morphology-note').textContent = `${audience} for the grade panels. Each pair is a scatter (exact bucket counts, plus a GAM-fit mean curve + 68% CI band per gender) next to a combined density heatmap (both genders, same plot) — click "Male"/"Female" in either panel's legend to isolate one. Height and ape-index histograms stay on the original all-users, male-users, female-users split, with height and ape values clipped to the notebook ranges and bubble diameter scaled by sqrt(users in each exact bucket).`;
+  document.getElementById('body-morphology-note').textContent = 'A climber\'s height and wingspan have a huge impact on the perceived difficulty of a given climb. '
+    + 'A "reachy" climb will benefit a tall climber, or a climber with long arms who can reach holds more easily, while a "boxy" '
+    + 'climb might benefit smaller climbers who can more easily maneuver around tight spaces. The plots on this page examine the '
+    + 'maximum grades logged as a function of the user\'s height and ape index (wingspan - height). Versions are available for '
+    + '"Active" users of the app and the entire population, and are separated by gender. The solid line and shaded band in each '
+    + 'scatter panel are a GAM (Generalized Additive Model) fit — a flexible curve that follows the data\'s actual shape rather '
+    + 'than assuming a straight-line relationship, regularized against overfitting to sparse buckets.';
 }
 
 function bodyMetricAxisConfig(metricsForDiscipline, xIsHeight) {
@@ -1860,6 +1865,33 @@ function renderGymComparisonPairHeatmap(hostId, refGymName, pair, tickVals, tick
   );
 }
 
+// Grade delta is comp - ref (see buildGymComparisonModel), so a negative
+// value means the comparison gym logged a *lower* max grade for the same
+// person than the reference gym did — i.e. the comp gym is stingier/more
+// conservative with its grades ("stiffer"). A positive value means the comp
+// gym is more generous ("softer").
+function stifferSofterAnnotations() {
+  // Positioned just inside the plot's own bounds (y < 1, not up in the
+  // margin above it) with a background box behind the text, so visibility
+  // doesn't depend on margin sizing being exactly right — worst case they
+  // sit over the top of the tallest bars rather than disappearing.
+  const bg = cssVar('--lg-card') || 'rgba(0, 0, 0, 0.6)';
+  const shared = {
+    y: 0.97,
+    yref: 'paper',
+    yanchor: 'top',
+    showarrow: false,
+    font: { size: 10, color: cssVar('--lg-text-2') },
+    bgcolor: bg,
+    opacity: 0.92,
+    borderpad: 2,
+  };
+  return [
+    { ...shared, x: 0.02, xref: 'paper', xanchor: 'left', text: '← Comp gym stiffer' },
+    { ...shared, x: 0.98, xref: 'paper', xanchor: 'right', text: 'Comp gym softer →' },
+  ];
+}
+
 function renderGymComparisonPairHistogram(hostId, pair) {
   const color = gymLinePalette[0];
   const band = bayesianBootstrapKde(pair.diffValues, { min: -6.5, max: 7.5 });
@@ -1894,11 +1926,16 @@ function renderGymComparisonPairHistogram(hostId, pair) {
   ] : [];
   const medianAnnotations = medianStats ? [
     {
+      // Rotated and run alongside the vertical median line itself, rather
+      // than centered horizontally above it, so it doesn't compete for the
+      // same top-margin space as the stiffer/softer labels.
       x: medianStats.point,
-      y: 1,
+      y: 0.5,
       yref: 'paper',
-      yanchor: 'bottom',
-      xanchor: 'center',
+      yanchor: 'middle',
+      xanchor: 'left',
+      xshift: 6,
+      textangle: -90,
       showarrow: false,
       text: `median ${medianStats.point.toFixed(2)} (16-84th pctile: ${medianStats.lower.toFixed(2)} to ${medianStats.upper.toFixed(2)})`,
       font: { size: 10, color: cssVar('--lg-text-2') },
@@ -1950,8 +1987,8 @@ function renderGymComparisonPairHistogram(hostId, pair) {
       },
     ],
     {
-      ...chartLayout('Grade delta (comp - ref)'),
-      margin: { ...chartLayout('Grade delta (comp - ref)').margin, t: 34 },
+      ...chartLayout('Max Grade Difference<br>(Comp - Ref.)'),
+      margin: { ...chartLayout('').margin, t: 48 },
       shapes: [
         ...medianShapes,
         {
@@ -1965,7 +2002,7 @@ function renderGymComparisonPairHistogram(hostId, pair) {
           line: { color: cssVar('--lg-text-2'), width: 1.5, dash: 'dash' },
         },
       ],
-      annotations: medianAnnotations,
+      annotations: [...medianAnnotations, ...stifferSofterAnnotations()],
     },
     { responsive: true, displayModeBar: false }
   );
@@ -1976,21 +2013,32 @@ function renderGymComparisonFocusRow() {
     return;
   }
   const container = document.getElementById('gym-comparison-focus-row');
+  const note = document.getElementById('gym-comparison-note');
   const refGymId = appState.filters.compareRefGymId;
   const focusGymId = appState.filters.compareFocusGymId;
 
   if (!refGymId || !focusGymId || focusGymId === refGymId) {
     container.innerHTML = '<div class="comparison-chart-shell"><div class="comparison-chart-title">Choose a reference gym and a gym to compare against it.</div></div>';
+    if (note) {
+      note.textContent = 'Choose a reference gym and a gym to compare against it.';
+    }
     return;
   }
 
   const model = buildGymComparisonModel([focusGymId]);
   if (!model.pairs.length) {
     container.innerHTML = '<div class="comparison-chart-shell"><div class="comparison-chart-title">No overlapping users at the selected minimum days.</div></div>';
+    if (note) {
+      note.textContent = 'No overlapping users at the selected minimum days.';
+    }
     return;
   }
 
   const pair = model.pairs[0];
+  const overlapUserCount = pair.points.reduce((sum, point) => sum + point.n_users, 0);
+  if (note) {
+    note.textContent = `${formatNumber(overlapUserCount)} users met the minimum-days-at-each-gym requirement at both gyms and are included below.`;
+  }
   const ticks = getGradeTicks(appState.filters.compareDiscipline);
   const tickVals = ticks.map((tick) => tick.value);
   const tickText = ticks.map((tick) => tick.label);
@@ -2122,7 +2170,8 @@ function renderGymComparisonVisuals() {
     'gym-comparison-delta-chart',
     [...histogramTraces, ...whiskerTraces],
     {
-      ...chartLayout(`Max grade at comparison gym - ${gymName(appState.filters.compareRefGymId)}`),
+      ...chartLayout('Max Grade Difference (Comp - Ref.)'),
+      margin: { ...chartLayout('').margin, t: 44 },
       height: 260 + (perGym.length * 20) + 40,
       yaxis: {
         ...chartLayout('').yaxis,
@@ -2149,24 +2198,13 @@ function renderGymComparisonVisuals() {
           line: { color: cssVar('--lg-text-2'), width: 1.5, dash: 'dash' },
         },
       ],
+      annotations: stifferSofterAnnotations(),
     },
     { responsive: true, displayModeBar: false }
   );
 }
 
-function renderGymComparisonNote() {
-  const note = document.getElementById('gym-comparison-note');
-  if (!note) {
-    return;
-  }
-  note.textContent = 'Median and 10th-90th percentile lines show the spread of observed grade deltas, not a clean measurement of the '
-    + 'true grading gap between gyms. A person\'s max logged grade at a gym is a noisy stand-in for their real ceiling there — it '
-    + 'depends on how many times they climbed at that gym and how consistently they log sends, both of which vary by person and '
-    + 'aren\'t accounted for here.';
-}
-
 function renderGymComparisonAll() {
-  renderGymComparisonNote();
   renderGymComparisonFocusRow();
   renderGymComparisonVisuals();
 }
@@ -2239,6 +2277,41 @@ function isEffectivelyLightTheme() {
   }
   return !window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
+
+// When Kaya is opened directly, theme is whatever the user picked here
+// (kaya-viewer-theme in localStorage) or the OS default. When it's embedded
+// in an iframe on peterwilliams.dev's /kaya page, the parent site instead
+// asks Kaya to mirror *its* theme — via ?embed_theme= on first load (read
+// before any data fetch, so there's no flash of the wrong theme) and via
+// postMessage for live toggles afterward. This is a per-view override only:
+// it never touches kaya-viewer-theme, so a direct/standalone visit later
+// still gets the user's own Kaya preference, not whatever the embed last
+// asked for.
+function getEmbedThemeOverride() {
+  const params = new URLSearchParams(window.location.search);
+  const embedTheme = params.get('embed_theme');
+  return embedTheme === 'dark' || embedTheme === 'light' ? embedTheme : null;
+}
+
+const KAYA_EMBED_TRUSTED_ORIGINS = ['https://peterwilliams.dev', 'https://www.peterwilliams.dev'];
+
+window.addEventListener('message', (event) => {
+  if (!KAYA_EMBED_TRUSTED_ORIGINS.includes(event.origin)) {
+    return;
+  }
+  if (!event.data || event.data.type !== 'site-theme') {
+    return;
+  }
+  const theme = event.data.theme;
+  if (theme !== 'dark' && theme !== 'light') {
+    return;
+  }
+  document.documentElement.dataset.theme = theme;
+  updateThemeToggleIcon();
+  if (initialRenderComplete) {
+    renderAll();
+  }
+});
 
 function updateThemeToggleIcon() {
   const button = document.getElementById('theme-toggle');
@@ -2318,8 +2391,11 @@ async function refreshDynamicData() {
 
 async function initialize() {
   window.__kayaViewerStatus = 'initializing';
+  const embedTheme = getEmbedThemeOverride();
   const savedTheme = localStorage.getItem('kaya-viewer-theme');
-  if (savedTheme) {
+  if (embedTheme) {
+    document.documentElement.dataset.theme = embedTheme;
+  } else if (savedTheme) {
     document.documentElement.dataset.theme = savedTheme;
   }
   updateThemeToggleIcon();

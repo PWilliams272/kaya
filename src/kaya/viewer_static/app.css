@@ -126,6 +126,19 @@ body {
   gap: 12px;
 }
 
+.section-title-block {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.section-description {
+  margin-top: 6px;
+  width: 100%;
+  color: var(--lg-text-2);
+  font-size: var(--fs-base);
+  line-height: 1.5;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -251,7 +264,6 @@ body {
 
 .combo-control {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   min-height: 40px;
@@ -268,10 +280,16 @@ body {
   box-shadow: 0 0 0 3px var(--lg-gold-soft);
 }
 
+/* Sits below .combo-control as its own row, outside the bordered/background
+   input box — not empty-collapsed, since :empty has no padding/margin. */
 .combo-pills {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.combo-pills:not(:empty) {
+  margin-top: 8px;
 }
 
 .combo-pill {
