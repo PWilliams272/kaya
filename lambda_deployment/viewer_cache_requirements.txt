@@ -1,0 +1,9 @@
+pandas>=1.3,<3.0
+numpy==1.26.4
+scipy>=1.7,<2.0
+pygam>=0.9,<1.0
+pyarrow>=14,<19
+gender-guesser>=0.4,<1.0
+python-dotenv>=0.19,<2.0
+sqlalchemy>=1.4,<3.0
+boto3>=1.17,<2.0

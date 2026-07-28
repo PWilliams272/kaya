@@ -56,6 +56,15 @@ def get_engine(
         # Set the PostgreSQL search_path to the desired schema
         with engine.connect() as conn:
             conn.execute(text(f"SET search_path TO {schema}"))
+    elif engine.dialect.name == 'sqlite':
+        # WAL is a persistent, file-level setting (survives across
+        # connections once set), so this is a fast no-op after the first
+        # call. Default (delete) journal mode blocks concurrent readers
+        # during a write transaction; WAL lets reads proceed alongside it —
+        # relevant since the viewer and a local/Lambda sync can run at the
+        # same time against the same file.
+        with engine.connect() as conn:
+            conn.execute(text('PRAGMA journal_mode=WAL'))
     return engine
 
 
@@ -122,6 +131,16 @@ def write_dataframe(
                 schema=schema
             )
 
+        if not use_aws and table_name == 'sends':
+            # gym_id and date are the only columns ever used in a SQL WHERE
+            # clause (see KayaDataAccessor._build_db_filters) — every
+            # gym/date-scoped query up to now has been a full table scan.
+            # grade classification happens in pandas after the read, so an
+            # index there wouldn't be used by anything today. IF NOT EXISTS
+            # makes this a fast no-op on every call after the first.
+            conn.execute(text('CREATE INDEX IF NOT EXISTS ix_sends_gym_id ON sends (gym_id)'))
+            conn.execute(text('CREATE INDEX IF NOT EXISTS ix_sends_date ON sends (date)'))
+
         # Upsert logic
         records = df.to_dict(orient='records')
         logger.debug(
@@ -165,16 +184,16 @@ def write_dataframe(
                     )
                     conn.execute(stmt)
             else:
-                for row in records:
-                    stmt = sqlite_insert(table).values(**row)
-                    update_dict = {
-                        c: row[c] for c in df.columns if c != 'send_id'
-                    }
-                    stmt = stmt.on_conflict_do_update(
-                        index_elements=['send_id'],
-                        set_=update_dict
-                    )
-                    conn.execute(stmt)
+                # SQLite's ON CONFLICT ... DO UPDATE upsert syntax needs
+                # SQLite >= 3.24 (2018). AWS's Lambda Python 3.11 base image
+                # bundles libsqlite3 3.7.17 (2013), which doesn't have it —
+                # confirmed by a real "near ON: syntax error" failure on an
+                # actual Lambda invoke, not a local machine. INSERT OR
+                # REPLACE is a SQLite-specific extension supported since
+                # essentially any version, and is equivalent here since
+                # every record always carries the full row already.
+                stmt = table.insert().prefix_with('OR REPLACE')
+                conn.execute(stmt, records)
         else:
             df.to_sql(
                 table_name,

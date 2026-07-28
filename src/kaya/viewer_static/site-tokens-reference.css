@@ -1,0 +1,141 @@
+/*
+  Design tokens for peterwilliams.dev (v2)
+
+  Locked via the design sandbox exercise (Panel direction): blue primary,
+  copper secondary, IBM Plex Sans, flat/bordered elevation, Auto light/dark
+  default. This file is the source of truth for those decisions — meant to
+  be shared by the main site and the Kaya viewer so both stay visually in
+  sync even though they run as separate services (see SITE_V2_HANDOFF.md).
+
+  Nothing in the rest of the site consumes these variables yet. This file
+  is additive only: it defines tokens on :root but doesn't override any
+  existing Bootstrap/Lato styling. Wiring real templates to these tokens
+  is follow-up work.
+*/
+
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/ibm-plex-sans-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../fonts/ibm-plex-sans-700.woff2') format('woff2');
+}
+
+:root {
+  /* neutrals — close to white, just a faint cool tint rather than pure grey */
+  --bg: #f6f8f9;
+  --surface: #ffffff;
+  --surface-raised: #edf0f2;
+  --border: #cdd6e0;
+  --text: #171d27;
+  --text-muted: #57657a;
+
+  /* primary — the site's existing brand blue, unchanged */
+  --accent: #1976d2;
+  --accent-hover: #1565c0;
+  --accent-contrast: #ffffff;
+  --accent-soft: rgba(25, 118, 210, 0.10);
+
+  /* secondary / complementary — copper, used sparingly for things that
+     must not read as the primary action (e.g. a "login required" badge) */
+  --highlight: #b8752e;
+  --highlight-contrast: #fff8f0;
+  --highlight-soft: rgba(184, 117, 46, 0.12);
+
+  /* semantic — independent of both accent and highlight */
+  --success: #2e8b57;
+  --warning: #a9821b;
+  --danger: #b8382e;
+  --success-soft: rgba(46, 139, 87, 0.10);
+  --warning-soft: rgba(169, 130, 27, 0.10);
+  --danger-soft: rgba(184, 56, 46, 0.10);
+
+  /* shape — flat/bordered elevation, sharp radii */
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 32, 0.07);
+  --shadow-md: 0 6px 16px rgba(15, 23, 32, 0.10);
+  --card-border-color: var(--border);
+  --shadow-card: var(--shadow-sm);
+
+  /* spacing / label conventions */
+  --pad-card: 18px;
+  --pad-control: 9px 12px;
+  --tracking-label: .08em;
+  --label-transform: uppercase;
+
+  /* type — one family across display/heading/body, two weights */
+  --font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: var(--font-family);
+  --font-heading: var(--font-family);
+  --font-body: var(--font-family);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* Dark mode follows the OS/browser preference by default. A manual toggle
+   (not yet built) should set data-theme="dark" / "light" on <html> to
+   override it — see the design sandbox for the working pattern. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1420;
+    --surface: #161f2c;
+    --surface-raised: #1c2736;
+    --border: #293344;
+    --text: #e7ecf3;
+    --text-muted: #8fa0b5;
+
+    --accent: #4da6ff;
+    --accent-hover: #7ac2ff;
+    --accent-contrast: #04182b;
+    --accent-soft: rgba(77, 166, 255, 0.20);
+
+    --highlight: #d99a52;
+    --highlight-contrast: #2b1706;
+    --highlight-soft: rgba(217, 154, 82, 0.16);
+
+    --success: #6cc794;
+    --warning: #d9b54a;
+    --danger: #e0685f;
+    --success-soft: rgba(108, 199, 148, 0.16);
+    --warning-soft: rgba(217, 181, 74, 0.16);
+    --danger-soft: rgba(224, 104, 95, 0.16);
+
+    --shadow-sm: 0 0 0 1px rgba(255, 255, 255, 0.03);
+    --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.35);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1420;
+  --surface: #161f2c;
+  --surface-raised: #1c2736;
+  --border: #293344;
+  --text: #e7ecf3;
+  --text-muted: #8fa0b5;
+
+  --accent: #4da6ff;
+  --accent-hover: #7ac2ff;
+  --accent-contrast: #04182b;
+  --accent-soft: rgba(77, 166, 255, 0.20);
+
+  --highlight: #d99a52;
+  --highlight-contrast: #2b1706;
+  --highlight-soft: rgba(217, 154, 82, 0.16);
+
+  --success: #6cc794;
+  --warning: #d9b54a;
+  --danger: #e0685f;
+  --success-soft: rgba(108, 199, 148, 0.16);
+  --warning-soft: rgba(217, 181, 74, 0.16);
+  --danger-soft: rgba(224, 104, 95, 0.16);
+
+  --shadow-sm: 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.35);
+}

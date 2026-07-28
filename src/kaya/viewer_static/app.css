@@ -1,0 +1,469 @@
+body {
+  min-height: 100vh;
+}
+
+.app-shell {
+  display: block;
+  min-height: 100vh;
+}
+
+.brand-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.brand-title {
+  font-size: var(--fs-2xl);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.brand-subtitle,
+.muted-copy,
+.metric-inline {
+  font-size: var(--fs-sm);
+  color: var(--lg-text-2);
+}
+
+.eyebrow {
+  color: var(--lg-text-3);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.main-shell {
+  width: min(100%, var(--lg-content-max));
+  padding: 24px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: var(--lg-nav-h);
+  background: color-mix(in srgb, var(--lg-bg) 84%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--lg-border);
+  padding-bottom: 12px;
+}
+
+.topbar h1,
+.section-title-row h2 {
+  font-size: var(--fs-2xl);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ghost-button {
+  padding: 8px 14px;
+  border: 1px solid var(--lg-border);
+  border-radius: 999px;
+  background: var(--lg-surface);
+  color: var(--lg-text);
+}
+
+.theme-toggle-button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--lg-border);
+  border-radius: 999px;
+  background: var(--lg-surface);
+  color: var(--lg-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.card {
+  background: var(--lg-card);
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-lg);
+}
+
+.compact-card {
+  padding: 14px;
+}
+
+.chart-card,
+.note-card {
+  padding: 16px;
+}
+
+.section-heading {
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--lg-border);
+  color: var(--lg-text-3);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.section-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 12px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.info-pill {
+  color: var(--lg-info);
+  background: color-mix(in srgb, var(--lg-info) 12%, transparent);
+}
+
+.tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid var(--lg-border);
+}
+
+.tab-button {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--lg-text-2);
+  padding: 10px 4px;
+  margin-right: 22px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+
+.tab-button:hover {
+  color: var(--lg-text);
+}
+
+.tab-button.active {
+  color: var(--lg-text);
+  border-color: var(--lg-gold);
+}
+
+.tab-pane {
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tab-pane.active {
+  display: flex;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.kpi-card {
+  padding: 14px 16px;
+}
+
+.kpi-value {
+  margin-top: 4px;
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-value-small {
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.compare-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.control-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.control-grid-compact {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.control-grid-stack {
+  grid-template-columns: 1fr;
+}
+
+.control-label {
+  margin-bottom: 6px;
+  color: var(--lg-text-2);
+  font-size: var(--fs-xs);
+}
+
+.inline-select-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  color: var(--lg-text-2);
+}
+
+.inline-select-control select {
+  background: var(--lg-surface);
+  color: var(--lg-text);
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-md);
+  padding: 10px 12px;
+}
+
+
+.combo-select {
+  position: relative;
+}
+
+.combo-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 6px 10px;
+  background: var(--lg-surface);
+  color: var(--lg-text);
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-md);
+  cursor: text;
+}
+
+.combo-select.is-open .combo-control {
+  border-color: var(--lg-gold);
+  box-shadow: 0 0 0 3px var(--lg-gold-soft);
+}
+
+.combo-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.combo-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--lg-gold-soft);
+  border-radius: 999px;
+  padding: 3px 6px 3px 10px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--lg-gold);
+  white-space: nowrap;
+}
+
+.combo-pill-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.combo-pill-remove:hover {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.combo-input {
+  flex: 1 1 80px;
+  min-width: 80px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--lg-text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  padding: 4px 2px;
+}
+
+.combo-panel {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--lg-surface);
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-md);
+  max-height: 240px;
+  overflow: auto;
+  box-shadow: var(--lg-shadow-md);
+}
+
+.combo-panel[hidden] {
+  display: none;
+}
+
+.combo-option {
+  padding: 10px 12px;
+  font-size: var(--fs-sm);
+  color: var(--lg-text);
+  cursor: pointer;
+  border-bottom: 1px solid var(--lg-border);
+}
+
+.combo-option:last-child {
+  border-bottom: 0;
+}
+
+.combo-option:hover {
+  background: var(--lg-gold-soft);
+}
+
+.combo-option-empty {
+  padding: 12px;
+  color: var(--lg-text-3);
+  font-size: var(--fs-sm);
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.two-up-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.chart-card-wide {
+  grid-column: 1 / -1;
+}
+
+.chart-host {
+  width: 100%;
+  min-height: 320px;
+}
+
+.chart-host-short {
+  min-height: 240px;
+}
+
+.chart-host-tall {
+  min-height: 720px;
+}
+
+.chart-host-corner {
+  width: 100%;
+  max-width: 800px;
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+}
+
+.comparison-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.comparison-chart-shell {
+  background: var(--lg-card);
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-lg);
+  padding: 16px;
+}
+
+.comparison-chart-title {
+  margin-bottom: 12px;
+  color: var(--lg-text-2);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+
+.comparison-row-plots {
+  display: flex;
+  /* Fixed-width panels used to force a wrap onto a second row once the
+     container got narrower than ~1220px — well within a standard laptop
+     window. Letting each panel flex-shrink instead keeps all three on one
+     row down to that width; below 1000px (see media query) they stack. */
+  flex-wrap: nowrap;
+  gap: 16px;
+}
+
+.comparison-square-host {
+  flex: 1 1 300px;
+  min-width: 200px;
+  max-width: 460px;
+  aspect-ratio: 1 / 1;
+}
+
+.comparison-narrow-host {
+  flex: 1 1 220px;
+  min-width: 160px;
+  max-width: 420px;
+  aspect-ratio: 1 / 1;
+}
+
+@media (max-width: 1000px) {
+  .comparison-row-plots {
+    flex-wrap: wrap;
+  }
+
+  .comparison-square-host,
+  .comparison-narrow-host {
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: 460px;
+  }
+}
+
+@media (max-width: 800px) {
+  .chart-grid,
+  .two-up-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .section-title-row,
+  .topbar {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
