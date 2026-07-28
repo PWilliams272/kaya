@@ -1,0 +1,61 @@
+name: Deploy Viewer App to EC2
+
+# The host already runs kaya-viewer.service under systemd, with the code
+# checked out at /home/ubuntu/kaya_viewer and a venv at
+# /home/ubuntu/kaya_viewer/.venv (bootstrapped by hand, not by this
+# workflow). This only automates the "push new code" step: rsync, reinstall,
+# restart.
+#
+# Uses easingthemes/ssh-deploy, matching aws_flask_site's existing Push-to-EC2
+# workflow for this same host (confirmed via its actual run logs) rather than
+# a hand-rolled ssh-agent + raw rsync/ssh sequence. Default ARGS ('-rlgoDzvc
+# -i', no --delete) are used as-is — deliberately not adding --delete, since
+# multiple sources (src, pyproject.toml, README.md) land inside one TARGET
+# directory that also holds .venv/, which nothing here should ever touch.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: kaya-viewer-app-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy viewer app
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate deploy target
+        run: |
+          if [ -z "${{ secrets.KAYA_VIEWER_HOST }}" ]; then
+            echo "KAYA_VIEWER_HOST secret is not set."
+            exit 1
+          fi
+          # If this step (or the rsync step below) times out with no useful
+          # error, check this first: there's no Elastic IP on this host, so
+          # KAYA_VIEWER_HOST goes stale on any resize/restart that assigns a
+          # new public IP. This exact failure mode broke aws_flask_site's own
+          # deploy on 2026-07-28. See VIEWER_APP_DEPLOY_RUNBOOK.md.
+
+      - name: Rsync code and restart the service
+        uses: easingthemes/ssh-deploy@main
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.KAYA_VIEWER_DEPLOY_KEY }}
+          REMOTE_HOST: ${{ secrets.KAYA_VIEWER_HOST }}
+          REMOTE_USER: ubuntu
+          # No trailing slash on src — this must land as a literal src/
+          # subdirectory on the host, not flattened, since pyproject.toml's
+          # `where = ["src"]` depends on that layout.
+          SOURCE: "src pyproject.toml README.md"
+          TARGET: "/home/ubuntu/kaya_viewer/"
+          SCRIPT_AFTER: |
+            /home/ubuntu/kaya_viewer/.venv/bin/pip install -e /home/ubuntu/kaya_viewer
+            sudo systemctl restart kaya-viewer.service
