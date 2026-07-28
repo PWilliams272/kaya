@@ -1,13 +1,15 @@
 # Viewer-cache Lambda — deployment runbook
 
-**Status: live in production as of 2026-07-28.** The `kaya-viewer-cache`
-Lambda, its IAM role, the ECR repo, and the `kaya-viewer-cache-daily`
-EventBridge rule all exist and a manual invoke completed successfully
-end-to-end (sync → curated Parquet → viewer JSON → both S3 uploads). The one
-remaining piece is wiring up `deploy-viewer-cache-lambda.yml`'s GitHub
-Actions variables (step 6 below), which needs GitHub web/`gh` CLI access
-neither agent session had — everything else in this doc has already been run
-once and is recorded here as the actual configuration, not just a plan.
+**Status: fully live as of 2026-07-28.** The `kaya-viewer-cache` Lambda, its
+IAM role, the ECR repo, and the `kaya-viewer-cache-daily` EventBridge rule
+all exist; a manual invoke completed successfully end-to-end (sync → curated
+Parquet → viewer JSON → both S3 uploads); and the GitHub Actions deploy
+workflow (step 6 below) is wired up too, including extending `kaya-app`'s
+IAM policy for ECR + the new function. Everything in this doc has already
+been run once and is recorded here as the actual configuration, not just a
+plan. The only thing not yet done is exercising an actual deploy *through*
+the GitHub Actions workflow itself (today's image updates were all pushed
+locally) — worth a first real `workflow_dispatch` run to confirm the wiring.
 
 This is the concrete, copy-pasteable sequence used to turn on the daily
 viewer-cache precompute job: a new, isolated Lambda (container image) on an
@@ -241,27 +243,35 @@ picked a 9-hour buffer, since that rule only *dispatches* per-gym SQS jobs at
 3am; actual ingestion completes asynchronously over some window afterward
 that wasn't measured precisely, so the buffer is deliberately generous.
 
-### 6. Wire up the GitHub Actions workflow
+### 6. Wire up the GitHub Actions workflow — done, 2026-07-28
 
-Set these as repo (or environment-scoped) variables so
-`deploy-viewer-cache-lambda.yml` knows what to deploy to:
+`vars.VIEWER_CACHE_LAMBDA_FUNCTION_NAME` = `kaya-viewer-cache` was added as a
+repository variable via the GitHub web UI (Settings → Secrets and variables
+→ Actions → Variables). `VIEWER_CACHE_ECR_REPOSITORY` wasn't needed — the
+workflow's default already matches.
 
-- `vars.VIEWER_CACHE_LAMBDA_FUNCTION_NAME` = `kaya-viewer-cache`
-- `vars.VIEWER_CACHE_ECR_REPOSITORY` = `kaya-viewer-cache` (optional, this is
-  already the default)
+`secrets.AWS_ACCESS_KEY_ID` / `secrets.AWS_SECRET_ACCESS_KEY` turned out to
+belong to the `kaya-app` IAM user — identified via CloudTrail (`kaya-app`
+shows up calling `UpdateFunctionCode` on `kaya-data-updater`, matching
+`deploy-lambda.yml`'s known behavior), not by inspecting the GitHub secret
+directly (GitHub never exposes secret values, even to repo admins, once
+set). `kaya-app`'s existing inline policy (`KayaLambdaDeploymentPolicy`)
+only covered `kaya-data-updater` and had zero ECR permissions at all — the
+old zip-based workflow never needed any. Extended that same inline policy
+(via the `admin` AWS profile) with an equivalent Lambda-deploy statement
+scoped to `kaya-viewer-cache`, plus `ecr:GetAuthorizationToken` (account-wide
+— this specific action doesn't support resource scoping) and the repo-scoped
+push actions (`BatchCheckLayerAvailability`, `PutImage`,
+`InitiateLayerUpload`, `UploadLayerPart`, `CompleteLayerUpload`,
+`BatchGetImage`) limited to the `kaya-viewer-cache` ECR repo. The original
+`kaya-data-updater` statement was left untouched — no regression risk to the
+existing deploy path.
 
-The workflow reuses `secrets.AWS_ACCESS_KEY_ID` / `secrets.AWS_SECRET_ACCESS_KEY`
-— confirm whether that's the same credential `deploy-lambda.yml` already uses
-or a separate one, and either way make sure it has `ecr:GetAuthorizationToken`,
-`ecr:BatchCheckLayerAvailability`, `ecr:InitiateLayerUpload`,
-`ecr:UploadLayerPart`, `ecr:CompleteLayerUpload`, `ecr:PutImage`, and
-`ecr:BatchGetImage` scoped to the `kaya-viewer-cache` repo, plus
-`lambda:UpdateFunctionCode` scoped to the `kaya-viewer-cache` function. This
-is a deploy-time credential, distinct from the Lambda's own runtime role in
-step 2 above.
-
-After that, future deploys are just: run the "Deploy Viewer Cache Lambda"
-workflow via `workflow_dispatch`.
+Future deploys are now just: run the "Deploy Viewer Cache Lambda" workflow
+via `workflow_dispatch` (not yet actually exercised end-to-end through
+GitHub Actions — today's deploys were all done locally via `docker build`/
+`push`/`aws lambda update-function-code`; worth a first real run through the
+workflow to confirm the wiring before relying on it).
 
 ## Bugs found only by actually deploying (both already fixed in code)
 
