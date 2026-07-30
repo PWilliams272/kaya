@@ -1,0 +1,457 @@
+/* Article-page additions for long-form research write-ups (grading model,
+   and any future write-up pages). Layered on top of tokens.css + app.css —
+   reuses .card/.chart-card/.kpi-grid/.eyebrow/.muted-copy/.status-pill/
+   .topbar/.theme-toggle-button from app.css rather than redefining them, so
+   these pages stay visually identical to the dashboard's shell chrome.
+   Everything below is additive only. */
+
+.article-shell {
+  width: min(100%, 760px);
+  padding: 24px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Used when nested inside a tab-pane that already provides its own outer
+   padding via .main-shell, so the article shouldn't double it up. */
+.article-shell.embedded {
+  padding: 0;
+}
+
+/* ---- masthead ---- */
+.masthead {
+  padding: 28px 0 20px;
+  border-bottom: 1px solid var(--lg-border);
+  margin-bottom: 28px;
+}
+.masthead h1 {
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin: 8px 0 12px;
+  text-wrap: balance;
+}
+.masthead .dek {
+  font-size: var(--fs-lg);
+  color: var(--lg-text-2);
+  line-height: 1.55;
+  max-width: 62ch;
+  margin-bottom: 16px;
+}
+.masthead .meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+/* ---- table of contents ---- */
+.toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  padding: 14px 16px;
+  background: var(--lg-surface);
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-lg);
+  margin-bottom: 32px;
+}
+.toc a {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--lg-text-2);
+  padding: 4px 0;
+  border-bottom: 2px solid transparent;
+}
+.toc a:hover { color: var(--lg-gold); }
+.toc-label {
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lg-text-3);
+  width: 100%;
+  margin-bottom: 2px;
+}
+
+/* ---- prose sections ---- */
+.article-section {
+  margin: 44px 0;
+  scroll-margin-top: 72px;
+}
+.article-section > h2 {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 14px;
+}
+.article-section > h3 {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  margin: 22px 0 8px;
+}
+.prose p {
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--lg-text);
+  margin-bottom: 14px;
+  max-width: 68ch;
+}
+.prose p.muted-copy { max-width: 68ch; }
+.prose ul, .prose ol {
+  margin: 0 0 14px 22px;
+  font-size: 15px;
+  line-height: 1.65;
+}
+.prose li { margin-bottom: 6px; }
+.prose code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--lg-active);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+/* ---- finding / verdict cards ---- */
+.finding {
+  border: 1px solid var(--lg-border);
+  border-left: 3px solid var(--lg-border);
+  border-radius: var(--lg-radius-lg);
+  background: var(--lg-surface);
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+.finding-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.finding-title { font-weight: 700; font-size: var(--fs-md); }
+.finding p { font-size: 14px; line-height: 1.6; color: var(--lg-text); margin: 0; }
+.finding p + p { margin-top: 8px; }
+
+.verdict-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.verdict-confirmed { color: var(--lg-success); background: color-mix(in srgb, var(--lg-success) 14%, transparent); }
+.verdict-null { color: var(--lg-text-2); background: var(--lg-active); }
+.verdict-borderline { color: var(--lg-warning); background: color-mix(in srgb, var(--lg-warning) 14%, transparent); }
+.verdict-open { color: var(--lg-info); background: color-mix(in srgb, var(--lg-info) 12%, transparent); }
+
+.finding.confirmed { border-left-color: var(--lg-success); }
+.finding.null-result { border-left-color: var(--lg-text-3); }
+.finding.borderline { border-left-color: var(--lg-warning); }
+.finding.open { border-left-color: var(--lg-info); }
+
+/* ---- figures ---- */
+.figure {
+  margin: 18px 0 22px;
+}
+.figure img {
+  width: 100%;
+  max-width: 560px;
+  display: block;
+  margin: 0 auto;
+  border-radius: var(--lg-radius-md);
+  border: 1px solid var(--lg-border);
+}
+.figure figcaption {
+  font-size: var(--fs-sm);
+  color: var(--lg-text-2);
+  text-align: center;
+  margin-top: 8px;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.5;
+}
+
+/* ---- data table ---- */
+.data-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-lg);
+  background: var(--lg-surface);
+  margin: 16px 0 22px;
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 480px;
+}
+.data-table thead th {
+  text-align: left;
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  color: var(--lg-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--lg-border);
+  white-space: nowrap;
+}
+.data-table tbody td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--lg-border);
+  font-family: var(--font-mono);
+}
+.data-table tbody td.label-cell { font-family: inherit; font-weight: 600; }
+.data-table tbody tr:last-child td { border-bottom: 0; }
+
+/* ---- callout ---- */
+.callout {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border: 1px solid var(--lg-border);
+  border-left: 3px solid var(--lg-gold);
+  border-radius: var(--lg-radius-md);
+  padding: 14px 16px;
+  background: var(--lg-surface);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 20px 0;
+}
+.callout b { display: block; margin-bottom: 3px; }
+.callout.warn { border-left-color: var(--lg-warning); }
+
+/* ---- footnote / methodology aside ---- */
+.methodology-note {
+  font-size: 13px;
+  color: var(--lg-text-2);
+  line-height: 1.6;
+  background: var(--lg-active);
+  border-radius: var(--lg-radius-md);
+  padding: 12px 14px;
+  margin: 14px 0;
+}
+
+.article-footer {
+  border-top: 1px solid var(--lg-border);
+  margin-top: 56px;
+  padding: 24px 0 60px;
+  font-size: 12px;
+  color: var(--lg-text-3);
+  line-height: 1.7;
+}
+
+@media (max-width: 640px) {
+  .masthead h1 { font-size: 26px; }
+}
+
+/* ---- interactive prototype badge ---- */
+.proto-badge {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 8px;
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--lg-highlight);
+  background: color-mix(in srgb, var(--lg-highlight) 14%, transparent);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+/* ---- ability explorer ---- */
+.explorer-card {
+  padding: 20px;
+}
+.explorer-layout {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+.explorer-chart-col .chart-host {
+  height: 280px;
+}
+.explorer-controls-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.explorer-control {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.explorer-label {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--lg-text-2);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.explorer-value {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--lg-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.segmented-toggle {
+  display: inline-flex;
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-md);
+  overflow: hidden;
+  background: var(--lg-surface);
+}
+.segmented-toggle-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--lg-text-2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.segmented-toggle-btn + .segmented-toggle-btn {
+  border-left: 1px solid var(--lg-border);
+}
+.segmented-toggle-btn.active {
+  background: var(--lg-gold);
+  color: #ffffff;
+}
+.segmented-toggle-btn:hover:not(.active) {
+  color: var(--lg-text);
+}
+
+.explorer-select {
+  width: 100%;
+  font: inherit;
+  font-size: var(--fs-base);
+  color: var(--lg-text);
+  background: var(--lg-surface);
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-md);
+  padding: 8px 10px;
+}
+
+.explorer-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--lg-border);
+  outline: none;
+}
+.explorer-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--lg-gold);
+  border: 2px solid var(--lg-surface);
+  box-shadow: 0 0 0 1px var(--lg-gold);
+  cursor: pointer;
+}
+.explorer-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--lg-gold);
+  border: 2px solid var(--lg-surface);
+  box-shadow: 0 0 0 1px var(--lg-gold);
+  cursor: pointer;
+}
+
+.explorer-readout {
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--lg-border);
+}
+.explorer-readout-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 10px;
+}
+.explorer-readout-value {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--lg-gold);
+  font-variant-numeric: tabular-nums;
+}
+.explorer-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.explorer-breakdown-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 52px;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+}
+.explorer-breakdown-label {
+  color: var(--lg-text-2);
+}
+.explorer-breakdown-track {
+  position: relative;
+  height: 6px;
+  background: var(--lg-active);
+  border-radius: 999px;
+  overflow: visible;
+}
+.explorer-breakdown-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+}
+.explorer-breakdown-fill.positive { background: var(--lg-gold); left: 50%; }
+.explorer-breakdown-fill.negative { background: var(--lg-highlight); right: 50%; }
+.explorer-breakdown-value {
+  font-family: var(--font-mono);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--lg-text);
+}
+
+@media (max-width: 620px) {
+  .explorer-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- math (KaTeX) ---- */
+.eqn-block {
+  overflow-x: auto;
+  padding: 12px 4px;
+  margin: 4px 0 14px;
+}
+.eqn-block .katex-display {
+  margin: 0;
+}
+/* KaTeX renders in black by default; follow the page's text/link tokens so
+   equations stay legible in dark mode too. */
+.katex {
+  color: var(--lg-text);
+}
+.data-table td .katex {
+  font-size: 1em;
+}

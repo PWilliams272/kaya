@@ -328,6 +328,12 @@ class KayaDataAccessor:
             if sends_df.empty:
                 return pd.DataFrame(columns=['gym_id', 'gym_name', 'send_count'])
             gym_column = 'gym_name' if 'gym_name' in sends_df.columns else 'gym'
+            # Trim whitespace before grouping -- upstream gym name text has
+            # changed mid-stream for at least one gym (e.g. a trailing space
+            # dropped partway through), which otherwise splits one gym into
+            # two rows sharing the same gym_id.
+            sends_df = sends_df.copy()
+            sends_df[gym_column] = sends_df[gym_column].astype(str).str.strip()
             grouped = (
                 sends_df.groupby(['gym_id', gym_column], dropna=False)
                 .size()
@@ -342,13 +348,16 @@ class KayaDataAccessor:
         send_columns = self._send_columns(use_aws=use_aws)
         gym_name_column = 'gym_name' if 'gym_name' in send_columns else 'gym' if 'gym' in send_columns else None
         gym_name_sql = gym_name_column if gym_name_column else 'CAST(gym_id AS TEXT)'
+        # TRIM() the gym name before grouping -- see the local_db branch
+        # above for why (whitespace-only naming drift splits one gym across
+        # two rows sharing the same gym_id).
         query = (
             'SELECT '
             'CAST(gym_id AS TEXT) AS gym_id, '
-            f'{gym_name_sql} AS gym_name, '
+            f'TRIM({gym_name_sql}) AS gym_name, '
             'COUNT(*) AS send_count '
             f'FROM {self._table_name(use_aws=use_aws)} '
-            'GROUP BY gym_id, gym_name '
+            f'GROUP BY gym_id, TRIM({gym_name_sql}) '
             'ORDER BY send_count DESC'
         )
         if limit is not None:

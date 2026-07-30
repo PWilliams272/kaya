@@ -7,7 +7,11 @@
     <meta name="kaya-viewer-data-mode" content="static" />
     <link rel="stylesheet" href="/static/tokens.css" />
     <link rel="stylesheet" href="/static/app.css?v=6" />
+    <link rel="stylesheet" href="/static/research.css?v=1" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -28,6 +32,7 @@
           <button class="tab-button" type="button" data-tab="body-morphology">Height and Wingspan</button>
           <button class="tab-button" type="button" data-tab="user-segmentation">User Analysis</button>
           <button class="tab-button" type="button" data-tab="data-overview">Data Overview</button>
+          <button class="tab-button" type="button" data-tab="grading-model">Grading Model</button>
         </div>
 
         <section id="tab-gym-comparison" class="tab-pane active">
@@ -316,8 +321,724 @@
             </div>
           </div>
         </section>
+
+        <section id="tab-grading-model" class="tab-pane">
+          <div class="article-shell embedded">
+            <div class="masthead">
+              <div class="eyebrow">Research &middot; Statistical Modeling</div>
+              <h1>A Bayesian Grading Model for Climbing Ability</h1>
+              <p class="dek">
+                Climbing grades are subjective — the same boulder problem might be
+                called V5 at one gym and V6 at another. This project builds a
+                hierarchical Bayesian model that separates a climber's underlying
+                ability from gym-specific grading style, using nothing but the
+                grades climbers already log in the Kaya app. It's an active
+                investigation, not a finished paper — several sections below end
+                with an open question rather than an answer, on purpose.
+              </p>
+              <div class="meta-row">
+                <span class="muted-copy">Last updated 2026-07-29</span>
+                <span class="muted-copy">&middot;</span>
+                <span class="muted-copy">PyMC / NUTS, hierarchical model, 6-gym LA Touchstone network</span>
+              </div>
+            </div>
+
+            <nav class="toc">
+              <span class="toc-label">Contents</span>
+              <a href="#overview">Overview</a>
+              <a href="#approach">Approach</a>
+              <a href="#math">Mathematical Framework</a>
+              <a href="#validation">Data &amp; Validation</a>
+              <a href="#covariates">Who Climbs Harder?</a>
+              <a href="#explorer">Try It: Ability Explorer</a>
+              <a href="#height">The Height Investigation</a>
+              <a href="#climb-correction">Why Climb-Level Grading Stays Out</a>
+              <a href="#send-counts">Are Low-Send Climbs Mis-Graded?</a>
+              <a href="#open-questions">Open Questions</a>
+            </nav>
+
+            <section id="overview" class="article-section prose">
+              <h2>Overview</h2>
+              <p>
+                The model treats each climb attempt the way item-response theory
+                treats a test question: a climber has some latent
+                <em>ability</em>, a gym's grading has some latent
+                <em>softness or stiffness</em>, and whether someone sends a given
+                grade is a function of the gap between the two. Fit correctly,
+                this lets you compare climbers and gyms on a common scale, purely
+                from send logs — no route setter input, no manual calibration.
+              </p>
+              <p>
+                Three findings so far, in order of confidence:
+              </p>
+              <ul>
+                <li><b>Gym grading really does differ</b>, and the model recovers a
+                  believable, tightly-estimated correction per gym once enough
+                  connected gyms are in the network (below).</li>
+                <li><b>Height has a real, non-linear effect</b> on bouldering
+                  ability — not "taller is always better," but an optimal-height
+                  effect that peaks and falls off on both sides. This took five
+                  separate functional-form tests, including one that was flat
+                  wrong, to pin down with any confidence (full story below).</li>
+                <li><b>Climb-level grading correction doesn't work</b> with this
+                  dataset — not from lack of trying, but because there usually
+                  aren't enough logged sends per climb to separate "this climb is
+                  mis-graded" from "this climber is having an off day."</li>
+              </ul>
+            </section>
+
+            <section id="approach" class="article-section prose">
+              <h2>Approach</h2>
+              <p>
+                Rather than fit the full model in one shot, it was built up in
+                stages — start with the simplest possible version (per-user
+                ability only), confirm it recovers sane estimates, then add one
+                structural piece at a time (gym correction, covariates,
+                reliability weighting), re-validating at each step. This staged
+                approach caught several problems early that would have been
+                much harder to diagnose in a single large model.
+              </p>
+              <p>
+                Two structural decisions worth calling out:
+              </p>
+              <h3>A "gap," not an equality</h3>
+              <p>
+                The naive version of this model says a climber's logged max grade
+                <em>is</em> their ceiling. But nobody sends their absolute limit
+                every session — the true ceiling is somewhere at or above the
+                logged grade. The model represents this as a latent
+                <code>gap</code> (how much harder the climber could plausibly go,
+                drawn from an Exponential distribution scaled by how many times
+                they've visited and how active a climber they are) linked softly
+                to the structural ceiling, rather than forcing an exact equality.
+                A hard equality constraint made the sampler fail outright — the
+                geometry was intractable at this scale; the soft link fixed it.
+              </p>
+              <h3>Reliability-weighted visits</h3>
+              <p>
+                A climber who's visited a gym 20 times has had more chances to
+                find their real ceiling than someone who's visited twice. The
+                model accounts for this directly in the rate governing the
+                <code>gap</code> latent, scaled by visit count and by a
+                per-climber "sends per session" reliability signal.
+              </p>
+            </section>
+
+            <section id="math" class="article-section prose">
+              <h2>Mathematical Framework</h2>
+              <p>
+                The full generative model, for a user <span>\(u\)</span> and
+                gym <span>\(g\)</span>. Heights and ape index are centered at
+                their population medians (written with a tilde); user- and
+                gym-level offsets use a non-centered parameterization
+                throughout (each is a fixed-scale standard normal times a
+                learned standard deviation) — this is what makes the sampler
+                behave, not just a notational choice.
+              </p>
+
+              <h3>Ability</h3>
+              <div class="eqn-block">
+                $$\text{ability}_u = \beta_0 + \beta_{\text{gender}} \cdot \text{gender}_u + f_{\text{height}}(h_u, \text{gender}_u) + \delta_1 \tilde{a}_u + \delta_2 \tilde{a}_u^2 + \epsilon_u$$
+              </div>
+              <div class="eqn-block">
+                $$\epsilon_u = \sigma_{\text{user}} \cdot \tilde\epsilon_u, \qquad \tilde\epsilon_u \sim \mathcal{N}(0, 1)$$
+              </div>
+              <p class="muted-copy">
+                <span>\(\tilde a_u = a_u - \bar a\)</span> is ape index
+                (wingspan &minus; height) centered at the population median
+                <span>\(\bar a\)</span>.
+              </p>
+
+              <h3>Height term — the final, settled form</h3>
+              <p>
+                A plain quadratic with a gender interaction, chosen after
+                rejecting a more flexible bump function on visual/domain
+                grounds (see <a href="#height">The Height Investigation</a>):
+              </p>
+              <div class="eqn-block">
+                $$f_{\text{height}}(h, \text{gender}) = \gamma_1 \tilde h + \gamma_2 \tilde h^2 + \text{gender}\cdot\left(\gamma_1^{\times} \tilde h + \gamma_2^{\times} \tilde h^2\right)$$
+              </div>
+              <p class="muted-copy">
+                <span>\(\tilde h = h - \bar h\)</span>, height centered at the
+                population median. <span>\(\text{gender}\)</span> is a
+                continuous indicator (0 = male-coded, 1 = female-coded, 0.5 =
+                ambiguous), so the interaction term scales smoothly rather
+                than switching discretely.
+              </p>
+
+              <h3>Gym correction</h3>
+              <div class="eqn-block">
+                $$\text{gym}_g = \sigma_{\text{gym}} \cdot \tilde\delta_g, \qquad \tilde\delta_g \sim \mathcal{N}(0, 1)$$
+              </div>
+
+              <h3>Structural ceiling</h3>
+              <p>
+                A user's true best-possible grade at a given gym — ability
+                shifted by that gym's grading style:
+              </p>
+              <div class="eqn-block">
+                $$C_{u,g} = \text{ability}_u + \text{gym}_g$$
+              </div>
+
+              <h3>Reliability-weighted rate</h3>
+              <p>
+                How far below their ceiling a climber's <em>logged</em> max
+                grade is likely to sit depends on how many chances they've
+                had to find it — visit count, plus a per-climber activity
+                signal:
+              </p>
+              <div class="eqn-block">
+                $$r_u = \frac{s_u}{\bar s} - 1$$
+              </div>
+              <div class="eqn-block">
+                $$\lambda_{u,g} = \lambda_0 \left(1 + \kappa \cdot n_{u,g}\right)\left(1 + \rho \cdot r_u\right)$$
+              </div>
+              <p class="muted-copy">
+                <span>\(s_u\)</span> = user's sends-per-session,
+                <span>\(\bar s\)</span> = population median (so
+                <span>\(r_u\)</span> is recentered at 0 rather than 1 — an
+                earlier version centered at 1 and it collided with
+                <span>\(\lambda_0\)</span>'s own scale, badly).
+                <span>\(n_{u,g}\)</span> = number of visits by user
+                <span>\(u\)</span> to gym <span>\(g\)</span>.
+              </p>
+
+              <h3>The gap — not an equality</h3>
+              <div class="eqn-block">
+                $$\text{gap}_{u,g} \sim \text{Exponential}(\lambda_{u,g})$$
+              </div>
+              <p>
+                Instead of forcing the logged grade to equal the ceiling
+                exactly (which made the sampler fail outright — an
+                intractable geometry at this scale), the two are linked
+                softly:
+              </p>
+              <div class="eqn-block">
+                $$m_{u,g} + \text{gap}_{u,g} \;\sim\; \mathcal{N}\!\left(C_{u,g},\ \sigma_{\text{link}}\right)$$
+              </div>
+              <p class="muted-copy">
+                <span>\(m_{u,g}\)</span> is the observed logged max grade.
+                <span>\(\sigma_{\text{link}}\)</span> is fixed at 0.5, not
+                estimated — found via a sweep; letting it float freely caused
+                severe convergence failure despite deceptively low divergence
+                counts.
+              </p>
+
+              <h3>Priors</h3>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr><th>Parameter</th><th>Prior</th><th>Role</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td class="label-cell">\(\beta_0\)</td><td>\(\mathcal{N}(\text{median}(m),\, 5)\)</td><td>baseline ability</td></tr>
+                    <tr><td class="label-cell">\(\sigma_{\text{user}}\)</td><td>\(\text{HalfNormal}(2)\)</td><td>per-user ability spread</td></tr>
+                    <tr><td class="label-cell">\(\beta_{\text{gender}}\)</td><td>\(\mathcal{N}(0,\, 2)\)</td><td>gender effect</td></tr>
+                    <tr><td class="label-cell">\(\gamma_1,\ \gamma_2\)</td><td>\(\mathcal{N}(0,\,1),\ \mathcal{N}(0,\,0.3)\)</td><td>height, male-coded baseline</td></tr>
+                    <tr><td class="label-cell">\(\gamma_1^{\times},\ \gamma_2^{\times}\)</td><td>\(\mathcal{N}(0,\,0.5),\ \mathcal{N}(0,\,0.15)\)</td><td>height, female-coded shift</td></tr>
+                    <tr><td class="label-cell">\(\delta_1,\ \delta_2\)</td><td>\(\mathcal{N}(0,\,1),\ \mathcal{N}(0,\,0.3)\)</td><td>ape index (linear, quadratic)</td></tr>
+                    <tr><td class="label-cell">\(\sigma_{\text{gym}}\)</td><td>\(\text{HalfNormal}(1.5)\)</td><td>per-gym correction spread</td></tr>
+                    <tr><td class="label-cell">\(\lambda_0\)</td><td>\(\text{HalfNormal}(2)\)</td><td>baseline gap rate</td></tr>
+                    <tr><td class="label-cell">\(\kappa\)</td><td>\(\text{HalfNormal}(1)\)</td><td>visit-count effect on gap</td></tr>
+                    <tr><td class="label-cell">\(\rho\)</td><td>\(\text{HalfNormal}(1)\)</td><td>reliability effect on gap</td></tr>
+                    <tr><td class="label-cell">\(\sigma_{\text{link}}\)</td><td>fixed at 0.5</td><td>ceiling&ndash;gap soft-link noise</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section id="validation" class="article-section prose">
+              <h2>Data &amp; Validation</h2>
+              <p>
+                Current validation runs on a connected 6-gym network of LA-area
+                Touchstone gyms (Cliffs of Id, Hollywood Boulders, Verdigo
+                Boulders, Class 5, The Post, LA Boulders) — chosen because a
+                meaningful fraction of climbers visit more than one of them,
+                which is what actually lets the model separate gym effects from
+                climber ability.
+              </p>
+              <div class="kpi-grid">
+                <div class="card kpi-card"><div class="eyebrow">Observations</div><div class="kpi-value">6,405</div></div>
+                <div class="card kpi-card"><div class="eyebrow">Users</div><div class="kpi-value">3,726</div></div>
+                <div class="card kpi-card"><div class="eyebrow">Gyms</div><div class="kpi-value">6</div></div>
+                <div class="card kpi-card"><div class="eyebrow">Climbs</div><div class="kpi-value">18,499</div></div>
+                <div class="card kpi-card"><div class="eyebrow">Multi-gym users</div><div class="kpi-value">34%</div></div>
+                <div class="card kpi-card"><div class="eyebrow">Median visits/user</div><div class="kpi-value">7</div></div>
+              </div>
+
+              <h3>Scaling from 2 gyms to 6 improved everything</h3>
+              <p>
+                Going from a minimal 2-gym validation set to the full 6-gym
+                connected network didn't just add data — it visibly tightened
+                every estimate, especially the gym-level correction, which is
+                hard to pin down with only two gyms to compare.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr><th>Metric</th><th>2-gym</th><th>6-gym network</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td class="label-cell">Divergences</td><td>32 / 1,000 (3.2%)</td><td>0 / 1,000 (0%)</td></tr>
+                    <tr><td class="label-cell">R-hat range</td><td>1.00 – 1.02</td><td>1.00 – 1.02</td></tr>
+                    <tr><td class="label-cell">Gender effect</td><td>&minus;0.943 &plusmn; 0.081</td><td>&minus;1.055 &plusmn; 0.075</td></tr>
+                    <tr><td class="label-cell">&sigma; (per-user ability)</td><td>1.720 &plusmn; 0.026</td><td>1.633 &plusmn; 0.022</td></tr>
+                    <tr><td class="label-cell">&sigma; (per-gym correction)</td><td>0.378 &plusmn; 0.357</td><td>0.128 &plusmn; 0.067</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="muted-copy">
+                The per-gym correction's uncertainty shrinks roughly 5&times; —
+                with only two gyms there's almost no way to tell "these two
+                happen to differ by X" apart from "typical gym-to-gym spread is
+                X." Six gyms actually constrains the population-level spread.
+              </p>
+
+              <h3>Does the model's own output look like the real data?</h3>
+              <p>
+                A posterior predictive check — simulate grades from the fitted
+                model and compare to what climbers actually logged — matched
+                closely: mean grade 5.257 (real) vs. 5.258 (simulated), per-gym
+                means within 0.01&ndash;0.03 of each other. One minor, understood
+                artifact: the simulation has a thin, rare low tail the real data
+                doesn't, from two independent noise sources occasionally
+                compounding — invisible at the bulk-of-distribution scale, not a
+                structural problem.
+              </p>
+            </section>
+
+            <section id="covariates" class="article-section prose">
+              <h2>Who Climbs Harder?</h2>
+              <p>
+                With gym effects accounted for, the model estimates how much
+                each personal covariate shifts a climber's ability. Ape index
+                (wingspan minus height — a proxy for reach relative to body
+                size) shows a clear, well-behaved positive relationship: more
+                reach for your height helps, roughly quadratically over the
+                observed range.
+              </p>
+              <div class="figure">
+                <img src="/static/img/grading-model/ape_effect.png" alt="Ape index effect on climbing ability, quadratic fit" />
+                <figcaption>Ape index effect on ability (grade units), quadratic fit, shaded band = 89% credible interval.</figcaption>
+              </div>
+              <p>
+                Gym grading style also comes out clearly once there's enough of a
+                connected network to compare against — some gyms grade
+                noticeably softer or stiffer than others, and the model
+                recovers this as a per-gym correction with real statistical
+                confidence.
+              </p>
+              <div class="figure">
+                <img src="/static/img/grading-model/gym_comparison.png" alt="Gym-to-gym grading comparison bar chart" />
+                <figcaption>Per-gym grading correction, 6-gym LA network. Negative = softer grading, positive = stiffer.</figcaption>
+              </div>
+            </section>
+
+            <section id="explorer" class="article-section prose">
+              <h2>Try It: Ability Explorer <span class="proto-badge">Prototype</span></h2>
+              <p>
+                A live calculator using the fitted coefficients above — pick a
+                gym and gender, slide height and ape index, and see the
+                model's predicted ability offset update in real time. This is
+                a rough proof-of-concept for the kind of interactive piece
+                these findings could become, not a finished or fully-vetted
+                tool — it uses posterior point estimates only, with none of
+                the uncertainty bands shown elsewhere on this page.
+              </p>
+              <div class="card chart-card explorer-card">
+                <div class="explorer-layout">
+                  <div class="explorer-chart-col">
+                    <div id="explorer-chart" class="chart-host"></div>
+                  </div>
+                  <div class="explorer-controls-col">
+                    <div class="explorer-control">
+                      <span class="explorer-label">Gender</span>
+                      <div class="segmented-toggle" id="explorer-gender-toggle">
+                        <button type="button" class="segmented-toggle-btn active" data-value="0">Male-coded</button>
+                        <button type="button" class="segmented-toggle-btn" data-value="1">Female-coded</button>
+                      </div>
+                    </div>
+                    <div class="explorer-control">
+                      <span class="explorer-label">Gym</span>
+                      <select id="explorer-gym-select" class="explorer-select"></select>
+                    </div>
+                    <div class="explorer-control">
+                      <span class="explorer-label">
+                        Height <span class="explorer-value" id="explorer-height-value">68 in</span>
+                      </span>
+                      <input type="range" id="explorer-height-slider" class="explorer-slider" min="59" max="76" step="1" value="68" />
+                    </div>
+                    <div class="explorer-control">
+                      <span class="explorer-label">
+                        Ape index <span class="explorer-value" id="explorer-ape-value">0 in</span>
+                      </span>
+                      <input type="range" id="explorer-ape-slider" class="explorer-slider" min="-3" max="5" step="0.5" value="0" />
+                    </div>
+                    <div class="explorer-readout">
+                      <div class="explorer-readout-total">
+                        <span class="explorer-label">Predicted ability offset</span>
+                        <span class="explorer-readout-value" id="explorer-total-value">+0.00</span>
+                      </div>
+                      <div class="explorer-breakdown" id="explorer-breakdown"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section id="height" class="article-section prose">
+              <h2>The Height Investigation</h2>
+              <p>
+                Height turned out to be the hardest covariate to get right —
+                worth walking through in full, including a mistake caught along
+                the way, because the process is as informative as the result.
+              </p>
+
+              <div class="finding confirmed">
+                <div class="finding-head">
+                  <span class="finding-title">Final answer: zero for male-coded, real polynomial for female-coded</span>
+                  <span class="verdict-pill verdict-confirmed">Settled</span>
+                </div>
+                <p>
+                  The bump-function shapes below (kept for the record) didn't
+                  hold up to a plain visual sanity check — the gender-split
+                  version had left/right widths differing 8&times;
+                  (<code>1.59in</code> vs. <code>12.87in</code>), which isn't
+                  an "optimal height," it's a cliff into a plateau. So the
+                  investigation was constrained to three options only:
+                  polynomial, linear, or zero — tested with the standard,
+                  unconstrained quadratic (<code>&gamma;1&middot;h +
+                  &gamma;2&middot;h&sup2;</code>) plus a gender interaction,
+                  no vertex reparameterization, no bump.
+                </p>
+                <p>
+                  Result: <b>male-coded climbers show no credible height
+                  effect at all</b> — both <code>&gamma;1</code> and
+                  <code>&gamma;2</code> include zero. <b>Female-coded climbers
+                  show a real quadratic effect</b> — both terms credibly
+                  exclude zero (<code>&gamma;1=0.065 [0.033, 0.098]</code>,
+                  <code>&gamma;2=0.0033 [0.0007, 0.0057]</code>). The parabola's
+                  vertex falls at ~58in — right at the bottom edge of the
+                  observed height range — so across almost the entire
+                  practical range this isn't a peak-in-the-middle bell at all,
+                  it's an essentially monotonic, mildly accelerating
+                  "taller is better" relationship for female-coded climbers,
+                  with no effect detected for male-coded ones.
+                </p>
+              </div>
+              <div class="figure">
+                <img src="/static/img/grading-model/height_quad_gender_final.png" alt="Final height effect, quadratic with gender interaction" />
+                <figcaption>Final height-effect model: plain quadratic + gender interaction. Shaded bands = 89% credible interval.</figcaption>
+              </div>
+              <p class="muted-copy">
+                This closes out the functional-form question — no further
+                iteration planned. What follows is the investigation's history
+                (coarse/fine splines, the vertex-quadratic, the bump function,
+                its null-check, the gender-reconciliation test), kept for the
+                methodological record since the process — including a shape
+                that looked confident right up until a visual gut-check
+                rejected it — is as informative as the final answer.
+              </p>
+
+              <h3>How we got here (superseded by the final answer above): five functional forms, one at a time</h3>
+              <p>
+                A plain quadratic (the obvious first choice) found essentially no
+                curvature — flat, symmetric uncertainty around zero. That could
+                mean "no real effect," or it could mean a quadratic simply can't
+                represent a bounded optimal-height effect without either being
+                too rigid or exploding at the extremes. Four more targeted tests
+                followed.
+              </p>
+
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr><th>Method</th><th>Peak location</th><th>Statistical confidence</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td class="label-cell">Plain quadratic</td><td>&mdash;</td><td>Null</td></tr>
+                    <tr><td class="label-cell">Fixed-knot spline (coarse)</td><td>~71in</td><td>Real, but knot-artifact caveat</td></tr>
+                    <tr><td class="label-cell">Fixed-knot spline (fine)</td><td>71.9in</td><td>Consistent, underpowered</td></tr>
+                    <tr><td class="label-cell">Vertex-parameterized quadratic</td><td>73.0in [64.3, 81.4]</td><td>Null / inconclusive</td></tr>
+                    <tr><td class="label-cell">Free P-spline (RW2 smoothness)</td><td>70.0in</td><td>Borderline</td></tr>
+                    <tr><td class="label-cell">Asymmetric Gaussian bump</td><td>69.0in [66.6, 72.6]</td><td><b>Confirmed</b></td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="finding confirmed">
+                <div class="finding-head">
+                  <span class="finding-title">The bump function found a real, non-collapsing peak</span>
+                  <span class="verdict-pill verdict-confirmed">Confirmed</span>
+                </div>
+                <p>
+                  <code>f(h) = A &middot; exp(&minus;((h&minus;peak)/width)&sup2;)</code>,
+                  with separate left/right widths so the falloff doesn't have to
+                  be symmetric. Amplitude came out at 0.437 [0.230, 0.658] —
+                  cleanly excluding zero — with the falloff itself asymmetric:
+                  being shorter than the peak costs ability noticeably faster
+                  than being taller does.
+                </p>
+              </div>
+              <div class="figure">
+                <img src="/static/img/grading-model/height_bump_pooled.png" alt="Height effect on ability, bump function fit" />
+                <figcaption>Height effect on ability, asymmetric-Gaussian-bump fit, pooled across gender. Dotted line marks the fitted peak.</figcaption>
+              </div>
+
+              <div class="callout">
+                <div>
+                  <b>A methodological catch worth keeping in the record</b>
+                  A piecewise-linear spline can only bend exactly at a
+                  pre-chosen knot — so its "peak at 71in" partly reflects where
+                  the knots were placed, not something the data discovered on
+                  its own. This was flagged before it got reported as a clean
+                  result, and is the reason the investigation moved to
+                  knot-free, structurally-bounded forms instead of trusting the
+                  spline's peak location at face value.
+                </div>
+              </div>
+
+              <h3>Stress-testing the peak: could this be an artifact?</h3>
+              <p>
+                A fair concern: everything above was "hunt for the shape
+                assuming an effect exists." None of it tested whether these
+                methods would report a fake peak on data with <em>no</em> real
+                height effect at all — and the confidence level tracked how
+                tightly each method constrained the shape (bump: confident,
+                splines: borderline, vertex-quadratic: null), which is exactly
+                the kind of pattern that can indicate a prior-driven artifact
+                rather than a real effect.
+              </p>
+              <div class="finding confirmed">
+                <div class="finding-head">
+                  <span class="finding-title">Synthetic null check</span>
+                  <span class="verdict-pill verdict-confirmed">Passes</span>
+                </div>
+                <p>
+                  Simulated data through the model's own full generative
+                  pipeline — real users' actual heights, gym structure, and gap
+                  likelihood — with the true height effect set to exactly zero.
+                  Fit the identical bump model to it. Result: fitted amplitude
+                  &minus;0.012 [&minus;0.352, 0.479], correctly recovering the
+                  null, with <code>peak</code> becoming essentially unidentified
+                  — exactly the behavior you'd want when there's nothing for it
+                  to lock onto. The bump function does not have a structural
+                  bias toward manufacturing a fake peak.
+                </p>
+              </div>
+
+              <h3>Does the peak differ by gender?</h3>
+              <p>
+                An early spline-based test suggested yes — quite dramatically
+                (66in for male-coded users, 76in for female-coded) — but that
+                result rested on a 4-parameter interaction term fit against a
+                thin female-tall tail, the same overfitting shape as a rejected
+                ape-index spline elsewhere in this investigation. It needed
+                re-testing with a method less prone to that failure mode.
+              </p>
+              <div class="finding confirmed">
+                <div class="finding-head">
+                  <span class="finding-title">Gender-shift bump function, reconciliation test</span>
+                  <span class="verdict-pill verdict-confirmed">Corroborated</span>
+                </div>
+                <p>
+                  Instead of a 4-parameter spline interaction, the bump's
+                  <code>peak</code> gets a single gender-scaled shift term — one
+                  extra parameter instead of four correlated ones, and much less
+                  prone to overfitting a small subgroup. Result:
+                  <code>peak_shift = 8.71in [5.98, 11.48]</code>, credibly
+                  excluding zero. Male-coded peak: 64.0in. Female-coded peak:
+                  72.7in. Different exact numbers from the spline (66/76in), but
+                  the same direction and a similar magnitude, now from an
+                  independent, lower-dimensional method.
+                </p>
+              </div>
+              <div class="figure">
+                <img src="/static/img/grading-model/height_bump_gender.png" alt="Height effect on ability by gender, bump function fit" />
+                <figcaption>Height effect on ability, gender-split bump fit. Peaks differ by roughly 8-9 inches.</figcaption>
+              </div>
+              <p class="muted-copy">
+                Worth being honest that this cuts against intuition — a
+                10-inch-taller optimal height for female-coded climbers isn't
+                the obvious prior to hold, and gender is inferred from first
+                names via a probabilistic package, not self-reported, which adds
+                its own noise. It's now corroborated by two independent methods
+                rather than one, which is meaningfully more convincing than
+                either alone, but it's not treated as closed.
+              </p>
+
+              <div class="finding borderline">
+                <div class="finding-head">
+                  <span class="finding-title">Held-out predictive comparison</span>
+                  <span class="verdict-pill verdict-borderline">Essentially tied</span>
+                </div>
+                <p>
+                  Split users 80/20 (not observations — held-out users get zero
+                  personalized signal from either fit, testing whether the
+                  height <em>shape</em> itself generalizes). Fit linear-height
+                  and bump-height models identically otherwise on the same
+                  train split, forward-simulated predicted grades for the 745
+                  held-out users' 1,248 observations, compared to real logged
+                  grades.
+                </p>
+                <p>
+                  <code>linear MAE = 1.5011</code> vs.
+                  <code>bump MAE = 1.4997</code> — bump wins on just 50.2% of
+                  observations, mean paired difference 0.0014 &plusmn; 0.0015
+                  (smaller than 1 standard error). No detectable predictive
+                  improvement.
+                </p>
+                <p>
+                  This doesn't contradict the credible-interval evidence above
+                  — it answers a different question. For a brand-new climber,
+                  most predictive error comes from not knowing their personal
+                  ability offset at all (&sigma; &asymp; 1.6 grade units,
+                  freshly drawn), which swamps a height effect of magnitude
+                  &asymp; 0.4&ndash;0.9.
+                </p>
+              </div>
+
+              <div class="callout warn">
+                <b>Why this history is superseded</b>
+                Everything above (peak locations, the bump function, its null
+                check, the gender-shift reconciliation, the held-out MAE
+                numbers) was built on the bump function's asymmetric-Gaussian
+                shape — which turned out, on a plain visual check, to look
+                nothing like a believable "optimal height" curve. The
+                <b>final answer section at the top of this page</b> supersedes
+                all of it: zero effect for male-coded climbers, a real
+                quadratic (practically monotonic in range) effect for
+                female-coded ones. One honest gap: the held-out predictive
+                comparison above was run against the bump model, not this
+                final quadratic — re-running it wasn't worth the added time
+                given how small the quadratic effect is, but that means the
+                "does this actually improve prediction" question is
+                technically still open for the final model specifically.
+              </div>
+            </section>
+
+            <section id="climb-correction" class="article-section prose">
+              <h2>Why Climb-Level Grading Correction Stays Out</h2>
+              <p>
+                The most natural extension of this model would add a per-climb
+                correction — letting individual boulder problems be
+                systematically harder or easier than their labeled grade,
+                separate from the gym-level correction. Every reasonable version
+                of this was tried, and every version failed the same way.
+              </p>
+              <div class="finding null-result">
+                <div class="finding-head">
+                  <span class="finding-title">Three prior families, one consistent failure mode</span>
+                  <span class="verdict-pill verdict-null">Settled — parked</span>
+                </div>
+                <p>
+                  Normal, StudentT, and a regularized horseshoe prior were all
+                  tried for the per-climb correction term. StudentT and
+                  horseshoe both looked genuinely promising on synthetic data —
+                  but once applied to real data with covariates included, all
+                  three collapsed the same way: the per-climb correction ate
+                  almost all the per-user ability signal instead of
+                  coexisting with it.
+                </p>
+                <p>
+                  The first hypothesis was that covariates were confounding the
+                  climb correction. A control run with covariates removed
+                  entirely still failed the same way, which disproved that
+                  theory and pointed to something more basic: with roughly
+                  1,625&ndash;18,499 climbs at a median of only 2&ndash;3 logged
+                  observations per climb, there usually isn't enough signal to
+                  separate "this climb is mis-graded" from ordinary per-user
+                  noise, regardless of prior family. Scaling from 2 gyms to the
+                  6-gym network — more data, the one untested lever — didn't
+                  change this conclusion either.
+                </p>
+              </div>
+            </section>
+
+            <section id="send-counts" class="article-section prose">
+              <h2>Are Low-Send Climbs Mis-Graded?</h2>
+              <p>
+                A related question worth checking directly: climbs with very
+                few logged sends could be low-sent because they're unattractive
+                to climb, because they haven't been on the wall long, or because
+                they're genuinely harder than their label suggests. Real
+                per-climb send counts (grouped directly from send logs — a
+                separate <code>ascent_count</code> field exists in the raw data
+                but is confirmed unpopulated, always zero across all 136,761
+                checked rows) make this directly testable.
+              </p>
+              <div class="kpi-grid">
+                <div class="card kpi-card"><div class="eyebrow">Unique climbs</div><div class="kpi-value">109,816</div></div>
+                <div class="card kpi-card"><div class="eyebrow">Median sends/climb</div><div class="kpi-value">7</div></div>
+                <div class="card kpi-card"><div class="eyebrow">Climbs with &le;2 sends</div><div class="kpi-value">29%</div></div>
+              </div>
+              <div class="finding open">
+                <div class="finding-head">
+                  <span class="finding-title">Neither simple hypothesis dominates</span>
+                  <span class="verdict-pill verdict-open">Inconclusive</span>
+                </div>
+                <p>
+                  <b>"Hasn't been up long enough":</b> not supported, and mildly
+                  contradicted — low-send climbs have actually been observable
+                  <em>longer</em> (549 days median) than well-sent climbs (453
+                  days), the opposite of what this hypothesis predicts.
+                </p>
+                <p>
+                  <b>"Genuinely harder than labeled"</b> (proxy: do low-send
+                  climbs attract disproportionately experienced senders?):
+                  mixed. The pooled ratio is close to 1 (no systematic effect),
+                  though individual grade levels are noisy in both directions.
+                </p>
+                <p>
+                  <b>"Unattractive to climb":</b> untestable with the data
+                  currently available — no route photos, ratings, or setter
+                  metadata exist to check against.
+                </p>
+              </div>
+              <p class="muted-copy">
+                This doesn't change the climb-correction conclusion above — that
+                failure mode is about sparsity itself, not about
+                <em>why</em> the sparsity happens — but it's a useful piece of
+                context for anyone extending this analysis later.
+              </p>
+            </section>
+
+            <section id="open-questions" class="article-section prose">
+              <h2>Open Questions</h2>
+              <ul>
+                <li><b>Reconcile "real" with "not predictively useful."</b>
+                  The height effect is statistically real but doesn't improve
+                  held-out prediction accuracy (above). Worth deciding what
+                  role it should actually play in a deployed model — kept for
+                  interpretability/population-level analysis, or dropped in
+                  favor of the simpler linear term if prediction is the only
+                  goal.</li>
+                <li><b>EMG marginalization.</b> The gap-likelihood construction
+                  (Exponential latent + Normal soft link) has a known closed-form
+                  marginalization (an Exponentially Modified Gaussian), which
+                  would fix the LOO reliability problem above. Scoped, not yet
+                  built.</li>
+                <li><b>Routes discipline.</b> Everything above is bouldering
+                  only. Routes climbing has its own grading scale and dynamics —
+                  on the radar, intentionally deferred.</li>
+                <li><b>A known data gap.</b> A past infrastructure outage left a
+                  multi-month gap in captured sends that won't self-heal through
+                  normal daily syncing. Not urgent, but will need a deliberate
+                  backfill at some point.</li>
+              </ul>
+            </section>
+
+            <footer class="article-footer">
+              Model built with PyMC (NUTS sampler), staged validation from a
+              single-covariate baseline up through the full hierarchical
+              specification. All estimates on this page come from real Kaya
+              send-log data restricted to the connected 6-gym LA Touchstone
+              network described above, unless noted otherwise.
+            </footer>
+          </div>
+        </section>
       </main>
     </div>
-    <script src="/static/app.js?v=19"></script>
+    <script src="/static/app.js?v=23"></script>
   </body>
 </html>
