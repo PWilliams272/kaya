@@ -567,3 +567,170 @@
   padding-bottom: 0.5rem;
 }
 .sym-table .katex, .data-table .katex { font-size: 1em; }
+
+/* ================= docked symbol glossary =================
+   A long-form model write-up asks the reader to hold ~30 symbols in their
+   head while scrolling past ten equations. Docking the definitions in the
+   right gutter keeps them in view; hovering an equation narrows the panel
+   to just that equation's symbols. */
+
+.glossary {
+  position: fixed;
+  top: var(--lg-nav-h);
+  right: 0;
+  bottom: 0;
+  z-index: 9;                 /* below .topbar (10) so the nav stays clickable */
+  display: flex;
+  align-items: stretch;
+  pointer-events: none;       /* only the handle + body catch events */
+  transform: translateX(calc(100% - var(--gloss-handle-w)));
+  --gloss-handle-w: 30px;
+  --gloss-body-w: 340px;
+}
+/* The panel lives inside a tab pane, which is display:none until its tab is
+   selected. Transitioning transform from that hidden state leaves Chrome with
+   a CSSTransition stuck in "running" that pins the transform and outranks even
+   inline styles. So: no transition until JS has confirmed the panel is visible
+   and its resting position is set. */
+.glossary.is-animated {
+  transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.glossary[data-open='true'] { transform: translateX(0); }
+
+/* The always-visible grab tab. Vertical text so it costs almost no width. */
+.glossary-handle {
+  pointer-events: auto;
+  flex: 0 0 var(--gloss-handle-w);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--lg-border);
+  border-right: none;
+  border-radius: var(--lg-radius-md) 0 0 var(--lg-radius-md);
+  background: var(--lg-surface);
+  color: var(--lg-text-2);
+  cursor: pointer;
+  align-self: center;
+  height: 160px;
+  transition: color 140ms ease, background 140ms ease;
+}
+.glossary-handle:hover { color: var(--lg-gold); background: var(--lg-active); }
+.glossary-handle-text {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 640;
+}
+.glossary[data-open='true'] .glossary-handle-text::after { content: ' \203A'; }
+.glossary[data-open='false'] .glossary-handle-text::after { content: ' \2039'; }
+
+.glossary-body {
+  pointer-events: auto;
+  flex: 0 0 var(--gloss-body-w);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;              /* lets .glossary-scroll actually scroll */
+  background: var(--lg-surface);
+  border-left: 1px solid var(--lg-border);
+  box-shadow: -12px 0 28px -18px rgb(0 0 0 / 0.45);
+}
+.glossary-head {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--lg-border);
+}
+.glossary-head h4 {
+  margin: 0 0 4px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--lg-gold);
+}
+.glossary-head p {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--lg-text-2);
+}
+.glossary-scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 0 24px;
+  min-height: 0;
+}
+.glossary .sym-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.glossary .sym-table td { padding: 7px 12px; vertical-align: top; line-height: 1.45; }
+.glossary .sym-table tr.sym-row { border-bottom: 1px solid var(--lg-border); }
+.glossary .sym-table td.sym {
+  white-space: nowrap;
+  width: 1%;
+  padding-right: 10px;
+  border-left: 2px solid transparent;
+}
+.glossary .sym-table .unit {
+  display: block;
+  margin-top: 3px;
+  color: var(--lg-text-2);
+  font-size: 0.7rem;
+  white-space: normal;
+}
+
+/* While the panel is open there is no longer a free gutter, so reserve it:
+   .article-shell is margin:0 auto, and padding on the pane shrinks the box it
+   centres inside. Below 1180px the panel overlays as a drawer instead, so no
+   reservation is made and the text keeps its full width. */
+@media (min-width: 1180px) {
+  #tab-grading-v2.gloss-open { padding-right: var(--gloss-body-w, 340px); }
+  /* Gated for the same reason as .glossary.is-animated: a transition that
+     starts while the pane is still display:none sticks in "running" and pins
+     the property, outranking even inline styles. */
+  #tab-grading-v2.gloss-anim {
+    transition: padding-right 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #tab-grading-v2.gloss-anim { transition: none; }
+}
+
+/* --- highlight wiring --- */
+/* When an equation is hovered the panel gets .is-filtered: matched rows keep
+   full contrast and gain a gold rule, everything else recedes. */
+.glossary.is-filtered .sym-row:not(.sym-hit) { opacity: 0.28; }
+.glossary.is-filtered .sym-group { opacity: 0.4; }
+.glossary .sym-row.sym-hit td.sym { border-left-color: var(--lg-gold); }
+.glossary .sym-row.sym-hit { background: color-mix(in srgb, var(--lg-gold) 11%, transparent); }
+.glossary .sym-row, .glossary .sym-group { transition: opacity 140ms ease, background 140ms ease; }
+
+/* Equations become hoverable targets. */
+.eqn {
+  border-radius: var(--lg-radius-md);
+  border-left: 2px solid transparent;
+  padding: 2px 0 2px 10px;
+  margin-left: -12px;
+  transition: background 140ms ease, border-color 140ms ease;
+  outline: none;
+}
+.eqn:hover, .eqn:focus-visible, .eqn.eqn-active {
+  background: color-mix(in srgb, var(--lg-gold) 7%, transparent);
+  border-left-color: var(--lg-gold);
+}
+.eqn .katex-display { margin: 0.5em 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .glossary.is-animated, .glossary .sym-row, .glossary .sym-group, .eqn { transition: none; }
+}
+
+/* Narrow screens: no gutter to live in, so the panel overlays as a drawer and
+   stays shut until asked for. */
+@media (max-width: 1180px) {
+  .glossary { --gloss-body-w: min(340px, 86vw); }
+  .glossary[data-open='true'] .glossary-body {
+    box-shadow: -18px 0 44px -14px rgb(0 0 0 / 0.55);
+  }
+}
+@media (max-width: 640px) {
+  .glossary { top: 0; }
+}

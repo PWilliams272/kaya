@@ -7,7 +7,7 @@
     <meta name="kaya-viewer-data-mode" content="static" />
     <link rel="stylesheet" href="/static/tokens.css" />
     <link rel="stylesheet" href="/static/app.css?v=6" />
-    <link rel="stylesheet" href="/static/research.css?v=4" />
+    <link rel="stylesheet" href="/static/research.css?v=8" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -1150,8 +1150,8 @@
 
               <h3>Ability</h3>
               <p class="prose">Each climber \(u\) has a latent ability on the grade scale:</p>
-              $$\text{ability}_u = \beta_0 + \mathbf{x}_u^{\top}\boldsymbol{\beta} + \sigma_{\text{user}}\,\tilde\epsilon_u,
-                \qquad \tilde\epsilon_u \sim \mathcal{N}(0,1)$$
+              <div class="eqn" data-syms="beta0 sigma_user eps x u" tabindex="0">$$\text{ability}_u = \beta_0 + \mathbf{x}_u^{\top}\boldsymbol{\beta} + \sigma_{\text{user}}\,\tilde\epsilon_u,
+                \qquad \tilde\epsilon_u \sim \mathcal{N}(0,1)$$</div>
               <p class="prose">
                 where \(\mathbf{x}_u\) is the covariate row for that climber &mdash;
                 gender, height terms, ape-index terms, and two missingness indicators
@@ -1172,10 +1172,10 @@
                 probability the climber is female, so \(1-G\) and \(G\) are the
                 weights:
               </p>
-              $$f_{\text{height}}(\tilde h,\ G) \;=\;
+              <div class="eqn" data-syms="h G gM gF" tabindex="0">$$f_{\text{height}}(\tilde h,\ G) \;=\;
                 \underbrace{(1-G)\left(\gamma_1^{M}\tilde h + \gamma_2^{M}\tilde h^{2}\right)}_{\text{male-coded curve}}
                 \;+\;
-                \underbrace{G\left(\gamma_1^{F}\tilde h + \gamma_2^{F}\tilde h^{2}\right)}_{\text{female-coded curve}}$$
+                \underbrace{G\left(\gamma_1^{F}\tilde h + \gamma_2^{F}\tilde h^{2}\right)}_{\text{female-coded curve}}$$</div>
               <p class="prose">
                 Note that \(G\) is a <b>probability, not a hard label</b>. A climber
                 whose name is 70% female contributes 0.7 of a row to the female
@@ -1196,7 +1196,7 @@
                 two independent pairs would impose no such discipline. The
                 male/female form above is the same model, written for reading.
               </div>
-              $$f_{\text{ape}}(\tilde a) \;=\; \delta_1\tilde a + \delta_2\tilde a^{2}$$
+              <div class="eqn" data-syms="a delta" tabindex="0">$$f_{\text{ape}}(\tilde a) \;=\; \delta_1\tilde a + \delta_2\tilde a^{2}$$</div>
               <p class="prose">
                 Six candidate height shapes are compared by LOO on identical data:
                 the gender-blended quadratic above, a plain quadratic, linear, zero,
@@ -1204,19 +1204,24 @@
                 enough of it, then stops paying" &mdash; and a <b>vertex
                 quadratic</b> that estimates the best height directly:
               </p>
-              $$f_{\text{sat}}(\tilde h) \;=\; A\,\operatorname{logistic}\!\left(\frac{\tilde h - h_0}{s}\right)
+              <div class="eqn" data-syms="h sat kappa_h p" tabindex="0">$$f_{\text{sat}}(\tilde h) \;=\; A\,\operatorname{logistic}\!\left(\frac{\tilde h - h_0}{s}\right)
                 \qquad
-                f_{\text{vtx}}(\tilde h) \;=\; -\kappa_h\left(\tilde h - p\right)^{2}$$
+                f_{\text{vtx}}(\tilde h) \;=\; -\kappa_h\left(\tilde h - p\right)^{2}$$</div>
               <h3>Every symbol, defined</h3>
               <p class="prose">
                 Ability, grades, and gym corrections all live on the <b>same
                 scale</b> &mdash; V-grades &mdash; which is what makes a correction
                 of &ldquo;+0.4&rdquo; readable as &ldquo;four tenths of a grade
-                stiffer.&rdquo;
+                stiffer.&rdquo; Every symbol above and below is defined in the
+                <b>Symbols</b> panel, docked to the right so it stays in view while
+                you read. <b>Hover any equation</b> to light up just the symbols it
+                uses.
               </p>
-              <div class="data-table-wrap">
-                <table class="data-table sym-table" id="v2-symbols"></table>
-              </div>
+              <p class="prose">
+                <button type="button" class="ghost-button" id="v2-gloss-open">
+                  Open the symbols panel
+                </button>
+              </p>
 
               <h3>The six height forms tested</h3>
               <p class="prose">
@@ -1284,9 +1289,9 @@
                 and correction, so corrections are constrained to sum to zero
                 <i>exactly</i> &mdash; "relative to the average gym" by construction:
               </p>
-              $$\text{gym}_g = \sigma_{\text{gym}}\,\tilde\delta_g,
-                \qquad \tilde\delta \sim \text{ZeroSumNormal}(0,1)$$
-              $$C_{u,g} = \text{ability}_u + \text{gym}_g$$
+              <div class="eqn" data-syms="gym sigma_gym delta_g g" tabindex="0">$$\text{gym}_g = \sigma_{\text{gym}}\,\tilde\delta_g,
+                \qquad \tilde\delta \sim \text{ZeroSumNormal}(0,1)$$</div>
+              <div class="eqn" data-syms="C gym u g" tabindex="0">$$C_{u,g} = \text{ability}_u + \text{gym}_g$$</div>
 
               <h3>The gap, and the likelihood</h3>
               <p class="prose">
@@ -1294,15 +1299,15 @@
                 or below the ceiling by a non-negative <i>gap</i>, whose rate rises
                 with how many chances the climber has had to find their limit:
               </p>
-              $$\log \lambda_{u,g} = \log\lambda_0 + \kappa\,\tilde n_{u,g} + \rho\,\tilde r_u$$
-              $$\text{gap}_{u,g}\sim\text{Exponential}(\lambda_{u,g}),
-                \qquad m_{u,g} = C_{u,g} - \text{gap}_{u,g} + \varepsilon,\ \ \varepsilon\sim\mathcal{N}(0,\sigma_{\text{link}})$$
+              <div class="eqn" data-syms="lambda lambda0 kappa n rho r" tabindex="0">$$\log \lambda_{u,g} = \log\lambda_0 + \kappa\,\tilde n_{u,g} + \rho\,\tilde r_u$$</div>
+              <div class="eqn" data-syms="gap lambda m C sigma_link" tabindex="0">$$\text{gap}_{u,g}\sim\text{Exponential}(\lambda_{u,g}),
+                \qquad m_{u,g} = C_{u,g} - \text{gap}_{u,g} + \varepsilon,\ \ \varepsilon\sim\mathcal{N}(0,\sigma_{\text{link}})$$</div>
               <p class="prose">
                 A Normal minus an Exponential is an <b>Exponentially Modified
                 Gaussian</b>, so the gap integrates out in closed form and never has to
                 be sampled:
               </p>
-              $$-m_{u,g} \;\sim\; \text{ExGaussian}\!\left(-C_{u,g},\ \sigma_{\text{link}},\ 1/\lambda_{u,g}\right)$$
+              <div class="eqn" data-syms="m C sigma_link lambda" tabindex="0">$$-m_{u,g} \;\sim\; \text{ExGaussian}\!\left(-C_{u,g},\ \sigma_{\text{link}},\ 1/\lambda_{u,g}\right)$$</div>
               <p class="prose">
                 That removes one latent variable per observation &mdash; 32,501 of them
                 on this network &mdash; and turns the likelihood into an ordinary
@@ -1374,9 +1379,9 @@
                 reassign someone's gender to explain their ability and make the two
                 effects mutually reinforcing.
               </p>
-              $$P(F \mid \text{name},h) \;=\;
+              <div class="eqn" data-syms="G p_name musd h" tabindex="0">$$P(F \mid \text{name},h) \;=\;
                 \frac{p_{\text{name}}\,\mathcal{N}(h;\mu_F,\sigma_F)}
-                     {p_{\text{name}}\,\mathcal{N}(h;\mu_F,\sigma_F) + (1-p_{\text{name}})\,\mathcal{N}(h;\mu_M,\sigma_M)}$$
+                     {p_{\text{name}}\,\mathcal{N}(h;\mu_F,\sigma_F) + (1-p_{\text{name}})\,\mathcal{N}(h;\mu_M,\sigma_M)}$$</div>
               <h3>Does the probability actually mean anything?</h3>
               <p class="prose">
                 Height is an independent check, and it tracks the name probability
@@ -1457,9 +1462,29 @@
               fitted with PyMC/NUTS. Sections marked in&nbsp;progress are exactly that.
             </footer>
           </div>
+
+          <!-- Docked symbol glossary. Sits in the right gutter on wide screens,
+               overlays as a drawer on narrow ones. Hovering an equation
+               highlights only the rows that equation actually uses. -->
+          <aside id="v2-glossary" class="glossary" data-open="false"
+                 aria-label="Parameter definitions">
+            <button type="button" class="glossary-handle" id="v2-gloss-toggle"
+                    aria-expanded="false" aria-controls="v2-glossary-body">
+              <span class="glossary-handle-text">Symbols</span>
+            </button>
+            <div class="glossary-body" id="v2-glossary-body">
+              <div class="glossary-head">
+                <h4>Parameter definitions</h4>
+                <p id="v2-gloss-hint">Hover an equation to highlight the symbols it uses.</p>
+              </div>
+              <div class="glossary-scroll">
+                <table class="sym-table" id="v2-symbols"></table>
+              </div>
+            </div>
+          </aside>
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=29"></script>
+    <script src="/static/app.js?v=34"></script>
   </body>
 </html>

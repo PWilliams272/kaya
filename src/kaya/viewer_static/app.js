@@ -2940,40 +2940,43 @@ function renderV2HeightHist() {
 // --- symbol glossary: every term that appears in an equation on this page ---
 const V2_SYMBOLS = [
   ['group', 'Indices'],
-  ['\\(u\\)', 'a climber', '&mdash;'],
-  ['\\(g\\)', 'a gym', '&mdash;'],
+  ['u', '\\(u\\)', 'a climber', '&mdash;'],
+  ['g', '\\(g\\)', 'a gym', '&mdash;'],
   ['group', 'Ability'],
-  ['\\(\\beta_0\\)', 'baseline ability &mdash; the grade an average climber sends at an average gym', 'grades'],
-  ['\\(\\sigma_{\\text{user}}\\)', 'spread of natural ability between climbers', 'grades'],
-  ['\\(\\tilde\\epsilon_u\\)', 'climber \\(u\\)&rsquo;s personal ability offset, standardised', 'SDs'],
-  ['\\(\\mathbf{x}_u\\)', 'covariate row for climber \\(u\\): gender, height terms, ape terms, missingness flags', '&mdash;'],
+  ['beta0', '\\(\\beta_0\\)', 'baseline ability &mdash; the grade an average climber sends at an average gym', 'grades'],
+  ['sigma_user', '\\(\\sigma_{\\text{user}}\\)', 'spread of natural ability between climbers', 'grades'],
+  ['eps', '\\(\\tilde\\epsilon_u\\)', 'climber \\(u\\)&rsquo;s personal ability offset, standardised', 'SDs'],
+  ['x', '\\(\\mathbf{x}_u\\)', 'covariate row for climber \\(u\\): gender, height terms, ape terms, missingness flags', '&mdash;'],
   ['group', 'Body and gender'],
-  ['\\(\\tilde h\\)', 'height, centred at the median and divided by its SD', 'SDs (1 SD &asymp; 3.4 in)'],
-  ['\\(\\tilde a\\)', 'ape index (wingspan &minus; height), centred and scaled the same way', 'SDs (1 SD &asymp; 2.6 in)'],
-  ['\\(G\\)', 'probability the climber is female, from their first name sharpened by height. 0 = male, 1 = female', 'probability'],
-  ['\\(\\gamma_1^{M},\\ \\gamma_2^{M}\\)', 'slope and curvature of the <b>male-coded</b> height curve. Identical to \\(\\gamma_1,\\gamma_2\\) &mdash; the male curve <i>is</i> the baseline', 'grades / SD, grades / SD²'],
-  ['\\(\\gamma_1^{F},\\ \\gamma_2^{F}\\)', 'slope and curvature of the <b>female-coded</b> height curve. Not sampled directly; equals \\(\\gamma_k+\\gamma_k^{\\times}\\)', 'grades / SD, grades / SD²'],
-  ['\\(\\gamma_1,\\ \\gamma_2\\)', 'what the sampler actually fits: the baseline (male-coded) slope and curvature', 'grades / SD, grades / SD²'],
-  ['\\(\\gamma_1^{\\times},\\ \\gamma_2^{\\times}\\)', 'the <b>gender difference</b> &mdash; how far the female curve departs from the male one. <b>This is the parameter the gender question turns on</b>; if its interval covers zero, the two curves are the same shape', 'grades / SD, grades / SD²'],
-  ['\\(\\delta_1,\\ \\delta_2\\)', 'the same pair for ape index: linear slope and curvature', 'grades / SD'],
-  ['\\(A,\\ h_0,\\ s\\)', 'saturating form only: how much reach is worth in total, the height it stops paying off at, and how sharply it levels', 'grades, SDs, SDs'],
-  ['\\(\\kappa_h\\)', 'vertex form only: how sharply ability falls away from the best height. Larger = a tighter optimum. <b>Distinct from the gap-rate \\(\\kappa\\) below</b>', 'grades / SD²'],
-  ['\\(p\\)', 'vertex form only: <b>the best height</b>, estimated directly rather than derived from \\(-\\gamma_1/2\\gamma_2\\)', 'SDs from median'],
+  ['h', '\\(\\tilde h\\)', 'height, centred at the median and divided by its SD', 'SDs (1 SD &asymp; 3.4 in)'],
+  ['a', '\\(\\tilde a\\)', 'ape index (wingspan &minus; height), centred and scaled the same way', 'SDs (1 SD &asymp; 2.6 in)'],
+  ['G', '\\(G\\)', 'probability the climber is female, from their first name sharpened by height. 0 = male, 1 = female', 'probability'],
+  ['gM', '\\(\\gamma_1^{M},\\ \\gamma_2^{M}\\)', 'slope and curvature of the <b>male-coded</b> height curve. Identical to \\(\\gamma_1,\\gamma_2\\) &mdash; the male curve <i>is</i> the baseline', 'grades / SD, grades / SD²'],
+  ['gF', '\\(\\gamma_1^{F},\\ \\gamma_2^{F}\\)', 'slope and curvature of the <b>female-coded</b> height curve. Not sampled directly; equals \\(\\gamma_k+\\gamma_k^{\\times}\\)', 'grades / SD, grades / SD²'],
+  ['gbase', '\\(\\gamma_1,\\ \\gamma_2\\)', 'what the sampler actually fits: the baseline (male-coded) slope and curvature', 'grades / SD, grades / SD²'],
+  ['gx', '\\(\\gamma_1^{\\times},\\ \\gamma_2^{\\times}\\)', 'the <b>gender difference</b> &mdash; how far the female curve departs from the male one. <b>This is the parameter the gender question turns on</b>; if its interval covers zero, the two curves are the same shape', 'grades / SD, grades / SD²'],
+  ['delta', '\\(\\delta_1,\\ \\delta_2\\)', 'the same pair for ape index: linear slope and curvature', 'grades / SD'],
+  ['sat', '\\(A,\\ h_0,\\ s\\)', 'saturating form only: how much reach is worth in total, the height it stops paying off at, and how sharply it levels', 'grades, SDs, SDs'],
+  ['kappa_h', '\\(\\kappa_h\\)', 'vertex form only: how sharply ability falls away from the best height. Larger = a tighter optimum. <b>Distinct from the gap-rate \\(\\kappa\\) below</b>', 'grades / SD²'],
+  ['p', '\\(p\\)', 'vertex form only: <b>the best height</b>, estimated directly rather than derived from \\(-\\gamma_1/2\\gamma_2\\)', 'SDs from median'],
+  ['group', 'Name &rarr; gender'],
+  ['p_name', '\\(p_{\\text{name}}\\)', 'calibrated probability that this first name belongs to a woman, from nomquamgender &mdash; before height is taken into account', 'probability'],
+  ['musd', '\\(\\mu_M,\\sigma_M,\\ \\mu_F,\\sigma_F\\)', 'mean and SD of height within each gender group, used to sharpen the name prior. <b>Estimated without any ability data</b>, so the gender guess cannot be contaminated by the effect under test', 'inches'],
   ['group', 'Gyms'],
-  ['\\(\\sigma_{\\text{gym}}\\)', 'spread of grading style across gyms &mdash; the headline &ldquo;how much do gyms differ&rdquo; number', 'grades'],
-  ['\\(\\tilde\\delta_g\\)', 'gym \\(g\\)&rsquo;s standardised offset, constrained so all gyms sum to zero', 'SDs'],
-  ['\\(\\text{gym}_g\\)', 'gym \\(g\\)&rsquo;s grading correction. Positive = stiffer than average', 'grades'],
-  ['\\(C_{u,g}\\)', 'structural ceiling &mdash; the hardest grade climber \\(u\\) could send at gym \\(g\\)', 'grades'],
+  ['sigma_gym', '\\(\\sigma_{\\text{gym}}\\)', 'spread of grading style across gyms &mdash; the headline &ldquo;how much do gyms differ&rdquo; number', 'grades'],
+  ['delta_g', '\\(\\tilde\\delta_g\\)', 'gym \\(g\\)&rsquo;s standardised offset, constrained so all gyms sum to zero', 'SDs'],
+  ['gym', '\\(\\text{gym}_g\\)', 'gym \\(g\\)&rsquo;s grading correction. Positive = stiffer than average', 'grades'],
+  ['C', '\\(C_{u,g}\\)', 'structural ceiling &mdash; the hardest grade climber \\(u\\) could send at gym \\(g\\)', 'grades'],
   ['group', 'The gap, and what we observe'],
-  ['\\(m_{u,g}\\)', '<b>the observed data</b>: the hardest grade \\(u\\) actually logged at \\(g\\)', 'grades'],
-  ['\\(\\text{gap}_{u,g}\\)', 'how far below their ceiling that logged max sits. Never negative', 'grades'],
-  ['\\(\\lambda_{u,g}\\)', 'rate of that gap &mdash; higher rate means a smaller expected gap', '1 / grades'],
-  ['\\(\\lambda_0\\)', 'baseline gap rate for a typical climber at a typical gym', '1 / grades'],
-  ['\\(\\tilde n_{u,g}\\)', 'how many days \\(u\\) logged at \\(g\\), centred on the median (~8)', 'ratio'],
-  ['\\(\\kappa\\)', 'how much more of their ceiling a climber finds per extra visit', '&mdash;'],
-  ['\\(\\tilde r_u\\)', 'sends per session, centred &mdash; a proxy for how completely someone logs', 'ratio'],
-  ['\\(\\rho\\)', 'how much that logging-completeness shifts the gap. <b>Fitted at &asymp;0</b>', '&mdash;'],
-  ['\\(\\sigma_{\\text{link}}\\)', 'residual noise: grades are integers on a continuous scale, so a labelled V5 is really 4.5&ndash;5.5', 'grades'],
+  ['m', '\\(m_{u,g}\\)', '<b>the observed data</b>: the hardest grade \\(u\\) actually logged at \\(g\\)', 'grades'],
+  ['gap', '\\(\\text{gap}_{u,g}\\)', 'how far below their ceiling that logged max sits. Never negative', 'grades'],
+  ['lambda', '\\(\\lambda_{u,g}\\)', 'rate of that gap &mdash; higher rate means a smaller expected gap', '1 / grades'],
+  ['lambda0', '\\(\\lambda_0\\)', 'baseline gap rate for a typical climber at a typical gym', '1 / grades'],
+  ['n', '\\(\\tilde n_{u,g}\\)', 'how many days \\(u\\) logged at \\(g\\), centred on the median (~8)', 'ratio'],
+  ['kappa', '\\(\\kappa\\)', 'how much more of their ceiling a climber finds per extra visit', '&mdash;'],
+  ['r', '\\(\\tilde r_u\\)', 'sends per session, centred &mdash; a proxy for how completely someone logs', 'ratio'],
+  ['rho', '\\(\\rho\\)', 'how much that logging-completeness shifts the gap. <b>Fitted at &asymp;0</b>', '&mdash;'],
+  ['sigma_link', '\\(\\sigma_{\\text{link}}\\)', 'residual noise: grades are integers on a continuous scale, so a labelled V5 is really 4.5&ndash;5.5', 'grades'],
 ];
 
 const V2_FORMS = [
@@ -2999,15 +3002,145 @@ const V2_HMED = 68.0, V2_HSD = 3.4;   // inches, from the cleaned data
 function renderV2Symbols() {
   const el = document.getElementById('v2-symbols');
   if (!el) return;
-  let html = '<thead><tr><th>symbol</th><th>meaning</th><th>units</th></tr></thead><tbody>';
+  let html = '<tbody>';
   V2_SYMBOLS.forEach((r) => {
     if (r[0] === 'group') {
-      html += `<tr class="sym-group"><td colspan="3">${r[1]}</td></tr>`;
+      html += `<tr class="sym-group"><td colspan="2">${r[1]}</td></tr>`;
     } else {
-      html += `<tr><td class="sym">${r[0]}</td><td>${r[1]}</td><td class="unit">${r[2]}</td></tr>`;
+      const unit = (r[3] && r[3] !== '&mdash;') ? `<span class="unit">${r[3]}</span>` : '';
+      html += `<tr class="sym-row" data-sym="${r[0]}">`
+        + `<td class="sym">${r[1]}</td><td>${r[2]}${unit}</td></tr>`;
     }
   });
   el.innerHTML = html + '</tbody>';
+}
+
+// ---- glossary panel: open/close + equation-to-symbol highlighting ----
+
+const V2_GLOSS_KEY = 'kaya.v2.glossary.open';
+
+function setV2GlossaryOpen(open, persist = true) {
+  const panel = document.getElementById('v2-glossary');
+  const btn = document.getElementById('v2-gloss-toggle');
+  if (!panel) return;
+  panel.dataset.open = open ? 'true' : 'false';
+  // Reserve the gutter so the centred article re-centres beside the panel
+  // instead of running underneath it.
+  document.getElementById('tab-grading-v2')?.classList.toggle('gloss-open', open);
+  if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (persist) {
+    try { localStorage.setItem(V2_GLOSS_KEY, open ? '1' : '0'); } catch (e) { /* private mode */ }
+  }
+}
+
+// Dim every row except the ones this equation actually uses, and bring the
+// first match into view if the panel has scrolled past it.
+function highlightV2Symbols(keys) {
+  const panel = document.getElementById('v2-glossary');
+  if (!panel) return;
+  const rows = panel.querySelectorAll('[data-sym]');
+  if (!keys) {
+    panel.classList.remove('is-filtered');
+    rows.forEach((r) => r.classList.remove('sym-hit'));
+    return;
+  }
+  const want = new Set(keys);
+  panel.classList.add('is-filtered');
+  let first = null;
+  rows.forEach((r) => {
+    const hit = want.has(r.dataset.sym);
+    r.classList.toggle('sym-hit', hit);
+    if (hit && !first && r.classList.contains('sym-row')) first = r;
+  });
+  const scroller = panel.querySelector('.glossary-scroll');
+  if (first && scroller) {
+    const fr = first.getBoundingClientRect();
+    const sr = scroller.getBoundingClientRect();
+    if (fr.top < sr.top || fr.bottom > sr.bottom) {
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      scroller.scrollTo({
+        top: scroller.scrollTop + (fr.top - sr.top) - 12,
+        behavior: reduce ? 'auto' : 'smooth',
+      });
+    }
+  }
+}
+
+let v2GlossaryBound = false;
+
+function bindV2Glossary() {
+  if (v2GlossaryBound) return;
+  const panel = document.getElementById('v2-glossary');
+  if (!panel) return;
+  v2GlossaryBound = true;
+
+  const toggle = document.getElementById('v2-gloss-toggle');
+  if (toggle) {
+    toggle.addEventListener('click', () => {
+      setV2GlossaryOpen(panel.dataset.open !== 'true');
+    });
+  }
+  const opener = document.getElementById('v2-gloss-open');
+  if (opener) {
+    opener.addEventListener('click', () => {
+      setV2GlossaryOpen(true);
+      panel.querySelector('.glossary-scroll')?.scrollTo({ top: 0 });
+    });
+  }
+
+  // Hovering an equation filters the panel. Opening it on hover would be
+  // jarring, so a shut panel just pulses the handle instead.
+  document.querySelectorAll('#tab-grading-v2 .eqn').forEach((eq) => {
+    const keys = (eq.dataset.syms || '').split(/\s+/).filter(Boolean);
+    const on = () => { if (panel.dataset.open === 'true') highlightV2Symbols(keys); };
+    const off = () => highlightV2Symbols(null);
+    eq.addEventListener('mouseenter', on);
+    eq.addEventListener('mouseleave', off);
+    eq.addEventListener('focus', on);
+    eq.addEventListener('blur', off);
+  });
+
+  // Reverse direction: hovering a definition marks the equations that use it.
+  panel.addEventListener('mouseover', (ev) => {
+    const row = ev.target.closest('[data-sym]');
+    if (!row) return;
+    document.querySelectorAll('#tab-grading-v2 .eqn').forEach((eq) => {
+      const keys = (eq.dataset.syms || '').split(/\s+/);
+      eq.classList.toggle('eqn-active', keys.includes(row.dataset.sym));
+    });
+  });
+  panel.addEventListener('mouseleave', () => {
+    document.querySelectorAll('#tab-grading-v2 .eqn.eqn-active')
+      .forEach((eq) => eq.classList.remove('eqn-active'));
+  });
+
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && panel.dataset.open === 'true'
+        && document.getElementById('tab-grading-v2')?.classList.contains('active')) {
+      setV2GlossaryOpen(false);
+    }
+  });
+
+  // Default open where there is a gutter to open into; remember the choice.
+  let stored = null;
+  try { stored = localStorage.getItem(V2_GLOSS_KEY); } catch (e) { /* private mode */ }
+  const wide = window.matchMedia('(min-width: 1180px)').matches;
+  setV2GlossaryOpen(stored === null ? wide : stored === '1', false);
+
+  // Only now, once the resting position is set, allow the slide to animate --
+  // see the .is-animated note in the CSS. rAF is the clean signal but never
+  // fires while the tab is in the background, so a timer backs it up;
+  // whichever lands first wins and the other is a no-op.
+  const pane = document.getElementById('tab-grading-v2');
+  const enableAnim = () => {
+    if (panel.classList.contains('is-animated')) return;
+    panel.getAnimations().forEach((a) => a.cancel());
+    pane?.getAnimations().forEach((a) => a.cancel());
+    panel.classList.add('is-animated');
+    pane?.classList.add('gloss-anim');
+  };
+  requestAnimationFrame(() => requestAnimationFrame(enableAnim));
+  setTimeout(enableAnim, 120);
 }
 
 function renderV2FormsTable() {
@@ -3133,6 +3266,7 @@ function renderV2Tab() {
       }
     });
   }
+  bindV2Glossary();
 }
 
 
