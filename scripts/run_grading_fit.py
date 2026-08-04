@@ -26,6 +26,8 @@ def main():
     p.add_argument('--gender-mode', default='point')
     p.add_argument('--climb-quant', action='store_true')
     p.add_argument('--ape-x-gender', action='store_true')
+    p.add_argument('--ape-linear', action='store_true',
+                   help='drop the ape-index quadratic term (delta2)')
     p.add_argument('--fixed-sigma-link', action='store_true')
     p.add_argument('--zero-sum-users', action='store_true')
     p.add_argument('--draws', type=int, default=1000)
@@ -47,6 +49,7 @@ def main():
         height_form=args.height_form,
         gender_mode=args.gender_mode,
         climb_quantization=args.climb_quant,
+        ape_quadratic=not args.ape_linear,
         ape_x_gender=args.ape_x_gender,
         estimate_sigma_link=not args.fixed_sigma_link,
         zero_sum_users=args.zero_sum_users,

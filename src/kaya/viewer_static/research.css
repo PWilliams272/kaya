@@ -1104,3 +1104,6 @@
   --lg-cat-9: #5f7d1f;
   --lg-cat-10: #546e7a;
 }
+
+/* A LOO gap inside one SE of the difference is noise; show it as such. */
+.data-table td.unit.muted { opacity: 0.45; }

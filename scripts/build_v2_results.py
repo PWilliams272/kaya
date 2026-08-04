@@ -94,6 +94,21 @@ def main():
         best = forms[0]['elpd']
         for f in forms:
             f['d_elpd'] = round(f['elpd'] - best, 1)
+        # The standard error of the *difference*, from paired pointwise LOO.
+        # Differencing two totals and adding their SEs in quadrature would be
+        # far too pessimistic -- the models are scored on the same
+        # observations. Without this column the ranking oversells itself:
+        # every gap here turns out to be inside one dse.
+        try:
+            idatas = {f['fit']: az.from_netcdf(TMP / f"idata_{f['fit']}.nc")
+                      for f in forms}
+            cmp = az.compare(idatas, ic='loo', scale='log')
+            for f in forms:
+                if f['fit'] in cmp.index:
+                    f['dse'] = round(float(cmp.loc[f['fit'], 'dse']), 1)
+            del idatas
+        except Exception as e:
+            print(f'  paired LOO comparison failed ({e}); dse omitted')
 
     # --- key parameters across every fit, to show what replicates ---------
     replication = {}

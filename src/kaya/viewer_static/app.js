@@ -3138,15 +3138,21 @@ function renderV2FormsLoo() {
   const forms = V2_RESULTS.forms || [];
   if (!forms.length) { el.innerHTML = ''; return; }
 
+  const hasDse = forms.some((f) => f.dse !== undefined);
   el.innerHTML = '<thead><tr><th>height form</th><th>height params</th>'
-    + '<th>LOO elpd</th><th>&Delta; vs best</th><th>max R&#770;</th><th>min ESS</th></tr></thead><tbody>'
+    + '<th>LOO elpd</th><th>&Delta; vs best</th>'
+    + (hasDse ? '<th>SE of &Delta;</th>' : '')
+    + '<th>max R&#770;</th><th>min ESS</th></tr></thead><tbody>'
     + forms.map((f, i) => {
       const conv = f.rhat <= 1.01;
+      // A gap inside one SE of the difference is not a ranking, it is noise.
+      const real = f.dse !== undefined && Math.abs(f.d_elpd) > 2 * f.dse;
       return `<tr${i === 0 ? ' class="row-best"' : ''}>`
         + `<td><b>${f.label}</b>${i === 0 ? ' <span class="pill-best">best</span>' : ''}</td>`
         + `<td class="unit">${f.k ?? '&mdash;'}</td>`
         + `<td class="unit">${f.elpd.toFixed(1)}</td>`
-        + `<td class="unit">${f.d_elpd === 0 ? '&mdash;' : f.d_elpd.toFixed(1)}</td>`
+        + `<td class="unit${i && !real ? ' muted' : ''}">${f.d_elpd === 0 ? '&mdash;' : f.d_elpd.toFixed(1)}</td>`
+        + (hasDse ? `<td class="unit">${i === 0 ? '&mdash;' : `&plusmn;${f.dse?.toFixed(1) ?? '?'}`}</td>` : '')
         + `<td class="unit ${conv ? '' : 'bad'}">${f.rhat.toFixed(2)}</td>`
         + `<td class="unit ${f.ess >= 400 ? '' : 'bad'}">${f.ess}</td></tr>`;
     }).join('') + '</tbody>';
@@ -3154,7 +3160,7 @@ function renderV2FormsLoo() {
   if (note) {
     const pending = V2_RESULTS.pending || [];
     const best = forms[0], second = forms[1];
-    let txt = `<b>${forms.length} of 6 forms fitted so far.</b> `;
+    let txt = `<b>${forms.length} of 6 height forms fitted.</b> `;
     if (best && second) {
       const gap = Math.abs(second.d_elpd);
       txt += `${best.label} leads ${second.label} by ${gap.toFixed(1)} elpd`;
@@ -3162,7 +3168,21 @@ function renderV2FormsLoo() {
         txt += ` <b>with ${second.k - best.k} fewer height parameters</b>`;
       }
       txt += '. ';
-      if (gap < 10) {
+      if (second.dse !== undefined) {
+        const sep = forms.filter((f, i) => i && Math.abs(f.d_elpd) > 2 * f.dse);
+        txt += `The <b>SE of &Delta;</b> column is the honest one: it is the `
+          + 'standard error of the <i>difference</i>, from paired pointwise LOO, '
+          + 'which accounts for every model being scored on the same '
+          + 'observations. ';
+        txt += sep.length
+          ? `Only ${sep.map((f) => f.label.toLowerCase()).join(', ')} `
+            + `${sep.length === 1 ? 'is' : 'are'} separated from the leader by `
+            + 'more than two of those SEs. Every other gap in this table is '
+            + 'inside the noise &mdash; the ranking is an ordering, not a result. '
+          : '<b>No gap in this table exceeds two of those SEs.</b> The ranking '
+            + 'is an ordering, not a result: on this data LOO cannot tell these '
+            + 'height forms apart. ';
+      } else if (gap < 10) {
         txt += 'That gap is small relative to the standard errors quoted per '
           + 'model, so it is a lead, not a verdict &mdash; a paired comparison '
           + 'on pointwise LOO is needed before ranking these confidently. ';
@@ -3610,6 +3630,10 @@ const V2_SCALES_FALLBACK = {
 };
 const v2Scales = () => ({ ...V2_SCALES_FALLBACK, ...(V2_POST?.scales || {}) });
 
+// Pinned axis limits for the fitted-curve panels, computed once across both
+// genders and every fit. Reset it if the fits ever reload.
+let v2FittedRange = null;
+
 // f_height for one draw, in z-units, per the model's own definition. G is the
 // gender indicator the interaction terms multiply.
 function v2HeightAt(form, d, z, G) {
@@ -3710,7 +3734,12 @@ function v2GroupBands(kind, selected) {
     shapes.push({
       type: 'rect', xref: 'x', yref: 'paper',
       x0: lo, x1: hi, y0: 0, y1: 1,
-      fillcolor: cssVar(d.tok), opacity: on ? 0.11 : 0.04, line: { width: 0 },
+      fillcolor: cssVar(d.tok), opacity: on ? 0.2 : 0.05,
+      // A dashed edge on the selected band as well as a stronger fill: on a
+      // pale ground, fill alone has to get muddy before it reads.
+      line: on
+        ? { width: 1, color: cssVar(d.tok), dash: 'dot' }
+        : { width: 0 },
     });
     // Side by side: anchor each label to its own outer edge, growing inward
     // over its own band. Concentric: anchor to opposite edges, growing
@@ -3720,9 +3749,9 @@ function v2GroupBands(kind, selected) {
       x: nested ? (left ? lo : hi) : (left ? lo : hi),
       xanchor: nested ? (left ? 'right' : 'left') : (left ? 'left' : 'right'),
       y: 1, yref: 'paper', yanchor: 'bottom', showarrow: false,
-      text: d.label,
-      font: { size: 10, color: cssVar(d.tok) },
-      opacity: on ? 1 : 0.45,
+      text: on ? `<b>${d.label}</b>` : d.label,
+      font: { size: on ? 11 : 10, color: cssVar(d.tok) },
+      opacity: on ? 1 : 0.4,
     });
   });
   return { shapes, annotations };
@@ -3739,7 +3768,13 @@ function renderV2FittedForms() {
   const G = document.getElementById('v2-fitted-gender')?.value === 'female' ? 1 : 0;
   const showBand = document.getElementById('v2-fitted-band')?.checked !== false;
   const sc = v2Scales();
-  const names = v2FitNames();
+  // This panel compares model *forms*, so every curve on it has to come from
+  // the same data. v3_all is fitted on all first names rather than the
+  // confident-name subset, so it belongs to a different comparison -- and it
+  // is the arm that never converged, whose female curve alone doubled the
+  // y-range everything else had to share.
+  const names = v2FitNames().filter((f) => v2Fit(f)?.name_filter === sc.name_filter);
+  const dropped = v2FitNames().filter((f) => !names.includes(f));
 
   const grid = (lo, hi, n = 55) => {
     const step = (hi - lo) / (n - 1), out = [];
@@ -3755,10 +3790,30 @@ function renderV2FittedForms() {
   const hZ = hIn.map((v) => (v - sc.h_median) / sc.h_sd);
   const aZ = aIn.map((v) => (v - sc.a_median) / sc.a_sd);
 
+  // Axis limits are computed once over BOTH genders and EVERY fit, then
+  // pinned. Otherwise switching gender or clicking a model out of the legend
+  // rescales the axes and the shapes appear to change when they have not.
+  if (!v2FittedRange) {
+    const span = (kind, zs) => {
+      let lo = Infinity, hi = -Infinity;
+      [0, 1].forEach((g) => names.forEach((fn) => {
+        const b = v2CurveBand(fn, kind, zs, g);
+        if (!b || b.flat) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); return; }
+        b.lo.forEach((v) => { if (v < lo) lo = v; });
+        b.hi.forEach((v) => { if (v > hi) hi = v; });
+      }));
+      if (!Number.isFinite(lo)) return [-1, 1];
+      const pad = (hi - lo) * 0.08 || 0.1;
+      return [lo - pad, hi + pad];
+    };
+    v2FittedRange = { h: span('height', hZ), a: span('ape', aZ) };
+  }
+
   const build = (kind, xs, zs) => {
     const traces = [];
-    names.forEach((fn, idx) => {
-      const c = cssVar(V2_FIT_HUES[idx % V2_FIT_HUES.length]);
+    const allNames = v2FitNames();
+    names.forEach((fn) => {
+      const c = cssVar(V2_FIT_HUES[allNames.indexOf(fn) % V2_FIT_HUES.length]);
       const label = V2_FIT_LABEL[fn] || fn;
       const band = v2CurveBand(fn, kind, zs, G);
       if (!band) return;
@@ -3813,6 +3868,8 @@ function renderV2FittedForms() {
   hLayout.shapes = hb.shapes;
   hLayout.annotations = hb.annotations;
   hLayout.margin.t = 24;               // room for the band labels
+  hLayout.xaxis = { ...hLayout.xaxis, range: [sc.h_lo, sc.h_hi], autorange: false };
+  hLayout.yaxis = { ...hLayout.yaxis, range: v2FittedRange.h, autorange: false };
   Plotly.react(hEl, build('height', hIn, hZ), hLayout,
     { displayModeBar: false, responsive: true });
 
@@ -3821,8 +3878,9 @@ function renderV2FittedForms() {
   aLayout.shapes = ab.shapes;
   aLayout.annotations = ab.annotations;
   aLayout.margin.t = 24;
-  aLayout.xaxis = { ...aLayout.xaxis, range: [-aMax, aMax], zeroline: true,
-    zerolinecolor: cssVar('--lg-text-2') };
+  aLayout.xaxis = { ...aLayout.xaxis, range: [-aMax, aMax], autorange: false,
+    zeroline: true, zerolinecolor: cssVar('--lg-text-2') };
+  aLayout.yaxis = { ...aLayout.yaxis, range: v2FittedRange.a, autorange: false };
   Plotly.react(aEl, build('ape', aIn, aZ), aLayout,
     { displayModeBar: false, responsive: true });
 
@@ -3851,6 +3909,11 @@ function renderV2FittedForms() {
         + '&mdash; with the selected group emphasised. Outside them the curves are '
         + 'extrapolation. '
       : '';
+    const dropNote = dropped.length
+      ? `<b>${dropped.map((f) => V2_FIT_LABEL[f] || f).join(', ')}</b> `
+        + `${dropped.length === 1 ? 'is' : 'are'} not drawn here: fitted on a `
+        + 'different user set, so the curves would not be comparable. '
+      : '';
     const apeNote = apeByGender.length
       ? `On the ape panel the selector only changes <b>${apeByGender.join('</b>, <b>')}</b>: `
         + 'every other model&rsquo;s ape term is the same for everyone. The bands '
@@ -3858,7 +3921,7 @@ function renderV2FittedForms() {
       : 'On the ape panel the selector changes only the bands &mdash; every '
         + 'model&rsquo;s ape term is the same for everyone. ';
     note.innerHTML = worst
-      ? bands + apeNote
+      ? bands + apeNote + dropNote
         + `The largest height effect any model claims is <b>${V2_FIT_LABEL[worst.fn] || worst.fn}</b>, `
         + `travelling <b>${worst.span.toFixed(2)} grades</b> across the whole range `
         + `&mdash; against a credible band up to <b>${worst.width.toFixed(2)} grades</b> wide. `
