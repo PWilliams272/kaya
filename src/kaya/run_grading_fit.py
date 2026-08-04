@@ -27,6 +27,7 @@ def main():
     p.add_argument('--climb-quant', action='store_true')
     p.add_argument('--ape-x-gender', action='store_true')
     p.add_argument('--fixed-sigma-link', action='store_true')
+    p.add_argument('--zero-sum-users', action='store_true')
     p.add_argument('--draws', type=int, default=1000)
     p.add_argument('--tune', type=int, default=1000)
     p.add_argument('--chains', type=int, default=4)
@@ -48,6 +49,7 @@ def main():
         climb_quantization=args.climb_quant,
         ape_x_gender=args.ape_x_gender,
         estimate_sigma_link=not args.fixed_sigma_link,
+        zero_sum_users=args.zero_sum_users,
     )
 
     t0 = time.time()

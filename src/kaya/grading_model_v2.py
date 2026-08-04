@@ -349,6 +349,7 @@ def build_model_v2(
     include_reliability: bool = True,
     use_n_at_max: bool = False,
     store_user_terms: bool = False,
+    zero_sum_users: bool = False,
 ) -> pm.Model:
     """Build the v2 PyMC model.
 
@@ -429,7 +430,19 @@ def build_model_v2(
     with pm.Model(coords=coords) as model:
         beta0 = pm.Normal('beta0', mu=median_m, sigma=5)
         sigma_user = pm.HalfNormal('sigma_user', sigma=2)
-        eps_raw = pm.Normal('epsilon_raw', 0, 1, dims='user')
+        # Same argument as the gym corrections below, applied to climbers.
+        # With a plain Normal the model can add c to beta0 and subtract c from
+        # all N user offsets and land in nearly the same place -- the prior
+        # penalises that only weakly, since the realized mean of N standard
+        # normals drifts with sd 1/sqrt(N). That soft ridge is the most likely
+        # cause of beta0's poor mixing (measured on v3_conf: r_hat 1.09,
+        # ESS 45, chain means 5.61/5.63/5.63/5.64 sitting on distinct levels),
+        # while the ZeroSumNormal gym corrections converged at r_hat 1.00-1.04.
+        # Off by default so the queued height-form comparison stays like-for-like.
+        if zero_sum_users:
+            eps_raw = pm.ZeroSumNormal('epsilon_raw', sigma=1, dims='user')
+        else:
+            eps_raw = pm.Normal('epsilon_raw', 0, 1, dims='user')
         # Not a Deterministic by default: at 16k users x 2k draws that is
         # ~250MB of stored trace per user-dimensioned quantity, and it is
         # recoverable post-hoc as sigma_user * epsilon_raw.
