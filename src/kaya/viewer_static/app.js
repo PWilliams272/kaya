@@ -3254,10 +3254,11 @@ const V2_FIT_LABEL = {
   v3_quad: 'quadratic', v3_vtx: 'vertex quadratic',
   v3_apex: 'quad × gender + ape×gender', v3_zsu: 'quad × gender (zero-sum users)',
 };
-// Eight distinct hues -- there are seven fits, and the status tokens only give
+// Ten distinct hues -- there are nine fits, and the status tokens only give
 // five usable colours (two of which are near-identical blues).
 const V2_FIT_HUES = ['--lg-cat-1', '--lg-cat-2', '--lg-cat-3', '--lg-cat-4',
-                     '--lg-cat-5', '--lg-cat-6', '--lg-cat-7', '--lg-cat-8'];
+                     '--lg-cat-5', '--lg-cat-6', '--lg-cat-7', '--lg-cat-8',
+                     '--lg-cat-9', '--lg-cat-10'];
 
 const V2_CORNER_GROUPS = {
   height: { label: 'Height block', of: ['beta0', 'gamma1', 'gamma2', 'gamma1_x', 'gamma2_x'] },

@@ -88,6 +88,8 @@ def dataset_scales(fit_args):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--skip-priors', action='store_true')
+    ap.add_argument('--primary', default='v3_conf',
+                    help='fit whose dataset defines the exported scales')
     args = ap.parse_args()
 
     payload = {'thin_to': THIN_TO, 'fits': {}}
@@ -145,7 +147,10 @@ def main():
             except Exception as e:
                 print(f'  {name}: prior sampling failed ({e})')
         payload['fits'][name] = fit
-        if 'scales' not in payload:
+        # Scales must come from the primary fit's dataset, not from whichever
+        # fit happens to sort first -- v3_all uses every name, not the
+        # confident-name subset, and its SDs differ.
+        if 'scales' not in payload or name == args.primary:
             payload['scales'] = dataset_scales(res['args'])
         print(f"  {name}: {len(fit['params'])} params, warmup="
               f"{fit['n_warmup'] or 'no'}, prior={'yes' if 'prior' in fit else 'no'}")
