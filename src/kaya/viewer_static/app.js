@@ -2658,46 +2658,29 @@ bootstrapWithFallback().catch((error) => {
 // these come from a specific PyMC run, not from the live viewer payloads.
 // Source run: net50/confident, 29 gyms, 20,014 obs, 10,357 climbers.
 // ==========================================================================
-const V2_GYMS = [
-  {i:'279',g:'Touchstone Sacramento Pipeworks',b:'Touchstone',m:-0.791,lo:-0.879,hi:-0.686,s:true},
-  {i:'285',g:'Touchstone The Studio',b:'Touchstone',m:-0.422,lo:-0.529,hi:-0.322,s:true},
-  {i:'270',g:'Touchstone Great Western Power Company',b:'Touchstone',m:-0.327,lo:-0.422,hi:-0.225,s:true},
-  {i:'944',g:'Bouldering Project - Salt Lake',b:'Bouldering Project',m:-0.277,lo:-0.411,hi:-0.130,s:true},
-  {i:'292',g:'Touchstone Team Training Center',b:'Touchstone',m:-0.269,lo:-0.394,hi:-0.106,s:true},
-  {i:'38',g:'Movement San Francisco',b:'Movement',m:-0.234,lo:-0.302,hi:-0.169,s:true},
-  {i:'1100',g:'Touchstone Class 5',b:'Touchstone',m:-0.196,lo:-0.269,hi:-0.116,s:true},
-  {i:'261',g:'Touchstone Verdigo Boulders',b:'Touchstone',m:-0.152,lo:-0.212,hi:-0.094,s:true},
-  {i:'277',g:'Touchstone Diablo Rock Gym',b:'Touchstone',m:-0.117,lo:-0.195,hi:-0.032,s:true},
-  {i:'1049',g:'Touchstone The Oaks',b:'Touchstone',m:-0.103,lo:-0.176,hi:-0.041,s:true},
-  {i:'901',g:'Touchstone The Post',b:'Touchstone',m:-0.032,lo:-0.098,hi:0.034,s:false},
-  {i:'257',g:'Touchstone LA Boulders',b:'Touchstone',m:-0.009,lo:-0.067,hi:0.051,s:false},
-  {i:'1178',g:'Touchstone Hyperion',b:'Touchstone',m:0.016,lo:-0.034,hi:0.076,s:false},
-  {i:'67',g:'Touchstone Mission Cliffs',b:'Touchstone',m:0.018,lo:-0.054,hi:0.093,s:false},
-  {i:'122',g:'Touchstone Hollywood Boulders',b:'Touchstone',m:0.020,lo:-0.040,hi:0.078,s:false},
-  {i:'293',g:'Touchstone Berkeley Ironworks',b:'Touchstone',m:0.020,lo:-0.047,hi:0.089,s:false},
-  {i:'381',g:'Bouldering Project - Fremont/Upper Walls',b:'Bouldering Project',m:0.022,lo:-0.058,hi:0.112,s:false},
-  {i:'260',g:'Touchstone Cliffs of Id',b:'Touchstone',m:0.058,lo:-0.005,hi:0.115,s:false},
-  {i:'1102',g:'The Stronghold Lincoln Heights',b:'Stronghold',m:0.106,lo:-0.025,hi:0.233,s:false},
-  {i:'1140',g:'Bouldering Project - University District',b:'Bouldering Project',m:0.112,lo:0.040,hi:0.198,s:true},
-  {i:'413',g:'Touchstone Pacific Pipe',b:'Touchstone',m:0.135,lo:0.092,hi:0.182,s:true},
-  {i:'1101',g:'The Stronghold Echo Park',b:'Stronghold',m:0.144,lo:0.024,hi:0.269,s:true},
-  {i:'10',g:'Bouldering Project - Poplar',b:'Bouldering Project',m:0.167,lo:0.080,hi:0.240,s:true},
-  {i:'104',g:'Movement Fountain Valley',b:'Movement',m:0.249,lo:0.154,hi:0.330,s:true},
-  {i:'100',g:'Movement Sunnyvale',b:'Movement',m:0.280,lo:0.222,hi:0.335,s:true},
-  {i:'51',g:'Touchstone Dogpatch Boulders',b:'Touchstone',m:0.339,lo:0.288,hi:0.393,s:true},
-  {i:'1183',g:'Movement Mountain View',b:'Movement',m:0.379,lo:0.335,hi:0.426,s:true},
-  {i:'103',g:'Movement Santa Clara',b:'Movement',m:0.397,lo:0.356,hi:0.442,s:true},
-  {i:'49',g:'Movement Belmont',b:'Movement',m:0.465,lo:0.391,hi:0.530,s:true},
-];
+// Populated from /static/v2_results.json (regenerate with
+// scripts/build_v2_results.py). Empty until that loads -- deliberately not
+// seeded with stale numbers from an older fit, which would silently render
+// figures that no longer match any fit on disk.
+let V2_GYMS = [];
+let V2_RESULTS = null;
 
-const V2_STATS = [
-  {v:'29', l:'gyms', s:'4 companies, one connected network'},
-  {v:'1.26', l:'grades', s:'stiffest minus softest'},
-  {v:'20/29', l:'credibly differ', s:'89% interval excludes zero'},
-  {v:'4.9&times;', l:'wider than v1', s:'vs the 6 Touchstone gyms alone'},
-  {v:'0.282', l:'&sigma;<sub>gym</sub>', s:'was 0.128 in v1'},
-  {v:'20,014', l:'observations', s:'10,357 climbers'},
-];
+function v2Stats() {
+  const R = V2_RESULTS;
+  if (!R) return [];
+  const brands = new Set(R.gyms.map((g) => g.b)).size;
+  const sg = R.sigma_gym;
+  return [
+    {v: String(R.n_gyms), l: 'gyms', s: `${brands} companies, one connected network`},
+    {v: R.spread.toFixed(2), l: 'grades', s: 'stiffest minus softest'},
+    {v: `${R.n_sig}/${R.n_gyms}`, l: 'credibly differ', s: '89% interval excludes zero'},
+    {v: (R.spread / 0.254).toFixed(1) + '&times;', l: 'wider than v1',
+     s: 'vs the 6 Touchstone gyms alone'},
+    {v: sg.mean.toFixed(3), l: '&sigma;<sub>gym</sub>', s: 'was 0.128 in v1'},
+    {v: R.dataset.n_obs.toLocaleString(), l: 'observations',
+     s: `${R.dataset.n_users.toLocaleString()} climbers`},
+  ];
+}
 
 // distance below own max -> share of sends (from 2,085,765 bouldering sends)
 const V2_DISCARD = [[0,7.0],[1,15.5],[2,22.0],[3,19.9],[4,14.3],[5,21.3]];
@@ -2776,7 +2759,7 @@ function v2Colour(row, mode) {
 function renderV2Stats() {
   const host = document.getElementById('v2-stats');
   if (!host) return;
-  host.innerHTML = V2_STATS.map((s) => `
+  host.innerHTML = v2Stats().map((s) => `
     <div class="stat-tile">
       <div class="stat-value">${s.v}</div>
       <div class="stat-label">${s.l}</div>
@@ -3098,10 +3081,111 @@ function renderV2Symbols() {
   el.innerHTML = html + '</tbody>';
 }
 
-// ---- priors, posteriors, and sampler diagnostics ----
+// ---- fitted results (gyms, height-form comparison) ----
+
+async function loadV2Results() {
+  if (V2_RESULTS) return V2_RESULTS;
+  try {
+    const r = await fetch('/static/v2_results.json');
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    V2_RESULTS = await r.json();
+    V2_GYMS = V2_RESULTS.gyms;
+  } catch (e) {
+    V2_RESULTS = null;
+    return null;
+  }
+  return V2_RESULTS;
+}
+
+// LOO ranks the height forms. Reported as a difference from the best form,
+// because the absolute elpd is meaningless on its own and only the gaps
+// between models on identical data carry information.
+function renderV2FormsLoo() {
+  const el = document.getElementById('v2-loo-table');
+  const note = document.getElementById('v2-loo-note');
+  if (!el || !V2_RESULTS) return;
+  const forms = V2_RESULTS.forms || [];
+  if (!forms.length) { el.innerHTML = ''; return; }
+
+  el.innerHTML = '<thead><tr><th>height form</th><th>height params</th>'
+    + '<th>LOO elpd</th><th>&Delta; vs best</th><th>max R&#770;</th><th>min ESS</th></tr></thead><tbody>'
+    + forms.map((f, i) => {
+      const conv = f.rhat <= 1.01;
+      return `<tr${i === 0 ? ' class="row-best"' : ''}>`
+        + `<td><b>${f.label}</b>${i === 0 ? ' <span class="pill-best">best</span>' : ''}</td>`
+        + `<td class="unit">${f.k ?? '&mdash;'}</td>`
+        + `<td class="unit">${f.elpd.toFixed(1)}</td>`
+        + `<td class="unit">${f.d_elpd === 0 ? '&mdash;' : f.d_elpd.toFixed(1)}</td>`
+        + `<td class="unit ${conv ? '' : 'bad'}">${f.rhat.toFixed(2)}</td>`
+        + `<td class="unit ${f.ess >= 400 ? '' : 'bad'}">${f.ess}</td></tr>`;
+    }).join('') + '</tbody>';
+
+  if (note) {
+    const pending = V2_RESULTS.pending || [];
+    const best = forms[0], second = forms[1];
+    let txt = `<b>${forms.length} of 6 forms fitted so far.</b> `;
+    if (best && second) {
+      const gap = Math.abs(second.d_elpd);
+      txt += `${best.label} leads ${second.label} by ${gap.toFixed(1)} elpd`;
+      if (best.k !== null && second.k !== null && best.k < second.k) {
+        txt += ` <b>with ${second.k - best.k} fewer height parameters</b>`;
+      }
+      txt += '. ';
+      if (gap < 10) {
+        txt += 'That gap is small relative to the standard errors quoted per '
+          + 'model, so it is a lead, not a verdict &mdash; a paired comparison '
+          + 'on pointwise LOO is needed before ranking these confidently. ';
+      }
+    }
+    if (pending.length) {
+      txt += `Still running or queued: <code>${pending.join('</code>, <code>')}</code>.`;
+    }
+    note.innerHTML = txt;
+  }
+}
+
+// What has held steady across every fit. Replication across different height
+// forms is the strongest evidence available here that a number is real and
+// not an artefact of one model specification.
+function renderV2Replication() {
+  const el = document.getElementById('v2-repl-table');
+  if (!el || !V2_RESULTS) return;
+  const rep = V2_RESULTS.replication || {};
+  const SHOW = [
+    ['sigma_gym', '\\(\\sigma_{\\text{gym}}\\)', 'spread of gym grading'],
+    ['kappa', '\\(\\kappa\\)', 'gap rate per visit'],
+    ['rho', '\\(\\rho\\)', 'gap rate per logging completeness'],
+    ['sigma_user', '\\(\\sigma_{\\text{user}}\\)', 'spread of climber ability'],
+    ['beta_gender', '\\(\\beta_{\\text{gender}}\\)', 'female-user ability shift'],
+    ['delta1', '\\(\\delta_1\\)', 'ape-index slope'],
+  ];
+  // Only the arms that are genuine like-for-like refits.
+  const fits = (V2_RESULTS.generated_from || []).filter((f) => f !== 'v3_all');
+  el.innerHTML = '<thead><tr><th>parameter</th><th>meaning</th>'
+    + fits.map((f) => `<th>${f.replace('v3_', '')}</th>`).join('')
+    + '<th>verdict</th></tr></thead><tbody>'
+    + SHOW.filter(([k]) => rep[k]).map(([k, tex, meaning]) => {
+      const vals = fits.map((f) => rep[k][f]);
+      const present = vals.filter(Boolean).map((v) => v.m);
+      const rng = present.length > 1 ? Math.max(...present) - Math.min(...present) : 0;
+      const tight = present.length > 1 && rng < 0.05;
+      return `<tr><td class="sym">${tex}</td><td>${meaning}</td>`
+        + vals.map((v) => `<td class="unit">${v ? v.m.toFixed(3) : '&mdash;'}</td>`).join('')
+        + `<td>${tight ? '<span class="ok">stable</span>' : (present.length > 1
+            ? `varies by ${rng.toFixed(2)}` : '&mdash;')}</td></tr>`;
+    }).join('') + '</tbody>';
+  if (typeof window.renderMathInElement === 'function') {
+    window.renderMathInElement(el, {
+      delimiters: [{ left: '\\(', right: '\\)', display: false }], throwOnError: false });
+  }
+}
+
+// ---- priors, posteriors, corner plots and sampler diagnostics ----
 //
-// Draws come from v2_posterior.json: 4 chains x 200 thinned draws per
-// parameter, plus 200 prior draws, extracted from the v3_conf trace.
+// v2_posterior.json holds every fit: 4 chains x 150 thinned draws per
+// parameter, plus prior draws. Thinning uses one step per fit, so draw i of
+// one parameter matches draw i of another -- that is what makes the corner
+// plots real joint samples rather than a scatter of unrelated numbers.
 
 let V2_POST = null;
 
@@ -3113,6 +3197,8 @@ const V2_PARAM_TEX = {
   sigma_user: '\\sigma_{\\text{user}}', sigma_gym: '\\sigma_{\\text{gym}}',
   log_lambda0: '\\log\\lambda_0', kappa: '\\kappa', rho: '\\rho',
   beta_h_missing: '\\beta_{h\\text{-miss}}', beta_a_missing: '\\beta_{a\\text{-miss}}',
+  sat_amp: 'A', sat_h0: 'h_0', sat_scale: 's',
+  vq_curv: '\\kappa_h', vq_peak: 'p',
 };
 const V2_PARAM_BLURB = {
   beta0: 'baseline ability at an average gym',
@@ -3127,10 +3213,32 @@ const V2_PARAM_BLURB = {
   rho: 'gap rate per unit logging completeness',
   beta_h_missing: 'ability shift for users with no height on file',
   beta_a_missing: 'ability shift for users with no ape index on file',
+  sat_amp: 'saturating: total worth of reach', sat_h0: 'saturating: where it levels off',
+  sat_scale: 'saturating: how sharply it levels',
+  vq_curv: 'vertex form: how sharp the optimum is', vq_peak: 'vertex form: the best height',
+};
+const V2_FIT_LABEL = {
+  v3_conf: 'quad × gender', v3_all: 'quad × gender (all names)',
+  v3_lin: 'linear', v3_sat: 'saturating', v3_zero: 'zero',
+  v3_quad: 'quadratic', v3_vtx: 'vertex quadratic',
+  v3_apex: 'quad × gender + ape×gender', v3_zsu: 'quad × gender (zero-sum users)',
+};
+const V2_FIT_HUES = ['--lg-info', '--lg-highlight', '--lg-success', '--lg-danger',
+                     '--lg-warning', '--lg-text-2'];
+
+const V2_CORNER_GROUPS = {
+  height: { label: 'Height block', of: ['beta0', 'gamma1', 'gamma2', 'gamma1_x', 'gamma2_x'] },
+  gap: { label: 'Gap model', of: ['log_lambda0', 'kappa', 'rho'] },
+  spread: { label: 'Variance components', of: ['beta0', 'sigma_user', 'sigma_gym'] },
+  body: { label: 'Body covariates', of: ['gamma1', 'delta1', 'beta_h_missing', 'beta_a_missing'] },
 };
 
-// Gaussian KDE on a fixed grid. Silverman bandwidth; these are unimodal
-// posteriors, so nothing fancier earns its keep.
+const v2Fit = (n) => V2_POST?.fits?.[n];
+const v2FitNames = () => Object.keys(V2_POST?.fits || {});
+const v2SelectedFit = () => document.getElementById('v2-fit-pick')?.value || v2FitNames()[0];
+
+// Gaussian KDE on a fixed grid. Silverman bandwidth; these posteriors are
+// unimodal, so nothing fancier earns its keep.
 function v2Kde(samples, grid) {
   const n = samples.length;
   if (!n) return grid.map(() => 0);
@@ -3147,46 +3255,47 @@ function v2Kde(samples, grid) {
   });
 }
 
-function v2Grid(lo, hi, n = 120) {
+function v2Grid(lo, hi, n = 140) {
   const step = (hi - lo) / (n - 1), g = [];
   for (let i = 0; i < n; i++) g.push(lo + i * step);
   return g;
 }
 
-// Common x-range for prior and posterior. Priors are far wider than
-// posteriors here, so clip to a quantile range or the posterior vanishes.
 function v2SharedRange(post, prior) {
   const all = prior ? post.concat(prior) : post;
   const sorted = [...all].sort((a, b) => a - b);
   const q = (p) => sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))];
   let lo = q(0.005), hi = q(0.995);
-  const pMin = Math.min(...post), pMax = Math.max(...post);
-  lo = Math.min(lo, pMin); hi = Math.max(hi, pMax);
+  lo = Math.min(lo, Math.min(...post)); hi = Math.max(hi, Math.max(...post));
   const pad = (hi - lo) * 0.06 || 0.1;
   return [lo - pad, hi + pad];
 }
 
+// ---- overview grid: every parameter of the selected fit ----
+
 function renderV2PostGrid() {
   const host = document.getElementById('v2-post-grid');
-  if (!host || !V2_POST) return;
-  const names = Object.keys(V2_POST.params);
+  const fit = v2Fit(v2SelectedFit());
+  if (!host || !fit) return;
+  const names = Object.keys(fit.params);
   host.innerHTML = names.map((n) => `
     <button type="button" class="post-tile" data-param="${n}">
       <span class="post-tile-name">\\(${V2_PARAM_TEX[n] || n}\\)</span>
       <span class="post-tile-chart" id="v2-pt-${n}"></span>
-      <span class="post-tile-rhat ${V2_POST.params[n].rhat > 1.01 ? 'bad' : 'ok'}">R&#770; ${V2_POST.params[n].rhat.toFixed(2)}</span>
+      <span class="post-tile-rhat ${fit.params[n].rhat > 1.01 ? 'bad' : 'ok'}">R&#770; ${fit.params[n].rhat.toFixed(2)}</span>
     </button>`).join('');
 
   names.forEach((n) => {
     const el = document.getElementById(`v2-pt-${n}`);
     if (!el || typeof Plotly === 'undefined') return;
-    const p = V2_POST.params[n];
+    const p = fit.params[n];
     const post = p.chains.flat();
-    const [lo, hi] = v2SharedRange(post, p.prior);
-    const grid = v2Grid(lo, hi, 80);
+    const pri = fit.prior?.[n];
+    const [lo, hi] = v2SharedRange(post, pri);
+    const grid = v2Grid(lo, hi, 70);
     const traces = [];
-    if (p.prior) {
-      traces.push({ type: 'scatter', mode: 'lines', x: grid, y: v2Kde(p.prior, grid),
+    if (pri) {
+      traces.push({ type: 'scatter', mode: 'lines', x: grid, y: v2Kde(pri, grid),
         line: { color: cssVar('--lg-text-2'), width: 1 }, fill: 'tozeroy',
         fillcolor: `color-mix(in srgb, ${cssVar('--lg-text-2')} 16%, transparent)`,
         hoverinfo: 'skip' });
@@ -3195,18 +3304,17 @@ function renderV2PostGrid() {
       line: { color: cssVar('--lg-info'), width: 1.6 }, fill: 'tozeroy',
       fillcolor: `color-mix(in srgb, ${cssVar('--lg-info')} 24%, transparent)`,
       hoverinfo: 'skip' });
-    const layout = {
+    Plotly.react(el, traces, {
       height: 62, margin: { l: 2, r: 2, t: 2, b: 2 }, showlegend: false,
       paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
       xaxis: { visible: false, range: [lo, hi] }, yaxis: { visible: false },
-    };
-    Plotly.react(el, traces, layout, { displayModeBar: false, staticPlot: true, responsive: true });
+    }, { displayModeBar: false, staticPlot: true, responsive: true });
   });
 
   host.querySelectorAll('.post-tile').forEach((b) => {
     b.addEventListener('click', () => {
       const sel = document.getElementById('v2-param-pick');
-      if (sel) { sel.value = b.dataset.param; }
+      if (sel) sel.value = b.dataset.param;
       renderV2ParamDetail(b.dataset.param);
       document.querySelector('.param-detail')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
@@ -3217,24 +3325,28 @@ function renderV2PostGrid() {
   }
 }
 
+// ---- one parameter, in detail ----
+
 function renderV2ParamDetail(name) {
-  if (!V2_POST || !V2_POST.params[name]) return;
-  const p = V2_POST.params[name];
+  const fitName = v2SelectedFit();
+  const fit = v2Fit(fitName);
+  if (!fit) return;
+  const p = fit.params[name];
+  if (!p) return;
   const post = p.chains.flat();
 
+  // prior vs posterior
   const dens = document.getElementById('v2-param-dens');
   if (dens && typeof Plotly !== 'undefined') {
     const wide = document.getElementById('v2-param-wide')?.checked;
-    // The priors are deliberately far wider than the posteriors, so at full
-    // prior range most posteriors collapse to a spike. Default to a window
-    // around the posterior and let the reader zoom out on request.
-    const [lo, hi] = wide
-      ? v2SharedRange(post, p.prior)
+    const pri = fit.prior?.[name];
+    const [lo, hi] = wide && pri
+      ? v2SharedRange(post, pri)
       : [p.mean - 6 * p.sd, p.mean + 6 * p.sd];
     const grid = v2Grid(lo, hi, 160);
     const traces = [];
-    if (p.prior) {
-      traces.push({ type: 'scatter', mode: 'lines', name: 'prior', x: grid, y: v2Kde(p.prior, grid),
+    if (pri) {
+      traces.push({ type: 'scatter', mode: 'lines', name: 'prior', x: grid, y: v2Kde(pri, grid),
         line: { color: cssVar('--lg-text-2'), width: 1.5 }, fill: 'tozeroy',
         fillcolor: `color-mix(in srgb, ${cssVar('--lg-text-2')} 14%, transparent)`,
         hovertemplate: 'prior<br>%{x:.3f}<extra></extra>' });
@@ -3249,19 +3361,16 @@ function renderV2ParamDetail(name) {
     layout.yaxis = { ...layout.yaxis, title: { text: 'density', standoff: 6 }, showticklabels: false };
     layout.margin = { l: 48, r: 16, t: 10, b: 76 };
     layout.legend = { ...layout.legend, orientation: 'h', y: -0.34, x: 0 };
-    layout.shapes = [
-      { type: 'line', x0: p.lo, x1: p.lo, y0: 0, y1: 1, yref: 'paper',
-        line: { color: cssVar('--lg-info'), width: 1, dash: 'dot' } },
-      { type: 'line', x0: p.hi, x1: p.hi, y0: 0, y1: 1, yref: 'paper',
-        line: { color: cssVar('--lg-info'), width: 1, dash: 'dot' } },
-    ];
+    layout.shapes = [p.lo, p.hi].map((x) => ({ type: 'line', x0: x, x1: x, y0: 0, y1: 1,
+      yref: 'paper', line: { color: cssVar('--lg-info'), width: 1, dash: 'dot' } }));
     Plotly.react(dens, traces, layout, { displayModeBar: false, responsive: true });
   }
 
+  // chains
   const tr = document.getElementById('v2-param-trace');
   if (tr && typeof Plotly !== 'undefined') {
     const hues = ['--lg-info', '--lg-highlight', '--lg-success', '--lg-danger'];
-    const mode = document.getElementById('v2-trace-mode')?.value || 'rank';
+    const mode = document.getElementById('v2-trace-mode')?.value || 'trace';
     const layout = chartLayout('');
     layout.height = 280;
     layout.margin = { l: 56, r: 16, t: 10, b: 76 };
@@ -3269,55 +3378,38 @@ function renderV2ParamDetail(name) {
     let traces;
 
     if (mode === 'trace') {
-      // If the fit retained its tuning draws, show them ahead of the sampling
-      // draws on a shared x-axis, shaded, so the reader can see the chains
-      // start dispersed and pull together. Fits run before this was enabled
-      // simply have no warmup to draw.
       const nWarm = p.warmup ? p.warmup[0].length : 0;
       traces = p.chains.map((ch, i) => {
         const series = nWarm ? p.warmup[i].concat(ch) : ch;
-        return {
-          type: 'scatter', mode: 'lines', name: `chain ${i}`,
+        return { type: 'scatter', mode: 'lines', name: `chain ${i}`,
           x: series.map((_, j) => j - nWarm), y: series,
           line: { color: cssVar(hues[i % hues.length]), width: 0.9 },
-          hovertemplate: `chain ${i}<br>%{y:.3f}<extra></extra>`,
-        };
+          hovertemplate: `chain ${i}<br>%{y:.3f}<extra></extra>` };
       });
-      // The thing R-hat is actually measuring is whether these four levels
-      // agree. Drawn explicitly, because it is invisible in the raw squiggle.
       layout.shapes = p.chains.map((ch, i) => ({
-        type: 'line', xref: 'paper', x0: 0, x1: 1,   // sampling draws only
+        type: 'line', xref: 'paper', x0: 0, x1: 1,
         y0: ch.reduce((a, b) => a + b, 0) / ch.length,
         y1: ch.reduce((a, b) => a + b, 0) / ch.length,
         line: { color: cssVar(hues[i % hues.length]), width: 1.2, dash: 'dash' },
       }));
+      layout.annotations = [];
       if (nWarm) {
         layout.shapes.push({ type: 'rect', xref: 'x', yref: 'paper',
           x0: -nWarm, x1: 0, y0: 0, y1: 1,
           fillcolor: cssVar('--lg-text-2'), opacity: 0.08, line: { width: 0 } });
-        layout.annotations = [{ x: -nWarm / 2, y: 1, yref: 'paper', yanchor: 'bottom',
+        layout.annotations.push({ x: -nWarm / 2, y: 1, yref: 'paper', yanchor: 'bottom',
           showarrow: false, text: 'warm-up (discarded)',
-          font: { size: 10, color: cssVar('--lg-text-2') } }];
+          font: { size: 10, color: cssVar('--lg-text-2') } });
         layout.margin.t = 22;
       }
       layout.xaxis = { ...layout.xaxis, title: {
-        text: nWarm ? 'draw (thinned; 0 = end of warm-up)' : 'draw (thinned, post-warmup)',
+        text: nWarm ? 'draw (thinned; 0 = end of warm-up)' : 'draw (thinned, post-warm-up)',
         standoff: 8 } };
       layout.yaxis = { ...layout.yaxis, title: { text: 'value', standoff: 6 } };
     } else {
-      // Rank plot (Vehtari et al. 2021). Pool every draw, rank it, then
-      // histogram each chain's ranks. If the chains are exploring the same
-      // distribution every chain's bars sit flat on the dashed line. This is
-      // strictly more readable than a trace plot: well-mixed traces all look
-      // alike, whereas a chain that is off in its own region shows up here as
-      // bars piled at one end.
       const flat = [];
       p.chains.forEach((ch, ci) => ch.forEach((v) => flat.push([v, ci])));
       flat.sort((a, b) => a[0] - b[0]);
-      // 12 bins, not the usual 20: these draws are thinned to 200 per chain,
-      // so at 20 bins the per-bin count is ~10 and binomial noise alone spans
-      // 2-18, which swamps the signal. Wider bins trade resolution for a
-      // readable one.
       const nBins = 12, total = flat.length;
       const counts = p.chains.map(() => new Array(nBins).fill(0));
       flat.forEach(([, ci], rank) => {
@@ -3331,14 +3423,11 @@ function renderV2ParamDetail(name) {
       }));
       const expected = total / (nBins * p.chains.length);
       layout.barmode = 'group';
-      layout.shapes = [{ type: 'line', xref: 'paper', x0: 0, x1: 1,
-        y0: expected, y1: expected,
+      layout.shapes = [{ type: 'line', xref: 'paper', x0: 0, x1: 1, y0: expected, y1: expected,
         line: { color: cssVar('--lg-text-2'), width: 1.4, dash: 'dash' } }];
-      // Label sits above the axes: on the line itself it landed on top of
-      // the bars, which are densest exactly where the label wanted to be.
-      layout.annotations = [{ xref: 'paper', x: 1, yref: 'paper', y: 1,
-        xanchor: 'right', yanchor: 'bottom', showarrow: false,
-        text: '- - -  even mixing', font: { size: 10, color: cssVar('--lg-text-2') } }];
+      layout.annotations = [{ xref: 'paper', x: 1, yref: 'paper', y: 1, xanchor: 'right',
+        yanchor: 'bottom', showarrow: false, text: '- - -  even mixing',
+        font: { size: 10, color: cssVar('--lg-text-2') } }];
       layout.margin.t = 22;
       layout.xaxis = { ...layout.xaxis, title: { text: 'rank within all chains', standoff: 8 } };
       layout.yaxis = { ...layout.yaxis, title: { text: 'draws in bin', standoff: 6 } };
@@ -3346,101 +3435,360 @@ function renderV2ParamDetail(name) {
     Plotly.react(tr, traces, layout, { displayModeBar: false, responsive: true });
   }
 
-  const tbl = document.getElementById('v2-param-stats');
-  if (tbl) {
-    const converged = p.rhat <= 1.01;
-    tbl.innerHTML = '<thead><tr><th>statistic</th><th>value</th><th>reading</th></tr></thead><tbody>'
-      + [
-        ['posterior mean', p.mean.toFixed(3), 'the number quoted elsewhere on this page'],
-        ['posterior SD', p.sd.toFixed(3), 'how uncertain that number is'],
-        ['89% HDI', `[${p.lo.toFixed(3)}, ${p.hi.toFixed(3)}]`,
-          (p.lo <= 0 && p.hi >= 0) ? '<b>includes zero</b> — no credible effect'
-            : 'excludes zero — a credible effect'],
-        ['R&#770;', p.rhat.toFixed(3), converged
-          ? 'at or below 1.01 — chains agree'
-          : '<b>above 1.01 — chains disagree, do not report this as final</b>'],
-        ['ESS (bulk)', String(p.ess_bulk), p.ess_bulk < 400
-          ? '<b>below 400 — too few effective draws</b>' : 'adequate'],
-        ['ESS (tail)', String(p.ess_tail), p.ess_tail < 400
-          ? 'below 400 — interval edges are noisy' : 'adequate'],
-      ].map((r) => `<tr><td class="sym">${r[0]}</td><td class="unit">${r[1]}</td><td>${r[2]}</td></tr>`).join('')
-      + '</tbody>';
-    if (typeof window.renderMathInElement === 'function') {
-      window.renderMathInElement(tbl, {
-        delimiters: [{ left: '\\(', right: '\\)', display: false }], throwOnError: false });
-    }
-  }
+  renderV2AcrossFits(name);
+  renderV2ParamStats(name, p);
+}
 
+function renderV2ParamStats(name, p) {
+  const tbl = document.getElementById('v2-param-stats');
+  if (!tbl) return;
+  const converged = p.rhat <= 1.01;
+  tbl.innerHTML = '<thead><tr><th>statistic</th><th>value</th><th>reading</th></tr></thead><tbody>'
+    + [
+      ['posterior mean', p.mean.toFixed(3), 'the number quoted elsewhere on this page'],
+      ['posterior SD', p.sd.toFixed(3), 'how uncertain that number is'],
+      ['89% HDI', `[${p.lo.toFixed(3)}, ${p.hi.toFixed(3)}]`,
+        (p.lo <= 0 && p.hi >= 0) ? '<b>includes zero</b> — no credible effect'
+          : 'excludes zero — a credible effect'],
+      ['R&#770;', p.rhat.toFixed(3), converged
+        ? 'at or below 1.01 — chains agree'
+        : '<b>above 1.01 — chains disagree, do not report this as final</b>'],
+      ['ESS (bulk)', String(p.ess_bulk), p.ess_bulk < 400
+        ? '<b>below 400 — too few effective draws</b>' : 'adequate'],
+      ['ESS (tail)', String(p.ess_tail), p.ess_tail < 400
+        ? 'below 400 — interval edges are noisy' : 'adequate'],
+    ].map((r) => `<tr><td class="sym">${r[0]}</td><td class="unit">${r[1]}</td><td>${r[2]}</td></tr>`).join('')
+    + '</tbody>';
   const verdict = document.getElementById('v2-param-verdict');
   if (verdict) {
-    const ok = p.rhat <= 1.01;
-    verdict.textContent = ok
+    verdict.textContent = converged
       ? `converged — R-hat ${p.rhat.toFixed(2)}, ESS ${p.ess_bulk}`
       : `provisional — R-hat ${p.rhat.toFixed(2)}, ESS ${p.ess_bulk}: chains do not agree yet`;
-    verdict.className = `param-verdict ${ok ? '' : 'warn'}`;
+    verdict.className = `param-verdict ${converged ? '' : 'warn'}`;
   }
 }
+
+// ---- the same parameter across every model version ----
+//
+// Most parameters exist in several fits. Overlaying their posteriors answers a
+// question no single fit can: is this number a property of the data, or of the
+// height form that happened to be bolted on beside it?
+
+function renderV2AcrossFits(name) {
+  const el = document.getElementById('v2-across-fits');
+  const note = document.getElementById('v2-across-note');
+  if (!el || typeof Plotly === 'undefined') return;
+  const have = v2FitNames().filter((f) => v2Fit(f).params[name]);
+  if (have.length < 2) {
+    Plotly.purge(el);
+    el.innerHTML = '<p class="form-noparams">Only one fit contains this parameter, '
+      + 'so there is nothing to compare it against.</p>';
+    if (note) note.textContent = '';
+    return;
+  }
+  // Only clear when Plotly does not already own this node. Wiping innerHTML
+  // on an initialised plot destroys its SVG but leaves _fullLayout behind, and
+  // the next react() then treats it as an in-place update and draws nothing.
+  if (!el._fullLayout) el.innerHTML = '';
+  const allDraws = have.flatMap((f) => v2Fit(f).params[name].chains.flat());
+  const [lo, hi] = v2SharedRange(allDraws, null);
+  const grid = v2Grid(lo, hi, 160);
+  const traces = have.map((f, i) => {
+    const p = v2Fit(f).params[name];
+    const bad = p.rhat > 1.01;
+    return {
+      type: 'scatter', mode: 'lines',
+      name: `${V2_FIT_LABEL[f] || f}${bad ? ' ⚠' : ''}`,
+      x: grid, y: v2Kde(p.chains.flat(), grid),
+      line: { color: cssVar(V2_FIT_HUES[i % V2_FIT_HUES.length]), width: 2,
+              dash: bad ? 'dot' : 'solid' },
+      hovertemplate: `${V2_FIT_LABEL[f] || f}<br>%{x:.3f}<extra></extra>`,
+    };
+  });
+  const layout = chartLayout('value');
+  layout.height = 380;
+  layout.xaxis = { ...layout.xaxis, title: { text: 'value', standoff: 8 }, range: [lo, hi] };
+  layout.yaxis = { ...layout.yaxis, title: { text: 'density', standoff: 6 }, showticklabels: false };
+  // One legend entry per fit wraps to three rows; give it room below the
+  // axis title rather than letting it land on top of the plot.
+  layout.margin = { l: 48, r: 16, t: 10, b: 150 };
+  layout.legend = { ...layout.legend, orientation: 'h', y: -0.42, x: 0 };
+  Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
+
+  if (note) {
+    const means = have.map((f) => v2Fit(f).params[name].mean);
+    const spread = Math.max(...means) - Math.min(...means);
+    const widest = Math.max(...have.map((f) => v2Fit(f).params[name].sd));
+    // Compare how far the models disagree against how uncertain any one of
+    // them is. Below ~half an SD the disagreement is invisible next to the
+    // noise; past ~1.5 SD the choice of height form is genuinely driving the
+    // answer. In between, say so rather than forcing a verdict.
+    const ratio = widest > 0 ? spread / widest : 0;
+    let verdict;
+    if (ratio < 0.5) {
+      verdict = 'That is well inside the uncertainty of a single fit, so this '
+        + 'parameter is <b>not sensitive to the height form</b> — it is a property '
+        + 'of the data.';
+    } else if (ratio < 1.5) {
+      verdict = 'Those are comparable, so the fits are <b>consistent with each other</b> '
+        + 'to within their own uncertainty — but not so tightly that the spread is '
+        + 'negligible. Read the number as robust, the third decimal as not.';
+    } else {
+      verdict = '<b>The models disagree by more than any one of them claims to be '
+        + 'uncertain</b>, so this number depends on which height form sits beside it. '
+        + 'Treat it as conditional on that choice, not as a property of the data.';
+    }
+    note.innerHTML = `Across ${have.length} fits the posterior mean moves by `
+      + `<b>${spread.toFixed(3)}</b>, against a within-fit SD of ${widest.toFixed(3)} `
+      + `(ratio ${ratio.toFixed(1)}&times;). ${verdict}`
+      + ' Dotted lines mark fits that have not converged.';
+  }
+}
+
+// ---- corner plot ----
+
+function renderV2Corner() {
+  const el = document.getElementById('v2-corner');
+  if (!el || typeof Plotly === 'undefined') return;
+  const fit = v2Fit(v2SelectedFit());
+  if (!fit) return;
+  const groupKey = document.getElementById('v2-corner-group')?.value || 'height';
+  const group = V2_CORNER_GROUPS[groupKey];
+  const names = group.of.filter((n) => fit.params[n]);
+  if (names.length < 2) {
+    Plotly.purge(el);
+    el.innerHTML = '<p class="form-noparams">This fit does not contain enough of '
+      + `the ${group.label.toLowerCase()} parameters to draw a corner plot.</p>`;
+    return;
+  }
+  if (!el._fullLayout) el.innerHTML = '';
+
+  // Built from ordinary scatter subplots rather than Plotly's `splom`, which
+  // is a WebGL/regl trace and fails outright wherever WebGL is unavailable.
+  const draws = names.map((n) => fit.params[n].chains.flat());
+  const N = names.length;
+  const MAX_PTS = 500;
+  const stride = Math.max(1, Math.ceil(draws[0].length / MAX_PTS));
+  const sub = draws.map((d) => d.filter((_, i) => i % stride === 0));
+
+  // One shared range per parameter, so a column and its row line up.
+  const ranges = draws.map((d) => {
+    const lo = Math.min(...d), hi = Math.max(...d), pad = (hi - lo) * 0.06 || 0.05;
+    return [lo - pad, hi + pad];
+  });
+
+  const traces = [], layout = chartLayout('');
+  layout.height = Math.max(380, 150 * N);
+  layout.margin = { l: 78, r: 16, t: 14, b: 66 };
+  layout.showlegend = false;
+  delete layout.xaxis; delete layout.yaxis;
+
+  const gap = 0.055 / Math.max(1, N - 1);
+  const cell = (k) => (k === 0 ? '' : String(k + 1));
+  let k = 0;
+  for (let i = 0; i < N; i++) {
+    for (let j = 0; j <= i; j++) {
+      const xa = `x${cell(k)}`, ya = `y${cell(k)}`;
+      const isDiag = i === j;
+      if (isDiag) {
+        const grid = v2Grid(ranges[i][0], ranges[i][1], 90);
+        traces.push({
+          type: 'scatter', mode: 'lines', x: grid, y: v2Kde(draws[i], grid),
+          xaxis: xa, yaxis: ya, fill: 'tozeroy',
+          line: { color: cssVar('--lg-info'), width: 1.5 },
+          fillcolor: `color-mix(in srgb, ${cssVar('--lg-info')} 22%, transparent)`,
+          hoverinfo: 'skip',
+        });
+      } else {
+        traces.push({
+          type: 'scatter', mode: 'markers', x: sub[j], y: sub[i],
+          xaxis: xa, yaxis: ya,
+          marker: { color: cssVar('--lg-info'), size: 2.5, opacity: 0.3 },
+          hovertemplate: `${names[j]} %{x:.3f}<br>${names[i]} %{y:.3f}<extra></extra>`,
+        });
+      }
+      const bottom = i === N - 1;
+      const left = j === 0 && !isDiag;
+      layout[`xaxis${cell(k)}`] = {
+        domain: [j / N + gap, (j + 1) / N - gap],
+        anchor: ya, range: ranges[j],
+        showticklabels: bottom, nticks: 4, automargin: false,
+        gridcolor: cssVar('--lg-border'), zerolinecolor: cssVar('--lg-border'),
+        title: bottom ? { text: names[j], standoff: 6, font: { size: 10 } } : undefined,
+        tickfont: { size: 9 },
+      };
+      layout[`yaxis${cell(k)}`] = {
+        domain: [1 - (i + 1) / N + gap, 1 - i / N - gap],
+        anchor: xa,
+        // The diagonal's vertical axis is a density, not the parameter, so it
+        // gets neither the shared range nor a label.
+        range: isDiag ? undefined : ranges[i],
+        showticklabels: left, nticks: 4, automargin: false,
+        gridcolor: cssVar('--lg-border'), zerolinecolor: cssVar('--lg-border'),
+        title: left ? { text: names[i], standoff: 6, font: { size: 10 } } : undefined,
+        tickfont: { size: 9 },
+      };
+      k++;
+    }
+  }
+  Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
+
+  const note = document.getElementById('v2-corner-note');
+  if (note) {
+    const corr = (a, b) => {
+      const n = a.length;
+      const ma = a.reduce((x, y) => x + y, 0) / n, mb = b.reduce((x, y) => x + y, 0) / n;
+      let sab = 0, sa = 0, sb = 0;
+      for (let i2 = 0; i2 < n; i2++) {
+        const da = a[i2] - ma, db = b[i2] - mb;
+        sab += da * db; sa += da * da; sb += db * db;
+      }
+      return sab / Math.sqrt(sa * sb);
+    };
+    let worst = null;
+    for (let i = 0; i < N; i++) {
+      for (let j = i + 1; j < N; j++) {
+        const r = corr(draws[i], draws[j]);
+        if (!worst || Math.abs(r) > Math.abs(worst.r)) worst = { r, a: names[i], b: names[j] };
+      }
+    }
+    note.innerHTML = worst
+      ? 'Diagonal cells are each parameter on its own; off-diagonal cells are pairs. '
+        + `Strongest pairing here: <b>${worst.a}</b> and <b>${worst.b}</b>, `
+        + `correlation <b>${worst.r.toFixed(2)}</b>. `
+        + (Math.abs(worst.r) > 0.7
+          ? 'A tight diagonal ridge like that means the two are <b>trading off against '
+            + 'each other</b> — the data pin down their combination far better than '
+            + 'either alone, and the sampler has to crawl along that ridge. This is '
+            + 'the geometry behind the convergence trouble on this page.'
+          : 'Nothing here is strongly entangled, which is what you want: each '
+            + 'parameter is being identified more or less on its own.')
+      : '';
+  }
+}
+
+// ---- sampler diagnostics ----
+
+const V2_SAMPLER_GUIDE = [
+  ['divergences', 'The sampler simulates a ball rolling across the probability surface. A divergence is the ball flying off the track — the simulation broke down. Any divergence means some region was explored badly and the answer can be biased.', 'zero'],
+  ['tree depth', 'To pick its next sample the sampler simulates a trajectory, doubling its length until the path doubles back. Tree depth counts the doublings — depth 10 means 1,023 steps. Hitting the cap means it ran out of budget before the path turned around.', 'below the cap of 10'],
+  ['leapfrog steps', 'The total simulation steps per sample. This is essentially the price of each draw, and it is why one fit here takes over an hour.', 'as low as possible'],
+  ['step size', 'How far the simulation moves per step. The sampler tunes this automatically. A very small step size means the surface is sharply curved somewhere and it has to inch along.', 'large, but it is set for you'],
+  ['acceptance rate', 'The fraction of proposed moves kept. Tuned towards a target you choose — 0.90 here. Hitting the target only means tuning worked. <b>It says nothing about whether the answer is right.</b>', 'close to the target'],
+  ['R&#770; (R-hat)', 'Run four chains from different starting points. If they all explored the same distribution, the variation between chains matches the variation within one. R-hat is that ratio; 1.00 is perfect agreement.', '≤ 1.01'],
+  ['ESS', 'Consecutive draws are correlated, so 2,000 draws are not worth 2,000 independent ones. Effective sample size is what they are actually worth.', '≥ 400'],
+];
 
 function renderV2Sampler() {
   const tbl = document.getElementById('v2-sampler-table');
   const note = document.getElementById('v2-sampler-note');
-  if (!tbl || !V2_POST) return;
-  const st = V2_POST.sample_stats || {};
+  const guide = document.getElementById('v2-sampler-guide');
+  const fit = v2Fit(v2SelectedFit());
+
+  if (guide) {
+    guide.innerHTML = '<thead><tr><th>statistic</th><th>what it actually means</th>'
+      + '<th>you want</th></tr></thead><tbody>'
+      + V2_SAMPLER_GUIDE.map((r) =>
+        `<tr><td class="sym">${r[0]}</td><td>${r[1]}</td><td class="unit">${r[2]}</td></tr>`).join('')
+      + '</tbody>';
+  }
+  if (!tbl || !fit) return;
+  const st = fit.sample_stats || {};
   const rows = [];
   if (st.divergences) {
     rows.push(['divergences', String(st.divergences.total ?? 0),
       (st.divergences.total ?? 0) === 0
-        ? 'None. The sampler never fell off the posterior — the geometry is hard, not broken.'
-        : 'Non-zero — parts of the posterior were not explored reliably.']);
+        ? 'None. The sampler never fell off — the geometry here is hard, not broken.'
+        : 'Non-zero — some regions were not explored reliably.']);
   }
   if (st.tree_depth) {
     rows.push(['mean tree depth', st.tree_depth.overall_mean.toFixed(2),
       st.tree_depth.max >= 10
-        ? '<b>Pinned at the maximum of 10</b>, i.e. 1023 leapfrog steps per draw. '
-          + 'The sampler is paying full price on every single draw to cross a badly conditioned posterior.'
+        ? '<b>Pinned at the cap of 10</b> — 1,023 steps for every draw, the full price, every time.'
         : 'Comfortably below the cap.']);
   }
   if (st.n_steps) {
     rows.push(['mean leapfrog steps / draw', st.n_steps.overall_mean.toFixed(0),
-      'Directly proportional to run time. This is why one fit takes over an hour.']);
+      'Directly proportional to run time.']);
   }
   if (st.step_size) {
     rows.push(['mean step size', st.step_size.overall_mean.toFixed(4),
-      'Small step size plus deep trees is the signature of a narrow, curved posterior.']);
+      'Small steps plus deep trees is the signature of a narrow, curved posterior.']);
   }
   if (st.accept) {
     rows.push(['mean acceptance rate', st.accept.overall_mean.toFixed(3),
-      'Target was 0.90. Hitting it means the tuning worked; it says nothing about convergence.']);
+      'Target was 0.90. Hitting it means tuning worked, nothing more.']);
   }
-  tbl.innerHTML = '<thead><tr><th>statistic</th><th>value</th><th>what it means</th></tr></thead><tbody>'
+  tbl.innerHTML = '<thead><tr><th>statistic</th><th>this fit</th><th>reading</th></tr></thead><tbody>'
     + rows.map((r) => `<tr><td class="sym">${r[0]}</td><td class="unit">${r[1]}</td><td>${r[2]}</td></tr>`).join('')
     + '</tbody>';
 
   if (note) {
-    const bad = Object.values(V2_POST.params).filter((p) => p.rhat > 1.01).length;
-    const tot = Object.keys(V2_POST.params).length;
-    note.innerHTML = `Zero divergences with maximum tree depth is a specific diagnosis: `
-      + `the posterior has no pathological funnel the sampler falls into, but it is `
-      + `stretched and correlated enough that even 1023 steps per draw only buys `
-      + `<b>${bad} of ${tot} parameters still above the R&#770; 1.01 threshold</b>. `
-      + `More draws would help; a better parameterisation would help more. This is `
-      + `the honest reason the height result on this page is marked open.`;
+    const ps = Object.values(fit.params);
+    const bad = ps.filter((p) => p.rhat > 1.01).length;
+    note.innerHTML = `Zero divergences with tree depth at the cap is a specific `
+      + `diagnosis: there is no pathological funnel for the sampler to fall into, `
+      + `but the posterior is stretched and correlated enough that even 1,023 steps `
+      + `per draw leaves <b>${bad} of ${ps.length} parameters above the R&#770; 1.01 `
+      + `threshold</b> in this fit. More draws would help; a better parameterisation `
+      + `would help more.`;
   }
 }
 
-function bindV2ParamPicker() {
-  const sel = document.getElementById('v2-param-pick');
-  if (!sel || !V2_POST || sel.options.length) return;
-  Object.keys(V2_POST.params).forEach((n) => {
-    const o = document.createElement('option');
-    o.value = n; o.textContent = `${n} — ${V2_PARAM_BLURB[n] || ''}`;
-    sel.appendChild(o);
+// ---- wiring ----
+
+function bindV2Inference() {
+  if (bindV2Inference.done || !V2_POST) return;
+  bindV2Inference.done = true;
+
+  const fitSel = document.getElementById('v2-fit-pick');
+  if (fitSel && !fitSel.options.length) {
+    v2FitNames().forEach((f) => {
+      const o = document.createElement('option');
+      const fit = v2Fit(f);
+      o.value = f;
+      o.textContent = `${f} — ${V2_FIT_LABEL[f] || fit.height_form}`
+        + (fit.max_rhat > 1.01 ? ` (R-hat ${fit.max_rhat.toFixed(2)})` : '');
+      fitSel.appendChild(o);
+    });
+    if (v2FitNames().includes('v3_conf')) fitSel.value = 'v3_conf';
+  }
+  const paramSel = document.getElementById('v2-param-pick');
+  const fillParams = () => {
+    if (!paramSel) return;
+    const keep = paramSel.value;
+    paramSel.innerHTML = '';
+    Object.keys(v2Fit(v2SelectedFit()).params).forEach((n) => {
+      const o = document.createElement('option');
+      o.value = n; o.textContent = `${n} — ${V2_PARAM_BLURB[n] || ''}`;
+      paramSel.appendChild(o);
+    });
+    if ([...paramSel.options].some((o) => o.value === keep)) paramSel.value = keep;
+  };
+  fillParams();
+
+  const groupSel = document.getElementById('v2-corner-group');
+  if (groupSel && !groupSel.options.length) {
+    Object.entries(V2_CORNER_GROUPS).forEach(([k, g]) => {
+      const o = document.createElement('option');
+      o.value = k; o.textContent = g.label;
+      groupSel.appendChild(o);
+    });
+  }
+
+  fitSel?.addEventListener('change', () => {
+    fillParams();
+    renderV2PostGrid();
+    renderV2ParamDetail(paramSel.value);
+    renderV2Corner();
+    renderV2Sampler();
   });
-  sel.addEventListener('change', () => renderV2ParamDetail(sel.value));
-  document.getElementById('v2-param-wide')
-    ?.addEventListener('change', () => renderV2ParamDetail(sel.value));
-  document.getElementById('v2-trace-mode')
-    ?.addEventListener('change', () => renderV2ParamDetail(sel.value));
+  paramSel?.addEventListener('change', () => renderV2ParamDetail(paramSel.value));
+  ['v2-param-wide', 'v2-trace-mode'].forEach((id) => {
+    document.getElementById(id)?.addEventListener('change',
+      () => renderV2ParamDetail(paramSel.value));
+  });
+  groupSel?.addEventListener('change', renderV2Corner);
 }
 
 async function loadV2Posterior() {
@@ -3453,7 +3801,8 @@ async function loadV2Posterior() {
     const host = document.getElementById('v2-post-grid');
     if (host) {
       host.innerHTML = '<p class="form-noparams">Posterior draws could not be loaded, '
-        + 'so this section is empty. The numbers quoted elsewhere on the page are unaffected.</p>';
+        + 'so this section is empty. Regenerate with scripts/build_v2_posteriors.py. '
+        + 'The numbers quoted elsewhere on the page are unaffected.</p>';
     }
     return null;
   }
@@ -3462,12 +3811,14 @@ async function loadV2Posterior() {
 
 async function renderV2Inference() {
   if (!(await loadV2Posterior())) return;
-  bindV2ParamPicker();
+  bindV2Inference();
   renderV2PostGrid();
   renderV2Sampler();
+  renderV2Corner();
   const sel = document.getElementById('v2-param-pick');
-  renderV2ParamDetail(sel?.value || Object.keys(V2_POST.params)[0]);
+  renderV2ParamDetail(sel?.value || Object.keys(v2Fit(v2SelectedFit()).params)[0]);
 }
+
 
 // ---- glossary panel: open/close + equation-to-symbol highlighting ----
 
@@ -3928,7 +4279,7 @@ function sizeV2FormGrid() {
   if (typeof Plotly === 'undefined') return;
   const ids = V2_FORM_SPECS.map((spec) => `v2-fc-chart-${spec.key}`)
     .concat(['v2-gap-chart', 'v2-visits-chart', 'v2-param-dens', 'v2-param-trace'])
-    .concat(V2_POST ? Object.keys(V2_POST.params).map((n) => `v2-pt-${n}`) : []);
+    .concat(Object.keys(v2Fit(v2SelectedFit())?.params || {}).map((n) => `v2-pt-${n}`));
   ids.forEach((id) => {
     const el = document.getElementById(id);
     // _fullLayout is only set once Plotly has actually drawn into the node.
@@ -3953,7 +4304,20 @@ function bindV2Controls() {
   v2Bound = true;
 }
 
-function renderV2Tab() {
+async function renderV2Tab() {
+  // Gyms, headline numbers and the LOO table all come from the fits on disk,
+  // so nothing gym-shaped can render until that file has loaded.
+  const ok = await loadV2Results();
+  if (!ok) {
+    const host = document.getElementById('v2-stats');
+    if (host) {
+      host.innerHTML = '<p class="form-noparams">Fitted results could not be '
+        + 'loaded (/static/v2_results.json). Regenerate with '
+        + 'scripts/build_v2_results.py.</p>';
+    }
+  }
+  renderV2FormsLoo();
+  renderV2Replication();
   renderV2Stats();
   renderV2Decisions();
   renderV2Symbols();

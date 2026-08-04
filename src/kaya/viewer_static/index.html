@@ -7,7 +7,7 @@
     <meta name="kaya-viewer-data-mode" content="static" />
     <link rel="stylesheet" href="/static/tokens.css" />
     <link rel="stylesheet" href="/static/app.css?v=6" />
-    <link rel="stylesheet" href="/static/research.css?v=13" />
+    <link rel="stylesheet" href="/static/research.css?v=15" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -1363,6 +1363,12 @@
                 every parameter, from the <code>v3_conf</code> fit
                 (net50/confident, 4 chains &times; 500 draws after 600 tuning).
               </p>
+              <div class="controls-inline">
+                <label class="ctl">
+                  <span>Model version</span>
+                  <select id="v2-fit-pick"></select>
+                </label>
+              </div>
               <div id="v2-post-grid" class="post-grid"></div>
               <p class="caption">
                 Prior in grey, posterior in blue, on a common horizontal scale
@@ -1373,26 +1379,63 @@
                 parameter for its chains and full statistics.
               </p>
 
+              <h3>How to read a trace plot</h3>
+              <p class="prose">
+                Four chains start from different random points and wander around
+                the posterior. Each line is one chain's value for the parameter
+                at each draw. What you are looking for is <b>boring</b>:
+              </p>
+              <table class="data-table read-guide">
+                <thead><tr><th>what you see</th><th>what it means</th></tr></thead>
+                <tbody>
+                  <tr><td><b>Fuzzy caterpillar</b> &mdash; dense, even, no pattern</td>
+                      <td><span class="ok">Good.</span> The chain is bouncing
+                      around the same region draw after draw, which is what
+                      sampling a settled distribution looks like.</td></tr>
+                  <tr><td><b>All four lines on top of each other</b></td>
+                      <td><span class="ok">Good.</span> Chains that started in
+                      different places agree about where the answer is. This is
+                      what R&#770; measures numerically.</td></tr>
+                  <tr><td><b>Chains on visibly different levels</b> (watch the
+                      dashed per-chain means)</td>
+                      <td><span class="bad">Bad.</span> They disagree. The
+                      posterior mean is then an average over chains that never
+                      reconciled &mdash; this is R&#770; above 1.01.</td></tr>
+                  <tr><td><b>Slow drift or a trend across the plot</b></td>
+                      <td><span class="bad">Bad.</span> Still moving, so it has
+                      not settled. Needs longer warm-up or a better
+                      parameterisation.</td></tr>
+                  <tr><td><b>Flat stretches where a line sticks</b></td>
+                      <td><span class="bad">Bad.</span> Proposals are being
+                      rejected repeatedly; the sampler is stuck against a
+                      difficult bit of geometry.</td></tr>
+                  <tr><td><b>Wide excursions to far-off values</b></td>
+                      <td>Usually heavy tails, sometimes a second mode. Worth
+                      checking against the density plot beside it.</td></tr>
+                </tbody>
+              </table>
               <div class="callout">
                 <div>
-                  <b>These traces start after warm-up, not at the beginning.</b>
-                  PyMC discards tuning draws by default, so the 600 warm-up
-                  iterations behind each of these fits were thrown away before
-                  the trace was written &mdash; you are seeing the 500 draws
-                  that came after. That is the right thing to report, but it
-                  does mean the visually dramatic part, chains starting far
-                  apart and pulling together, is not recoverable here. Later
-                  fits on this page retain their warm-up.
+                  <b>Where the warm-up went.</b> PyMC discards tuning draws by
+                  default, so for the earlier fits the 600 warm-up iterations
+                  were thrown away before the trace was written and cannot be
+                  recovered. Fits run after this was noticed keep theirs, and
+                  show it shaded at the left of the plot with x&nbsp;=&nbsp;0
+                  marking the handover. Warm-up is where the dramatic
+                  convergence happens &mdash; chains starting far apart and
+                  pulling together &mdash; which is exactly why it is worth
+                  keeping.
                   <br /><br />
-                  It also means a <i>boring</i> trace is the good outcome. A
-                  converged chain is meant to look like featureless fuzz. What
-                  is worth looking at instead is whether the four chains agree,
-                  which the <b>rank plot</b> shows far better: pool every draw,
-                  rank it, and histogram each chain's ranks. Chains exploring
-                  the same distribution give flat bars on the dashed line. Bars
-                  piled at one end mean a chain is sitting somewhere the others
-                  are not &mdash; which is exactly what R-hat above 1.01 is
-                  reporting.
+                  <b>The rank plot option</b> is a different way of asking the
+                  same question, useful because good traces all look alike and
+                  the eye is bad at judging four overlapping squiggles. Pool
+                  every draw from every chain, sort them, and ask where each
+                  chain's draws landed in that ordering. If the chains explored
+                  the same distribution, each contributes evenly across the
+                  whole range and its bars sit flat on the dashed line. A chain
+                  parked somewhere the others never went piles up at one end.
+                  It is strictly a diagnostic &mdash; ignore it if the trace
+                  tells you what you need.
                 </div>
               </div>
 
@@ -1417,8 +1460,8 @@
                     <div class="chart-head">
                       <h4 class="chart-label">Chain mixing</h4>
                       <select id="v2-trace-mode" class="mini-select">
+                        <option value="trace">Trace</option>
                         <option value="rank">Rank plot</option>
-                        <option value="trace">Raw trace</option>
                       </select>
                     </div>
                     <div id="v2-param-trace" class="chart-mid"></div>
@@ -1429,11 +1472,48 @@
                 </div>
               </div>
 
+              <h3>The same parameter, across every model version</h3>
+              <p class="prose">
+                Each height form is a different model, but most parameters
+                appear in all of them. Overlaying their posteriors answers
+                something no single fit can: is this number a property of the
+                <b>data</b>, or of the height form that happened to be bolted on
+                beside it? Pick any parameter above to change this plot.
+              </p>
+              <div id="v2-across-fits" class="chart-mid"></div>
+              <p class="caption" id="v2-across-note"></p>
+
+              <h3>How the parameters trade off against each other</h3>
+              <p class="prose">
+                A corner plot shows every pair of parameters plotted against one
+                another, using the same draws. Round blobs mean the parameters
+                are being pinned down independently. <b>Tilted, narrow ridges
+                mean they are trading off</b> &mdash; the data constrain their
+                combination much better than either one alone, and the sampler
+                has to crawl along that ridge instead of moving freely. That is
+                the geometry behind every convergence complaint on this page.
+              </p>
+              <div class="controls-inline">
+                <label class="ctl">
+                  <span>Parameter group</span>
+                  <select id="v2-corner-group"></select>
+                </label>
+              </div>
+              <div id="v2-corner" class="chart-tall"></div>
+              <p class="caption" id="v2-corner-note"></p>
+
               <h3>What the sampler was doing</h3>
               <p class="prose">
                 Convergence statistics describe where the chains ended up.
                 These describe how hard they had to work to get there, which is
                 where this model&rsquo;s real problem shows up.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table read-guide" id="v2-sampler-guide"></table>
+              </div>
+              <p class="caption">
+                Plain-language guide to the diagnostics. The numbers for the
+                selected fit are below.
               </p>
               <div class="data-table-wrap">
                 <table class="data-table" id="v2-sampler-table"></table>
@@ -1540,8 +1620,8 @@
                 </ol>
                 <p>
                   All three predict the same pattern. Distinguishing them is what the
-                  current fits are for; results will land here rather than being
-                  guessed at.
+                  current fits are for; results land here as they arrive rather than
+                  being guessed at.
                 </p>
               </div>
               <p class="prose">
@@ -1550,6 +1630,48 @@
                 width 1.59in against right width 12.87in. That is not a failed bell
                 curve. That is what a <i>saturating</i> curve looks like when you force
                 a symmetric bump onto it, and no one had fitted that shape directly.
+              </p>
+
+              <h3>Which shape does the data prefer?</h3>
+              <p class="prose">
+                Every form below is fitted on <b>identical data</b> &mdash; the same
+                29-gym network, the same confident-name filter, the same 20,014
+                observations &mdash; so leave-one-out cross-validation can rank them.
+                Only the gaps between models mean anything; the absolute elpd does not.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-loo-table"></table>
+              </div>
+              <p class="caption" id="v2-loo-note"></p>
+              <div class="callout warn">
+                <div>
+                  <b>Read this table as provisional.</b> Every arm still has at
+                  least one parameter above the R&#770; 1.01 threshold, so these
+                  are rankings between models that have not individually
+                  converged. The LOO gaps are also small next to the standard
+                  errors quoted per model &mdash; a paired comparison on
+                  pointwise log-likelihoods is the honest test, and it runs once
+                  all six forms are in. What can be said now is a negative:
+                  <b>nothing so far shows the four-parameter gender-interaction
+                  form earning its complexity.</b>
+                </div>
+              </div>
+
+              <h3>What has held steady across every fit</h3>
+              <p class="prose">
+                Different height forms are different models. A number that barely
+                moves as the height block is swapped out underneath it is not an
+                artefact of one specification &mdash; and a number that swings is a
+                warning about how much it depended on modelling choices.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-repl-table"></table>
+              </div>
+              <p class="caption">
+                Posterior means per fit, on the like-for-like arms only
+                (<code>v3_all</code> is excluded: it uses a different dataset and
+                did not converge). &ldquo;Stable&rdquo; means the spread across
+                every fit is under 0.05 grades.
               </p>
             </section>
 
@@ -1609,6 +1731,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=50"></script>
+    <script src="/static/app.js?v=57"></script>
   </body>
 </html>

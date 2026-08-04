@@ -931,3 +931,21 @@
   background: var(--lg-surface);
   color: var(--lg-text);
 }
+
+/* ---- LOO / replication tables ---- */
+.data-table tr.row-best { background: color-mix(in srgb, var(--lg-info) 8%, transparent); }
+.pill-best {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 640;
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: var(--lg-info);
+  background: color-mix(in srgb, var(--lg-info) 16%, transparent);
+}
+.data-table td.bad { color: var(--lg-danger); font-weight: 620; }
+
+.read-guide td:first-child { width: 34%; }
+.read-guide .ok { color: var(--lg-success); font-weight: 640; }
+.read-guide .bad { color: var(--lg-danger); font-weight: 640; }
