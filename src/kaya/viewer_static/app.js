@@ -3275,6 +3275,8 @@ const V2_FIT_LABEL = {
   v3_conf: 'quad × gender', v3_all: 'quad × gender (all names)',
   v3_lin: 'linear', v3_sat: 'saturating', v3_zero: 'zero',
   v3_quad: 'quadratic', v3_vtx: 'vertex quadratic',
+  v4_linxg: 'linear × gender',
+  v4_lin_apex: 'linear + ape×gender', v4_lin_apelin: 'linear, linear ape',
   v3_apex: 'quad × gender + ape×gender', v3_zsu: 'quad × gender (zero-sum users)',
 };
 // Ten distinct hues -- there are nine fits, and the status tokens only give

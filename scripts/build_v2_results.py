@@ -15,11 +15,12 @@ OUT = Path('/Users/peterwilliams/projects/kaya/src/kaya/viewer_static/v2_results
 # What each height form claims, for the comparison table.
 FORM_LABEL = {
     'zero': 'Zero', 'linear': 'Linear', 'quadratic': 'Quadratic',
+    'linear_x_gender': 'Linear × gender',
     'quadratic_x_gender': 'Quadratic × gender', 'saturating': 'Saturating',
     'vertex_quadratic': 'Vertex quadratic',
 }
-FORM_NPARAM = {'zero': 0, 'linear': 1, 'quadratic': 2, 'quadratic_x_gender': 4,
-               'saturating': 3, 'vertex_quadratic': 2}
+FORM_NPARAM = {'zero': 0, 'linear': 1, 'linear_x_gender': 2, 'quadratic': 2,
+               'quadratic_x_gender': 4, 'saturating': 3, 'vertex_quadratic': 2}
 # Fits that are not entries in the height-form comparison.
 NOT_A_FORM_ARM = {'v3_all', 'v3_apex', 'v3_zsu'}
 

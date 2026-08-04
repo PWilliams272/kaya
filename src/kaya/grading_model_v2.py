@@ -264,7 +264,8 @@ def make_dataset(
 
 # Forms that are linear in their parameters, so the whole covariate block can
 # be QR-reparameterized. 'saturating' cannot (h0 and s enter nonlinearly).
-LINEAR_IN_PARAMS = {'zero', 'linear', 'quadratic', 'quadratic_x_gender'}
+LINEAR_IN_PARAMS = {'zero', 'linear', 'linear_x_gender', 'quadratic',
+                    'quadratic_x_gender'}
 
 
 def _design_columns(height_form, h, a, gender, ape_quadratic, ape_x_gender=False):
@@ -276,6 +277,8 @@ def _design_columns(height_form, h, a, gender, ape_quadratic, ape_x_gender=False
     cols, names = [gender], ['beta_gender']
     if height_form == 'linear':
         cols += [h]; names += ['gamma1']
+    elif height_form == 'linear_x_gender':
+        cols += [h, gender * h]; names += ['gamma1', 'gamma1_x']
     elif height_form == 'quadratic':
         cols += [h, h ** 2]; names += ['gamma1', 'gamma2']
     elif height_form == 'quadratic_x_gender':
@@ -298,6 +301,14 @@ def _height_term(form, h, gender, prefix=''):
     if form == 'linear':
         g1 = pm.Normal(f'{prefix}gamma1', 0, 1)
         return g1 * h
+    if form == 'linear_x_gender':
+        # v1's claim ("height works differently for men and women") stated in
+        # its cheapest form: one slope each, no curvature. Two parameters
+        # against quadratic_x_gender's four, so it tests the interaction
+        # without also paying for a bend the data may not support.
+        g1 = pm.Normal(f'{prefix}gamma1', 0, 1)
+        g1x = pm.Normal(f'{prefix}gamma1_x', 0, 0.5)
+        return g1 * h + gender * (g1x * h)
     if form == 'quadratic':
         g1 = pm.Normal(f'{prefix}gamma1', 0, 1)
         g2 = pm.Normal(f'{prefix}gamma2', 0, 0.3)
