@@ -3261,18 +3261,69 @@ function renderV2ParamDetail(name) {
   const tr = document.getElementById('v2-param-trace');
   if (tr && typeof Plotly !== 'undefined') {
     const hues = ['--lg-info', '--lg-highlight', '--lg-success', '--lg-danger'];
-    const traces = p.chains.map((ch, i) => ({
-      type: 'scatter', mode: 'lines', name: `chain ${i}`,
-      x: ch.map((_, j) => j), y: ch,
-      line: { color: cssVar(hues[i % hues.length]), width: 0.9 },
-      hovertemplate: `chain ${i}<br>%{y:.3f}<extra></extra>`,
-    }));
-    const layout = chartLayout('draw (thinned)');
+    const mode = document.getElementById('v2-trace-mode')?.value || 'rank';
+    const layout = chartLayout('');
     layout.height = 280;
-    layout.xaxis = { ...layout.xaxis, title: { text: 'draw (thinned)', standoff: 8 } };
-    layout.yaxis = { ...layout.yaxis, title: { text: 'value', standoff: 6 } };
     layout.margin = { l: 56, r: 16, t: 10, b: 76 };
     layout.legend = { ...layout.legend, orientation: 'h', y: -0.34, x: 0 };
+    let traces;
+
+    if (mode === 'trace') {
+      traces = p.chains.map((ch, i) => ({
+        type: 'scatter', mode: 'lines', name: `chain ${i}`,
+        x: ch.map((_, j) => j), y: ch,
+        line: { color: cssVar(hues[i % hues.length]), width: 0.9 },
+        hovertemplate: `chain ${i}<br>%{y:.3f}<extra></extra>`,
+      }));
+      // The thing R-hat is actually measuring is whether these four levels
+      // agree. Drawn explicitly, because it is invisible in the raw squiggle.
+      layout.shapes = p.chains.map((ch, i) => ({
+        type: 'line', xref: 'paper', x0: 0, x1: 1,
+        y0: ch.reduce((a, b) => a + b, 0) / ch.length,
+        y1: ch.reduce((a, b) => a + b, 0) / ch.length,
+        line: { color: cssVar(hues[i % hues.length]), width: 1.2, dash: 'dash' },
+      }));
+      layout.xaxis = { ...layout.xaxis, title: { text: 'draw (thinned, post-warmup)', standoff: 8 } };
+      layout.yaxis = { ...layout.yaxis, title: { text: 'value', standoff: 6 } };
+    } else {
+      // Rank plot (Vehtari et al. 2021). Pool every draw, rank it, then
+      // histogram each chain's ranks. If the chains are exploring the same
+      // distribution every chain's bars sit flat on the dashed line. This is
+      // strictly more readable than a trace plot: well-mixed traces all look
+      // alike, whereas a chain that is off in its own region shows up here as
+      // bars piled at one end.
+      const flat = [];
+      p.chains.forEach((ch, ci) => ch.forEach((v) => flat.push([v, ci])));
+      flat.sort((a, b) => a[0] - b[0]);
+      // 12 bins, not the usual 20: these draws are thinned to 200 per chain,
+      // so at 20 bins the per-bin count is ~10 and binomial noise alone spans
+      // 2-18, which swamps the signal. Wider bins trade resolution for a
+      // readable one.
+      const nBins = 12, total = flat.length;
+      const counts = p.chains.map(() => new Array(nBins).fill(0));
+      flat.forEach(([, ci], rank) => {
+        counts[ci][Math.min(nBins - 1, Math.floor((rank / total) * nBins))] += 1;
+      });
+      const centres = [...Array(nBins)].map((_, b) => (b + 0.5) / nBins);
+      traces = counts.map((c, i) => ({
+        type: 'bar', name: `chain ${i}`, x: centres, y: c,
+        marker: { color: cssVar(hues[i % hues.length]) },
+        hovertemplate: `chain ${i}<br>rank bin %{x:.2f}<br>%{y} draws<extra></extra>`,
+      }));
+      const expected = total / (nBins * p.chains.length);
+      layout.barmode = 'group';
+      layout.shapes = [{ type: 'line', xref: 'paper', x0: 0, x1: 1,
+        y0: expected, y1: expected,
+        line: { color: cssVar('--lg-text-2'), width: 1.4, dash: 'dash' } }];
+      // Label sits above the axes: on the line itself it landed on top of
+      // the bars, which are densest exactly where the label wanted to be.
+      layout.annotations = [{ xref: 'paper', x: 1, yref: 'paper', y: 1,
+        xanchor: 'right', yanchor: 'bottom', showarrow: false,
+        text: '- - -  even mixing', font: { size: 10, color: cssVar('--lg-text-2') } }];
+      layout.margin.t = 22;
+      layout.xaxis = { ...layout.xaxis, title: { text: 'rank within all chains', standoff: 8 } };
+      layout.yaxis = { ...layout.yaxis, title: { text: 'draws in bin', standoff: 6 } };
+    }
     Plotly.react(tr, traces, layout, { displayModeBar: false, responsive: true });
   }
 
@@ -3368,6 +3419,8 @@ function bindV2ParamPicker() {
   });
   sel.addEventListener('change', () => renderV2ParamDetail(sel.value));
   document.getElementById('v2-param-wide')
+    ?.addEventListener('change', () => renderV2ParamDetail(sel.value));
+  document.getElementById('v2-trace-mode')
     ?.addEventListener('change', () => renderV2ParamDetail(sel.value));
 }
 

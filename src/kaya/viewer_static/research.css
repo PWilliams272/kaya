@@ -914,3 +914,20 @@
   letter-spacing: 0.08em;
   color: var(--lg-text-2);
 }
+
+.chart-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.chart-head .chart-label { margin: 0; }
+.mini-select {
+  font-size: 0.72rem;
+  padding: 2px 6px;
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-md);
+  background: var(--lg-surface);
+  color: var(--lg-text);
+}
