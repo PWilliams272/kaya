@@ -734,3 +734,104 @@
 @media (max-width: 640px) {
   .glossary { top: 0; }
 }
+
+/* ================= interactive functional-form cards =================
+   One card per candidate height form: equation, the shape it produces, and a
+   slider per parameter. Sized so two sit side by side in the article column
+   and drop to one on narrow screens. */
+
+.form-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+  margin: 16px 0 8px;
+}
+.form-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-md);
+  background: var(--lg-surface);
+  padding: 14px 14px 12px;
+  min-width: 0;               /* let Plotly shrink inside the grid track */
+}
+.form-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.form-card-head h4 { margin: 0; font-size: 0.95rem; }
+.form-badge {
+  flex: none;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 640;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: var(--lg-text-2);
+  background: var(--lg-active);
+}
+.form-badge.fitted {
+  color: var(--lg-gold);
+  background: color-mix(in srgb, var(--lg-gold) 14%, transparent);
+}
+/* The equation can be wider than a narrow card; let it scroll rather than
+   forcing the whole page sideways. */
+.form-card-eq {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+}
+.form-card-eq .katex-display { margin: 0.35em 0; }
+.form-card-eq .katex { font-size: 0.94em; }
+.form-card-claim {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--lg-text-2);
+}
+.form-card-chart { width: 100%; min-height: 210px; }
+.form-card-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--lg-border);
+  padding-top: 10px;
+}
+.form-slider {
+  display: grid;
+  grid-template-columns: 3.2rem 1fr 3.2rem;
+  align-items: center;
+  gap: 8px;
+}
+.form-slider-tex { font-size: 0.85rem; }
+.form-slider input[type='range'] { width: 100%; accent-color: var(--lg-gold); }
+.form-slider-val {
+  font-size: 0.75rem;
+  text-align: right;
+  color: var(--lg-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.form-noparams {
+  margin: 0;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--lg-text-2);
+}
+.form-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 2px;
+  min-height: 1.6rem;
+}
+.form-card-note {
+  font-size: 0.74rem;
+  color: var(--lg-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.form-reset { padding: 3px 10px; font-size: 0.72rem; }

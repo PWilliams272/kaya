@@ -7,7 +7,7 @@
     <meta name="kaya-viewer-data-mode" content="static" />
     <link rel="stylesheet" href="/static/tokens.css" />
     <link rel="stylesheet" href="/static/app.css?v=6" />
-    <link rel="stylesheet" href="/static/research.css?v=8" />
+    <link rel="stylesheet" href="/static/research.css?v=10" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -462,7 +462,7 @@
               <p class="muted-copy">
                 <span>\(\tilde h = h - \bar h\)</span>, height centered at the
                 population median. <span>\(\text{gender}\)</span> is a
-                continuous indicator (0 = male-coded, 1 = female-coded, 0.5 =
+                continuous indicator (0 = male, 1 = female, 0.5 =
                 ambiguous), so the interaction term scales smoothly rather
                 than switching discretely.
               </p>
@@ -535,8 +535,8 @@
                     <tr><td class="label-cell">\(\beta_0\)</td><td>\(\mathcal{N}(\text{median}(m),\, 5)\)</td><td>baseline ability</td></tr>
                     <tr><td class="label-cell">\(\sigma_{\text{user}}\)</td><td>\(\text{HalfNormal}(2)\)</td><td>per-user ability spread</td></tr>
                     <tr><td class="label-cell">\(\beta_{\text{gender}}\)</td><td>\(\mathcal{N}(0,\, 2)\)</td><td>gender effect</td></tr>
-                    <tr><td class="label-cell">\(\gamma_1,\ \gamma_2\)</td><td>\(\mathcal{N}(0,\,1),\ \mathcal{N}(0,\,0.3)\)</td><td>height, male-coded baseline</td></tr>
-                    <tr><td class="label-cell">\(\gamma_1^{\times},\ \gamma_2^{\times}\)</td><td>\(\mathcal{N}(0,\,0.5),\ \mathcal{N}(0,\,0.15)\)</td><td>height, female-coded shift</td></tr>
+                    <tr><td class="label-cell">\(\gamma_1,\ \gamma_2\)</td><td>\(\mathcal{N}(0,\,1),\ \mathcal{N}(0,\,0.3)\)</td><td>height, male-user baseline</td></tr>
+                    <tr><td class="label-cell">\(\gamma_1^{\times},\ \gamma_2^{\times}\)</td><td>\(\mathcal{N}(0,\,0.5),\ \mathcal{N}(0,\,0.15)\)</td><td>height, female-user shift</td></tr>
                     <tr><td class="label-cell">\(\delta_1,\ \delta_2\)</td><td>\(\mathcal{N}(0,\,1),\ \mathcal{N}(0,\,0.3)\)</td><td>ape index (linear, quadratic)</td></tr>
                     <tr><td class="label-cell">\(\sigma_{\text{gym}}\)</td><td>\(\text{HalfNormal}(1.5)\)</td><td>per-gym correction spread</td></tr>
                     <tr><td class="label-cell">\(\lambda_0\)</td><td>\(\text{HalfNormal}(2)\)</td><td>baseline gap rate</td></tr>
@@ -655,8 +655,8 @@
                     <div class="explorer-control">
                       <span class="explorer-label">Gender</span>
                       <div class="segmented-toggle" id="explorer-gender-toggle">
-                        <button type="button" class="segmented-toggle-btn active" data-value="0">Male-coded</button>
-                        <button type="button" class="segmented-toggle-btn" data-value="1">Female-coded</button>
+                        <button type="button" class="segmented-toggle-btn active" data-value="0">Male users</button>
+                        <button type="button" class="segmented-toggle-btn" data-value="1">Female users</button>
                       </div>
                     </div>
                     <div class="explorer-control">
@@ -697,7 +697,7 @@
 
               <div class="finding confirmed">
                 <div class="finding-head">
-                  <span class="finding-title">Final answer: zero for male-coded, real polynomial for female-coded</span>
+                  <span class="finding-title">Final answer: zero for male users, real polynomial for female users</span>
                   <span class="verdict-pill verdict-confirmed">Settled</span>
                 </div>
                 <p>
@@ -713,9 +713,9 @@
                   no vertex reparameterization, no bump.
                 </p>
                 <p>
-                  Result: <b>male-coded climbers show no credible height
+                  Result: <b>male users show no credible height
                   effect at all</b> — both <code>&gamma;1</code> and
-                  <code>&gamma;2</code> include zero. <b>Female-coded climbers
+                  <code>&gamma;2</code> include zero. <b>Female users
                   show a real quadratic effect</b> — both terms credibly
                   exclude zero (<code>&gamma;1=0.065 [0.033, 0.098]</code>,
                   <code>&gamma;2=0.0033 [0.0007, 0.0057]</code>). The parabola's
@@ -723,8 +723,8 @@
                   observed height range — so across almost the entire
                   practical range this isn't a peak-in-the-middle bell at all,
                   it's an essentially monotonic, mildly accelerating
-                  "taller is better" relationship for female-coded climbers,
-                  with no effect detected for male-coded ones.
+                  "taller is better" relationship for female users,
+                  with no effect detected for male users.
                 </p>
               </div>
               <div class="figure">
@@ -831,7 +831,7 @@
               <h3>Does the peak differ by gender?</h3>
               <p>
                 An early spline-based test suggested yes — quite dramatically
-                (66in for male-coded users, 76in for female-coded) — but that
+                (66in for male users, 76in for female users) — but that
                 result rested on a 4-parameter interaction term fit against a
                 thin female-tall tail, the same overfitting shape as a rejected
                 ape-index spline elsewhere in this investigation. It needed
@@ -848,7 +848,7 @@
                   extra parameter instead of four correlated ones, and much less
                   prone to overfitting a small subgroup. Result:
                   <code>peak_shift = 8.71in [5.98, 11.48]</code>, credibly
-                  excluding zero. Male-coded peak: 64.0in. Female-coded peak:
+                  excluding zero. Male-user peak: 64.0in. Female-user peak:
                   72.7in. Different exact numbers from the spline (66/76in), but
                   the same direction and a similar magnitude, now from an
                   independent, lower-dimensional method.
@@ -860,7 +860,7 @@
               </div>
               <p class="muted-copy">
                 Worth being honest that this cuts against intuition — a
-                10-inch-taller optimal height for female-coded climbers isn't
+                10-inch-taller optimal height for female users isn't
                 the obvious prior to hold, and gender is inferred from first
                 names via a probabilistic package, not self-reported, which adds
                 its own noise. It's now corroborated by two independent methods
@@ -907,9 +907,9 @@
                 shape — which turned out, on a plain visual check, to look
                 nothing like a believable "optimal height" curve. The
                 <b>final answer section at the top of this page</b> supersedes
-                all of it: zero effect for male-coded climbers, a real
+                all of it: zero effect for male users, a real
                 quadratic (practically monotonic in range) effect for
-                female-coded ones. One honest gap: the held-out predictive
+                female users. One honest gap: the held-out predictive
                 comparison above was run against the bump model, not this
                 final quadratic — re-running it wasn't worth the added time
                 given how small the quadratic effect is, but that means the
@@ -1173,9 +1173,9 @@
                 weights:
               </p>
               <div class="eqn" data-syms="h G gM gF" tabindex="0">$$f_{\text{height}}(\tilde h,\ G) \;=\;
-                \underbrace{(1-G)\left(\gamma_1^{M}\tilde h + \gamma_2^{M}\tilde h^{2}\right)}_{\text{male-coded curve}}
+                \underbrace{(1-G)\left(\gamma_1^{M}\tilde h + \gamma_2^{M}\tilde h^{2}\right)}_{\text{male users}}
                 \;+\;
-                \underbrace{G\left(\gamma_1^{F}\tilde h + \gamma_2^{F}\tilde h^{2}\right)}_{\text{female-coded curve}}$$</div>
+                \underbrace{G\left(\gamma_1^{F}\tilde h + \gamma_2^{F}\tilde h^{2}\right)}_{\text{female users}}$$</div>
               <p class="prose">
                 Note that \(G\) is a <b>probability, not a hard label</b>. A climber
                 whose name is 70% female contributes 0.7 of a row to the female
@@ -1232,33 +1232,28 @@
               <div class="data-table-wrap">
                 <table class="data-table" id="v2-forms-table"></table>
               </div>
-              <div class="controls-inline">
-                <label class="ctl">
-                  <span>Show shape</span>
-                  <select id="v2-form-pick">
-                    <option value="all">All six</option>
-                    <option value="zero">Zero</option>
-                    <option value="linear">Linear</option>
-                    <option value="quadratic">Quadratic</option>
-                    <option value="quadratic_x_gender">Quadratic &times; gender</option>
-                    <option value="saturating">Saturating</option>
-                    <option value="vertex_quadratic">Vertex quadratic (peak as a parameter)</option>
-                  </select>
-                </label>
-                <label class="ctl ctl-check">
-                  <input type="checkbox" id="v2-form-dist" checked />
-                  <span>Show where climbers actually are</span>
-                </label>
-              </div>
               <div id="v2-forms-chart" class="chart-mid"></div>
               <p class="caption">
-                Shapes each functional form can express, drawn with illustrative
-                coefficients &mdash; <b>not fitted values</b>. The point is what each
-                form is structurally capable of saying (each drawn with its own coefficients &mdash; note the interaction form&rsquo;s male-coded branch <i>is</i> a plain quadratic by definition, since \(G=0\) removes the interaction). Shaded bands show where
-                male-coded and female-coded climbers actually sit, which is why the
-                same curve can look like &ldquo;no effect&rdquo; for one group and a
-                strong effect for the other.
+                All six shapes on one axis. <b>Click a legend entry to show or
+                hide it</b>; double-click one to isolate it. Shaded bands mark
+                where male and female users actually sit &mdash; which is why the
+                same curve can look like &ldquo;no effect&rdquo; for one group and
+                a strong effect for the other. Note the interaction form&rsquo;s
+                male branch <i>is</i> a plain quadratic by definition, since
+                \(G=0\) removes the interaction.
               </p>
+
+              <h3>Play with the parameters</h3>
+              <p class="prose">
+                One card per form: the equation, the shape it produces, and a
+                slider for every parameter in it. The point is to see what each
+                form <b>can</b> and <b>cannot</b> say &mdash; no setting of the
+                linear sliders will produce a peak, and no setting of the
+                saturating sliders will produce a decline. Where a fit has
+                landed, the sliders start at the fitted values; the rest start
+                at illustrative ones and are labelled as such.
+              </p>
+              <div id="v2-form-cards" class="form-card-grid"></div>
 
               <div class="callout">
                 <div>
@@ -1404,8 +1399,8 @@
                   <span class="verdict-pill verdict-open">In progress</span>
                 </div>
                 <p>
-                  Version&nbsp;1 concluded that height has no effect for male-coded
-                  climbers and a real positive effect for female-coded ones. That
+                  Version&nbsp;1 concluded that height has no effect for male users
+                  and a real positive effect for female users. That
                   conclusion now has three possible sources, and they have not yet been
                   separated:
                 </p>
@@ -1485,6 +1480,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=34"></script>
+    <script src="/static/app.js?v=40"></script>
   </body>
 </html>

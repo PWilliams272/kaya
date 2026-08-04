@@ -196,8 +196,8 @@ const EXPLORER_COEFFICIENTS = {
   // earlier bump-function fit was visually rejected: its gender-split
   // version had left/right widths differing 8x, which isn't an "optimal
   // height" bell, it's a cliff into a plateau. Result: no credible height
-  // effect for male-coded climbers (gamma1, gamma2 both include zero); a
-  // real quadratic effect for female-coded climbers, but its vertex falls
+  // effect for male users (gamma1, gamma2 both include zero); a
+  // real quadratic effect for female users, but its vertex falls
   // right at the bottom edge of the observed height range (~58in), so in
   // practice it reads as an accelerating "taller is better" trend, not a
   // peak in the middle.
@@ -288,7 +288,7 @@ function renderExplorerChart(state) {
     type: 'scatter',
     mode: 'lines',
     line: { color: cssVar('--lg-gold'), width: 2.5 },
-    name: state.genderCode === 1 ? 'Female-coded' : 'Male-coded',
+    name: state.genderCode === 1 ? 'Female users' : 'Male users',
   };
   const markerTrace = {
     x: [state.height],
@@ -2951,9 +2951,9 @@ const V2_SYMBOLS = [
   ['h', '\\(\\tilde h\\)', 'height, centred at the median and divided by its SD', 'SDs (1 SD &asymp; 3.4 in)'],
   ['a', '\\(\\tilde a\\)', 'ape index (wingspan &minus; height), centred and scaled the same way', 'SDs (1 SD &asymp; 2.6 in)'],
   ['G', '\\(G\\)', 'probability the climber is female, from their first name sharpened by height. 0 = male, 1 = female', 'probability'],
-  ['gM', '\\(\\gamma_1^{M},\\ \\gamma_2^{M}\\)', 'slope and curvature of the <b>male-coded</b> height curve. Identical to \\(\\gamma_1,\\gamma_2\\) &mdash; the male curve <i>is</i> the baseline', 'grades / SD, grades / SD²'],
-  ['gF', '\\(\\gamma_1^{F},\\ \\gamma_2^{F}\\)', 'slope and curvature of the <b>female-coded</b> height curve. Not sampled directly; equals \\(\\gamma_k+\\gamma_k^{\\times}\\)', 'grades / SD, grades / SD²'],
-  ['gbase', '\\(\\gamma_1,\\ \\gamma_2\\)', 'what the sampler actually fits: the baseline (male-coded) slope and curvature', 'grades / SD, grades / SD²'],
+  ['gM', '\\(\\gamma_1^{M},\\ \\gamma_2^{M}\\)', 'slope and curvature of the height curve for <b>male users</b>. Identical to \\(\\gamma_1,\\gamma_2\\) &mdash; the male curve <i>is</i> the baseline', 'grades / SD, grades / SD²'],
+  ['gF', '\\(\\gamma_1^{F},\\ \\gamma_2^{F}\\)', 'slope and curvature of the height curve for <b>female users</b>. Not sampled directly; equals \\(\\gamma_k+\\gamma_k^{\\times}\\)', 'grades / SD, grades / SD²'],
+  ['gbase', '\\(\\gamma_1,\\ \\gamma_2\\)', 'what the sampler actually fits: the baseline (male-user) slope and curvature', 'grades / SD, grades / SD²'],
   ['gx', '\\(\\gamma_1^{\\times},\\ \\gamma_2^{\\times}\\)', 'the <b>gender difference</b> &mdash; how far the female curve departs from the male one. <b>This is the parameter the gender question turns on</b>; if its interval covers zero, the two curves are the same shape', 'grades / SD, grades / SD²'],
   ['delta', '\\(\\delta_1,\\ \\delta_2\\)', 'the same pair for ape index: linear slope and curvature', 'grades / SD'],
   ['sat', '\\(A,\\ h_0,\\ s\\)', 'saturating form only: how much reach is worth in total, the height it stops paying off at, and how sharply it levels', 'grades, SDs, SDs'],
@@ -2989,15 +2989,101 @@ const V2_FORMS = [
   ['Vertex quadratic', '\\(-\\kappa_h(\\tilde h-p)^2\\)', 'Same curve family as the plain quadratic, but the <b>best height \\(p\\) is a parameter</b> with its own credible interval &mdash; instead of being derived as \\(-\\gamma_1/2\\gamma_2\\) with error propagated through a ratio.', '2'],
 ];
 
-// Illustrative coefficients -- chosen to make each shape legible, NOT fitted.
-const V2_FORM_SHAPES = {
-  zero: () => 0,
-  linear: (z) => 0.18 * z,
-  quadratic: (z) => 0.10 * z - 0.16 * z * z,
-  saturating: (z) => 0.55 / (1 + Math.exp(-(z + 0.4) / 0.55)) - 0.28,
-  vertex_quadratic: (z) => -0.035 * (z - 0.9) * (z - 0.9) + 0.28,   // peak at ~71 in, deliberately above the median
-};
+// Each form's parameters, defaults and curve(s). Drives both the overlay
+// chart and the interactive cards, so the two can never drift apart.
+// `fitted: true` means the defaults are real posterior means (v3_conf,
+// net50/confident); otherwise they are illustrative and marked as such.
 const V2_HMED = 68.0, V2_HSD = 3.4;   // inches, from the cleaned data
+
+const V2_FORM_SPECS = [
+  {
+    key: 'zero', label: 'Zero', colour: '--lg-text-2', dash: 'dot', fitted: false,
+    eq: 'f(\\tilde h) = 0',
+    claim: 'Height does not affect ability at all. The null the others must beat.',
+    params: [],
+    curves: () => [{ name: 'Zero', colour: '--lg-text-2', dash: 'dot', f: () => 0 }],
+  },
+  {
+    key: 'linear', label: 'Linear', colour: '--lg-info', dash: 'solid', fitted: false,
+    eq: 'f(\\tilde h) = \\gamma_1\\tilde h',
+    claim: 'Every inch helps (or hurts) by the same amount, forever. Cannot bend.',
+    params: [{ id: 'g1', tex: '\\gamma_1', min: -0.6, max: 0.6, step: 0.01, def: 0.18 }],
+    curves: (v) => [{ name: 'Linear', colour: '--lg-info', dash: 'solid', f: (z) => v.g1 * z }],
+  },
+  {
+    key: 'quadratic', label: 'Quadratic', colour: '--lg-success', dash: 'solid', fitted: false,
+    eq: 'f(\\tilde h) = \\gamma_1\\tilde h + \\gamma_2\\tilde h^{2}',
+    claim: 'One bend, no more. A peak (or a trough) sits at \\(-\\gamma_1/2\\gamma_2\\), wherever the data put it.',
+    params: [
+      { id: 'g1', tex: '\\gamma_1', min: -0.6, max: 0.6, step: 0.01, def: 0.18 },
+      { id: 'g2', tex: '\\gamma_2', min: -0.3, max: 0.3, step: 0.005, def: -0.09 },
+    ],
+    curves: (v) => [{ name: 'Quadratic', colour: '--lg-success', dash: 'solid',
+                      f: (z) => v.g1 * z + v.g2 * z * z }],
+    note: (v) => (Math.abs(v.g2) < 1e-6 ? 'no curvature - this is a straight line'
+      : `vertex at ${(V2_HMED + (-v.g1 / (2 * v.g2)) * V2_HSD).toFixed(1)} in `
+        + `(${v.g2 < 0 ? 'a peak' : 'a trough'})`),
+  },
+  {
+    key: 'quadratic_x_gender', label: 'Quadratic × gender', colour: '--lg-highlight',
+    dash: 'solid', fitted: true,
+    eq: '\\begin{aligned} f &= (1-G)\\left(\\gamma_1\\tilde h + \\gamma_2\\tilde h^{2}\\right) \\\\'
+      + ' &\\quad + G\\left((\\gamma_1{+}\\gamma_1^{\\times})\\tilde h + (\\gamma_2{+}\\gamma_2^{\\times})\\tilde h^{2}\\right) \\end{aligned}',
+    claim: 'A separate quadratic per gender. <b>This is what v1 concluded.</b> Set both \\(\\gamma^{\\times}\\) to zero and the two curves collapse onto each other.',
+    params: [
+      { id: 'g1', tex: '\\gamma_1', min: -0.6, max: 0.6, step: 0.01, def: -0.176 },
+      { id: 'g2', tex: '\\gamma_2', min: -0.3, max: 0.3, step: 0.005, def: -0.069 },
+      { id: 'g1x', tex: '\\gamma_1^{\\times}', min: -0.6, max: 0.6, step: 0.01, def: 0.153 },
+      { id: 'g2x', tex: '\\gamma_2^{\\times}', min: -0.3, max: 0.3, step: 0.005, def: 0.159 },
+    ],
+    // One hue per form, dash distinguishes the branch within it. The male
+    // branch cannot use --lg-gold: that token resolves to #1976d2, all but
+    // identical to --lg-info on the Linear curve.
+    curves: (v) => [
+      { name: 'Male users', colour: '--lg-highlight', dash: 'solid',
+        f: (z) => v.g1 * z + v.g2 * z * z },
+      { name: 'Female users', colour: '--lg-highlight', dash: 'dash',
+        f: (z) => (v.g1 + v.g1x) * z + (v.g2 + v.g2x) * z * z },
+    ],
+  },
+  {
+    key: 'saturating', label: 'Saturating', colour: '--lg-danger', dash: 'solid', fitted: false,
+    eq: 'f(\\tilde h) = A\\,\\operatorname{logistic}\\!\\left(\\frac{\\tilde h - h_0}{s}\\right)',
+    claim: 'Reach helps until you have enough of it, then stops paying. <b>Monotone by construction</b> &mdash; it cannot turn back down. Never tested in v1.',
+    params: [
+      { id: 'A', tex: 'A', min: -1.2, max: 1.2, step: 0.02, def: 0.55 },
+      { id: 'h0', tex: 'h_0', min: -2.5, max: 2.5, step: 0.05, def: -0.4 },
+      { id: 's', tex: 's', min: 0.1, max: 2.0, step: 0.05, def: 0.55 },
+    ],
+    curves: (v) => [{ name: 'Saturating', colour: '--lg-danger', dash: 'solid',
+                      f: (z) => v.A / (1 + Math.exp(-(z - v.h0) / Math.max(v.s, 0.05))) - v.A / 2 }],
+  },
+  {
+    key: 'vertex_quadratic', label: 'Vertex quadratic', colour: '--lg-warning',
+    dash: 'dashdot', fitted: false,
+    eq: 'f(\\tilde h) = -\\kappa_h\\left(\\tilde h - p\\right)^{2}',
+    claim: 'The same curve family as the plain quadratic, but the <b>best height \\(p\\) is a parameter</b> you can read an interval off directly. Drag \\(p\\) to move the peak off the median.',
+    params: [
+      { id: 'kh', tex: '\\kappa_h', min: 0, max: 0.4, step: 0.005, def: 0.035 },
+      { id: 'pk', tex: 'p', min: -3, max: 3, step: 0.05, def: 0.9 },
+    ],
+    curves: (v) => [{ name: 'Vertex quadratic', colour: '--lg-warning', dash: 'dashdot',
+                      f: (z) => -v.kh * (z - v.pk) * (z - v.pk) + v.kh * 2 }],
+    note: (v) => `peak at ${(V2_HMED + v.pk * V2_HSD).toFixed(1)} in`,
+  },
+];
+
+const V2_FORM_BY_KEY = Object.fromEntries(V2_FORM_SPECS.map((f) => [f.key, f]));
+// Live slider state, seeded from each spec's defaults.
+const v2FormState = Object.fromEntries(V2_FORM_SPECS.map((f) => [
+  f.key, Object.fromEntries(f.params.map((p) => [p.id, p.def])),
+]));
+
+// Where each group actually sits: median +/- 1 SD from the cleaned data.
+const V2_HEIGHT_BANDS = [
+  { label: 'male users', mid: 69.2, sd: 3.34, tok: '--lg-gold' },
+  { label: 'female users', mid: 64.2, sd: 2.83, tok: '--lg-highlight' },
+];
 
 function renderV2Symbols() {
   const el = document.getElementById('v2-symbols');
@@ -3152,72 +3238,166 @@ function renderV2FormsTable() {
     + '</tbody>';
 }
 
+// Shared x-grid: inches across the plausible climbing range, plus the same
+// values in SD units, which is what every curve function takes.
+function v2HeightGrid() {
+  const inches = [];
+  for (let h = 58; h <= 78; h += 0.25) inches.push(h);
+  return { inches, z: inches.map((h) => (h - V2_HMED) / V2_HSD) };
+}
+
+// Bands showing where each group actually sits. Always drawn -- the shapes are
+// misleading without them, since most of the x-range holds almost nobody.
+function v2BandShapes(showLabels) {
+  const shapes = [], annotations = [];
+  V2_HEIGHT_BANDS.forEach((b) => {
+    shapes.push({ type: 'rect', xref: 'x', yref: 'paper',
+      x0: b.mid - b.sd, x1: b.mid + b.sd, y0: 0, y1: 1,
+      fillcolor: cssVar(b.tok), opacity: 0.07, line: { width: 0 } });
+    if (showLabels) {
+      annotations.push({ x: b.mid, y: 1, yref: 'paper', yanchor: 'bottom',
+        showarrow: false, text: `${b.label} ±1 SD`,
+        font: { size: 10, color: cssVar(b.tok) } });
+    }
+  });
+  return { shapes, annotations };
+}
+
 function renderV2FormsChart() {
   const el = document.getElementById('v2-forms-chart');
   if (!el || typeof Plotly === 'undefined') return;
-  const pick = document.getElementById('v2-form-pick')?.value || 'all';
-  const showDist = document.getElementById('v2-form-dist')?.checked;
-  const inches = [];
-  for (let h = 58; h <= 78; h += 0.25) inches.push(h);
-  const z = inches.map((h) => (h - V2_HMED) / V2_HSD);
+  const { inches, z } = v2HeightGrid();
 
-  const defs = [
-    ['zero', 'Zero', '--lg-text-2', 'dot'],
-    ['linear', 'Linear', '--lg-info', 'solid'],
-    ['quadratic', 'Quadratic', '--lg-success', 'solid'],
-    ['saturating', 'Saturating', '--lg-danger', 'solid'],
-    ['vertex_quadratic', 'Vertex quadratic', '--lg-warning', 'dashdot'],
-  ];
   const traces = [];
-  defs.forEach(([key, label, tok, dash]) => {
-    if (pick !== 'all' && pick !== key) return;
-    traces.push({
-      type: 'scatter', mode: 'lines', name: label,
-      x: inches, y: z.map(V2_FORM_SHAPES[key]),
-      line: { color: cssVar(tok), width: 2.5, dash },
-      hovertemplate: `${label}<br>%{x:.0f} in → %{y:+.2f} grades<extra></extra>`,
+  V2_FORM_SPECS.forEach((spec) => {
+    const vals = v2FormState[spec.key];
+    spec.curves(vals).forEach((c, i) => {
+      // Only the interaction form draws two curves; name them so the legend
+      // stays readable when everything is switched on at once.
+      const name = spec.curves(vals).length > 1 ? `${spec.label} (${c.name})` : spec.label;
+      traces.push({
+        type: 'scatter', mode: 'lines', name,
+        x: inches, y: z.map(c.f),
+        line: { color: cssVar(c.colour), width: 2.5, dash: c.dash },
+        hovertemplate: `${name}<br>%{x:.0f} in → %{y:+.2f} grades<extra></extra>`,
+      });
     });
   });
-  if (pick === 'all' || pick === 'quadratic_x_gender') {
-    // Two curves, because that is exactly what this form asserts.
-    traces.push({
-      type: 'scatter', mode: 'lines', name: 'Quad × gender (male-coded)',
-      x: inches, y: z.map((v) => 0.18 * v - 0.09 * v * v),
-      line: { color: cssVar('--lg-highlight'), width: 2.5 },
-      hovertemplate: 'male-coded<br>%{x:.0f} in → %{y:+.2f}<extra></extra>',
-    });
-    traces.push({
-      type: 'scatter', mode: 'lines', name: 'Quad × gender (female-coded)',
-      x: inches, y: z.map((v) => (0.18 - 0.34) * v + (-0.09 + 0.02) * v * v),
-      line: { color: cssVar('--lg-highlight'), width: 2.5, dash: 'dash' },
-      hovertemplate: 'female-coded<br>%{x:.0f} in → %{y:+.2f}<extra></extra>',
-    });
-  }
 
   const layout = chartLayout('height (inches)');
-  layout.height = 380;
+  layout.height = 480;
   layout.yaxis = { ...layout.yaxis, title: { text: 'ability offset (grades)' }, zeroline: true };
-  layout.legend = { ...layout.legend, orientation: 'h', y: -0.42, x: 0, font: { size: 11 } };
-  layout.margin = { l: 62, r: 24, t: 26, b: 130 };
-  layout.height = 430;
-  layout.shapes = [];
-  layout.annotations = [];
-  if (showDist) {
-    // Where each group actually sits -- median +/- 1 SD from the cleaned data.
-    layout.shapes.push(
-      { type: 'rect', xref: 'x', yref: 'paper', x0: 69.2 - 3.34, x1: 69.2 + 3.34,
-        y0: 0, y1: 1, fillcolor: cssVar('--lg-gold'), opacity: 0.07, line: { width: 0 } },
-      { type: 'rect', xref: 'x', yref: 'paper', x0: 64.2 - 2.83, x1: 64.2 + 2.83,
-        y0: 0, y1: 1, fillcolor: cssVar('--lg-highlight'), opacity: 0.07, line: { width: 0 } },
-    );
-    layout.annotations.push(
-      { x: 69.2, y: 1, yref: 'paper', yanchor: 'bottom', showarrow: false,
-        text: 'male-coded ±1 SD', font: { size: 10, color: cssVar('--lg-gold') } },
-      { x: 64.2, y: 1, yref: 'paper', yanchor: 'bottom', showarrow: false,
-        text: 'female-coded ±1 SD', font: { size: 10, color: cssVar('--lg-highlight') } },
-    );
-  }
+  // Seven entries wrap to three rows, so the legend needs real clearance --
+  // at -0.3 it sat on top of both the tick labels and the axis title.
+  layout.legend = { ...layout.legend, orientation: 'h', y: -0.5, x: 0 };
+  layout.xaxis = { ...layout.xaxis, title: { text: 'height (inches)', standoff: 12 } };
+  layout.margin = { l: 60, r: 24, t: 22, b: 185 };
+  const bands = v2BandShapes(true);
+  layout.shapes = bands.shapes;
+  layout.annotations = bands.annotations;
   Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
+}
+
+// ---- one interactive card per functional form ----
+
+function renderV2FormCard(spec) {
+  const chart = document.getElementById(`v2-fc-chart-${spec.key}`);
+  if (!chart || typeof Plotly === 'undefined') return;
+  const vals = v2FormState[spec.key];
+  const { inches, z } = v2HeightGrid();
+
+  const traces = spec.curves(vals).map((c) => ({
+    type: 'scatter', mode: 'lines', name: c.name,
+    x: inches, y: z.map(c.f),
+    line: { color: cssVar(c.colour), width: 2.5, dash: c.dash },
+    hovertemplate: `${c.name}<br>%{x:.0f} in → %{y:+.2f} grades<extra></extra>`,
+  }));
+
+  const layout = chartLayout('height (in)');
+  layout.height = 210;
+  // Hold a common y-range so the cards stay comparable and a small slider
+  // nudge doesn't silently rescale the axis under you -- but grow it rather
+  // than clip a curve when someone drags a parameter to an extreme.
+  const ys = traces.flatMap((t) => t.y);
+  const span = Math.max(1.35, Math.abs(Math.min(...ys)) * 1.08, Math.max(...ys) * 1.08);
+  layout.yaxis = { ...layout.yaxis, title: null, zeroline: true, range: [-span, span] };
+  layout.xaxis = { ...layout.xaxis, title: null };
+  layout.margin = { l: 40, r: 12, t: 8, b: 28 };
+  layout.showlegend = spec.curves(vals).length > 1;
+  // Keep the legend clear of the x tick labels -- at -0.22 its background sat
+  // 2px under them and hid every tick but the last.
+  layout.legend = { ...layout.legend, orientation: 'h', y: -0.42, x: 0, font: { size: 10 } };
+  if (layout.showlegend) layout.margin.b = 76;
+  layout.shapes = v2BandShapes(false).shapes;
+  layout.annotations = [];
+  Plotly.react(chart, traces, layout, { displayModeBar: false, responsive: true });
+
+  // Readouts: current value beside each slider, plus the derived note.
+  spec.params.forEach((prm) => {
+    const out = document.getElementById(`v2-fc-val-${spec.key}-${prm.id}`);
+    if (out) out.textContent = vals[prm.id].toFixed(prm.step < 0.01 ? 3 : 2);
+  });
+  const noteEl = document.getElementById(`v2-fc-note-${spec.key}`);
+  if (noteEl) noteEl.textContent = spec.note ? spec.note(vals) : '';
+}
+
+function renderV2FormCards() {
+  const host = document.getElementById('v2-form-cards');
+  if (!host) return;
+  host.innerHTML = V2_FORM_SPECS.map((spec) => {
+    const badge = spec.fitted
+      ? '<span class="form-badge fitted">fitted &middot; v3_conf</span>'
+      : '<span class="form-badge">illustrative</span>';
+    const sliders = spec.params.length
+      ? spec.params.map((p) => `
+          <label class="form-slider">
+            <span class="form-slider-tex">\\(${p.tex}\\)</span>
+            <input type="range" id="v2-fc-in-${spec.key}-${p.id}"
+                   data-form="${spec.key}" data-param="${p.id}"
+                   min="${p.min}" max="${p.max}" step="${p.step}" value="${p.def}" />
+            <output id="v2-fc-val-${spec.key}-${p.id}" class="form-slider-val"></output>
+          </label>`).join('')
+      : '<p class="form-noparams">No parameters &mdash; there is nothing to adjust. That is the point.</p>';
+    return `
+      <section class="form-card">
+        <header class="form-card-head">
+          <h4>${spec.label}</h4>${badge}
+        </header>
+        <div class="form-card-eq">\\[${spec.eq}\\]</div>
+        <p class="form-card-claim">${spec.claim}</p>
+        <div id="v2-fc-chart-${spec.key}" class="form-card-chart"></div>
+        <div class="form-card-controls">
+          ${sliders}
+          <div class="form-card-foot">
+            <span class="form-card-note" id="v2-fc-note-${spec.key}"></span>
+            ${spec.params.length ? `<button type="button" class="ghost-button form-reset" data-form="${spec.key}">Reset</button>` : ''}
+          </div>
+        </div>
+      </section>`;
+  }).join('');
+
+  host.querySelectorAll('input[type="range"]').forEach((inp) => {
+    inp.addEventListener('input', () => {
+      const spec = V2_FORM_BY_KEY[inp.dataset.form];
+      v2FormState[spec.key][inp.dataset.param] = parseFloat(inp.value);
+      renderV2FormCard(spec);
+      renderV2FormsChart();   // keep the overlay honest about the same values
+    });
+  });
+  host.querySelectorAll('.form-reset').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const spec = V2_FORM_BY_KEY[btn.dataset.form];
+      spec.params.forEach((p) => {
+        v2FormState[spec.key][p.id] = p.def;
+        const inp = document.getElementById(`v2-fc-in-${spec.key}-${p.id}`);
+        if (inp) inp.value = p.def;
+      });
+      renderV2FormCard(spec);
+      renderV2FormsChart();
+    });
+  });
+
+  V2_FORM_SPECS.forEach(renderV2FormCard);
 }
 
 let v2Bound = false;
@@ -3233,9 +3413,6 @@ function bindV2Controls() {
   ['v2-colour-by', 'v2-filter-brand', 'v2-only-sig'].forEach((id) => {
     document.getElementById(id)?.addEventListener('change', renderV2GymChart);
   });
-  ['v2-form-pick', 'v2-form-dist'].forEach((id) => {
-    document.getElementById(id)?.addEventListener('change', renderV2FormsChart);
-  });
   v2Bound = true;
 }
 
@@ -3245,6 +3422,7 @@ function renderV2Tab() {
   renderV2Symbols();
   renderV2FormsTable();
   renderV2FormsChart();
+  renderV2FormCards();
   renderV2Table('v2-gg-table', V2_GG);
   renderV2Table('v2-diag-table', V2_DIAG);
   renderV2GymChart();
@@ -3256,11 +3434,14 @@ function renderV2Tab() {
   // auto-render already ran on DOMContentLoaded, so their \( ... \) spans
   // would otherwise stay as literal source. Typeset them explicitly.
   if (typeof window.renderMathInElement === 'function') {
-    ['v2-symbols', 'v2-forms-table'].forEach((id) => {
+    ['v2-symbols', 'v2-forms-table', 'v2-form-cards'].forEach((id) => {
       const el = document.getElementById(id);
       if (el) {
         window.renderMathInElement(el, {
-          delimiters: [{ left: '\\(', right: '\\)', display: false }],
+          delimiters: [
+            { left: '\\[', right: '\\]', display: true },
+            { left: '\\(', right: '\\)', display: false },
+          ],
           throwOnError: false,
         });
       }
