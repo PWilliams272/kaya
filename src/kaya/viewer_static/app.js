@@ -3645,18 +3645,9 @@ function renderV2Advancement() {
   const gx = (rows) => rows.map((r) => r.v);
   const traces = [];
 
-  // De-biased IQR first, so the lines draw over it.
-  traces.push({
-    type: 'scatter', mode: 'lines', x: gx(a.debiased), y: a.debiased.map((r) => r.p25),
-    line: { width: 0 }, showlegend: false, hoverinfo: 'skip',
-  });
-  traces.push({
-    type: 'scatter', mode: 'lines', x: gx(a.debiased), y: a.debiased.map((r) => r.p75),
-    line: { width: 0 }, fill: 'tonexty',
-    fillcolor: hexToRgba(cssVar('--lg-cat-1'), 0.10),
-    name: 'de-biased, middle 50% of climbers',
-    hovertemplate: 'middle 50% reaches %{y:+.1f}<extra></extra>',
-  });
+  // The interquartile band lives in the table instead. It spans a full grade
+  // either side, and drawing it here would bury three mean curves that now
+  // fit inside a third of a grade.
   traces.push({
     type: 'scatter', mode: 'lines+markers', x: gx(a.naive), y: a.naive.map((r) => r.mean),
     name: 'naive (regression to the max)',
@@ -3665,8 +3656,15 @@ function renderV2Advancement() {
     hovertemplate: 'V%{x}: %{y:+.2f} grades/yr<extra>naive</extra>',
   });
   traces.push({
+    type: 'scatter', mode: 'lines+markers', x: gx(a.short), y: a.short.map((r) => r.mean),
+    name: 'de-biased, next window (~3 months)',
+    line: { color: cssVar('--lg-cat-3'), width: 2, dash: 'dot' },
+    marker: { size: 6 },
+    hovertemplate: 'V%{x}: %{y:+.2f} grades/yr<extra>next window</extra>',
+  });
+  traces.push({
     type: 'scatter', mode: 'lines+markers', x: gx(a.debiased), y: a.debiased.map((r) => r.mean),
-    name: 'de-biased',
+    name: 'de-biased, one-year horizon',
     line: { color: cssVar('--lg-cat-1'), width: 2.6 },
     marker: { size: 7 },
     error_y: { type: 'data', array: a.debiased.map((r) => r.sem),
@@ -3679,8 +3677,11 @@ function renderV2Advancement() {
   layout.margin = { l: 62, r: 20, t: 12, b: 96 };
   layout.xaxis = { ...layout.xaxis, automargin: false, tickprefix: 'V', dtick: 1,
     title: { text: 'current grade', standoff: 10 } };
+  // Pinned so the two corrected curves stay readable. The naive one runs to
+  // +8 and -4 and is deliberately allowed to leave the frame -- it being off
+  // the scale is the point, and its numbers are in the table below.
   layout.yaxis = { ...layout.yaxis, automargin: false, zeroline: true,
-    zerolinecolor: cssVar('--lg-text-2'),
+    range: [-1.35, 1.15], zerolinecolor: cssVar('--lg-text-2'),
     title: { text: 'grades gained per year', standoff: 6 } };
   layout.legend = { ...layout.legend, orientation: 'h', y: -0.3, yanchor: 'top',
     x: 0, font: { size: 10 } };
@@ -3692,17 +3693,82 @@ function renderV2Advancement() {
     // The worst naive value, whichever bin it lands in -- that is the
     // impossible number the argument rests on.
     const n1 = a.naive.reduce((w, r) => (r.mean < w.mean ? r : w), a.naive[0]);
-    const d1 = at(a.debiased, 1), d5 = at(a.debiased, 5), d7 = at(a.debiased, 7);
+    const d2 = at(a.debiased, 2), d5 = at(a.debiased, 5), d7 = at(a.debiased, 7);
+    const s2 = at(a.short, 2);
     note.innerHTML = `${a.n_pairs.toLocaleString()} window triples from `
-      + `${a.n_climbers.toLocaleString()} climbers. De-biased, improvement runs `
-      + `<b>${d1.mean.toFixed(2)} grades/yr at V${d1.v}</b>, `
+      + `${a.n_climbers.toLocaleString()} climbers survive the one-year horizon, `
+      + `out of ${a.n_pairs_short.toLocaleString()} that clear the de-biasing `
+      + 'alone. On the headline curve, improvement runs '
+      + `<b>${d2.mean.toFixed(2)} grades/yr at V${d2.v}</b>, `
       + `${d5.mean.toFixed(2)} at V${d5.v} and ${d7.mean.toFixed(2)} at V${d7.v} `
-      + `&mdash; a slope of <b>${a.fit.slope.toFixed(2)} grades/yr per V-grade</b>. `
-      + `The naive estimator has the same shape and roughly five times the `
-      + `magnitude, bottoming out at ${n1.mean.toFixed(1)} grades/yr at V${n1.v}, `
-      + 'which is the impossible number that gives it away. Error bars are the '
-      + 'standard error of the mean; the band is the interquartile range, and it '
-      + 'is wide because individual climbers differ far more than grades do.';
+      + `&mdash; a slope of <b>${a.fit.slope.toFixed(3)} grades/yr per V-grade</b>. `
+      + 'Each correction shrinks the curve without changing its shape: the naive '
+      + `estimator bottoms out at ${n1.mean.toFixed(1)} grades/yr at V${n1.v}, an `
+      + 'impossible number that gives it away, and the short-window estimator is '
+      + `still ${(s2.mean / d2.mean).toFixed(1)}&times; too large at V${d2.v}. `
+      + 'Error bars are the standard error of the mean. The middle-50% column '
+      + 'in the table spans a full grade either way, because individual '
+      + 'climbers differ far more than the averages do.';
+  }
+}
+
+function renderV2Accrual() {
+  const el = document.getElementById('v2-accrual-chart');
+  if (!el || !V2_TIME || typeof Plotly === 'undefined') return;
+  const acc = V2_TIME.advancement.accrual;
+  if (!acc || !acc.length) return;
+  const hi = Math.max(...acc.map((r) => r.h));
+  // Weighted mean rate, drawn as a straight line through the origin: if
+  // change accrues linearly the points sit on it.
+  const wsum = acc.reduce((s, r) => s + r.n, 0);
+  const rate = acc.reduce((s, r) => s + r.rate * r.n, 0) / wsum;
+
+  const c = cssVar('--lg-cat-1');
+  const traces = [{
+    type: 'scatter', mode: 'lines', name: `steady ${rate.toFixed(2)} grades/yr`,
+    x: [0, hi], y: [0, rate * hi],
+    line: { color: cssVar('--lg-text-2'), width: 1.6, dash: 'dash' },
+    hoverinfo: 'skip',
+  }, {
+    type: 'scatter', mode: 'markers', name: 'measured',
+    x: acc.map((r) => r.h), y: acc.map((r) => r.dl),
+    marker: { size: 11, color: hexToRgba(c, 0.72),
+      line: { width: 2, color: hexToRgba(c, 0.85) } },
+    error_y: { type: 'data', array: acc.map((r) => r.sem),
+      color: hexToRgba(c, 0.5), thickness: 1.4, width: 4 },
+    text: acc.map((r) => r.n.toLocaleString()),
+    hovertemplate: '%{x} yr later: %{y:+.3f} grades<br>'
+      + '%{text} measurements<extra></extra>',
+  }];
+
+  const layout = chartLayout('');
+  layout.height = 300;
+  layout.margin = { l: 62, r: 20, t: 12, b: 82 };
+  layout.xaxis = { ...layout.xaxis, automargin: false, range: [0, hi + 0.15],
+    title: { text: 'time elapsed (years)', standoff: 10 } };
+  layout.yaxis = { ...layout.yaxis, automargin: false, zeroline: true,
+    zerolinecolor: cssVar('--lg-text-2'),
+    title: { text: 'grades gained', standoff: 6 } };
+  layout.legend = { ...layout.legend, orientation: 'h', y: -0.34, yanchor: 'top',
+    x: 0, font: { size: 10 } };
+  Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
+
+  const note = document.getElementById('v2-accrual-note');
+  if (note) {
+    const lo = acc[0], hiR = acc[acc.length - 1];
+    note.innerHTML = 'Climbers between V3 and V8, measured over a ladder of '
+      + 'horizons. The points track the dashed line, so the change accumulates '
+      + `steadily: ${lo.dl.toFixed(3)} grades after ${lo.h} years and `
+      + `${hiR.dl.toFixed(3)} after ${hiR.h}, which is `
+      + `${(hiR.dl / lo.dl).toFixed(1)}&times; the change over `
+      + `${(hiR.h / lo.h).toFixed(0)}&times; the time. The implied annual rate `
+      + `never leaves the ${Math.min(...acc.map((r) => r.rate)).toFixed(2)} to `
+      + `${Math.max(...acc.map((r) => r.rate)).toFixed(2)} band. Error bars are `
+      + 'the standard error of the mean.';
+  }
+  const gm = document.getElementById('v2-gap-median');
+  if (gm && V2_TIME.advancement.gap_months) {
+    gm.textContent = V2_TIME.advancement.gap_months.median.toFixed(0);
   }
 }
 
@@ -3803,8 +3869,9 @@ function renderV2TimeStats() {
       + '</b> inside Touchstone alone across 17 gyms. Its slope implies '
       + `<b>${gt.within_brand.slope.toFixed(2)} grades per year</b>. `
       + 'But the measured advancement rate where the median climber sits is '
-      + `<b>${typical.toFixed(2)} grades per year</b> &mdash; an order of magnitude `
-      + 'smaller. <b>Climber improvement cannot be most of this.</b> Improvement '
+      + `<b>${typical.toFixed(2)} grades per year</b> &mdash; roughly `
+      + `<b>${(gt.within_brand.slope / typical).toFixed(0)}&times; smaller</b>. `
+      + '<b>Climber improvement cannot be most of this.</b> Improvement '
       + `accounts for roughly ${explained.toFixed(2)} of the ${observed.toFixed(2)} `
       + 'grade correction spread, around '
       + `${Math.round((explained / observed) * 100)}%, which is reassuring for the `
@@ -3814,6 +3881,24 @@ function renderV2TimeStats() {
       + 'confound &mdash; and selection in <b>when</b> climbers switch gyms. '
       + 'Neither can be tested until the send date is carried into the model.';
   }
+
+  // The "how this goes into the model" numbers, so the argument for a fixed
+  // offset quotes the same measurements the section just made.
+  const f = a.fit, at = (v) => f.intercept + f.slope * v;
+  const set = (id, s) => {
+    const n = document.getElementById(id);
+    if (n) n.textContent = s;
+  };
+  set('v2-fix-slope', `+${gt.within_brand.slope.toFixed(2)}`);
+  set('v2-fix-rate', `+${typical.toFixed(2)}`);
+  set('v2-fix-ratio', (gt.within_brand.slope / typical).toFixed(0));
+  set('v2-fix-span', spread.toFixed(2));
+  set('v2-fix-shift', explained.toFixed(2));
+  set('v2-fix-spread', observed.toFixed(2));
+  // -0.00 reads as a typo in running prose; the line just hits zero at V9.
+  const f2 = (x) => (Math.abs(x) < 0.005 ? '0.00' : x.toFixed(2));
+  set('v2-fix-lo', f2(at(3)));
+  set('v2-fix-hi', f2(at(9)));
 }
 
 function renderV2AdvTable() {
@@ -3822,17 +3907,21 @@ function renderV2AdvTable() {
   const a = V2_TIME.advancement;
   const byV = {};
   a.naive.forEach((r) => { byV[r.v] = { v: r.v, naive: r.mean }; });
+  a.short.forEach((r) => { byV[r.v] = { ...(byV[r.v] || { v: r.v }), short: r.mean }; });
   a.debiased.forEach((r) => {
     byV[r.v] = { ...(byV[r.v] || { v: r.v }), deb: r.mean, n: r.n,
       p25: r.p25, p75: r.p75 };
   });
   const rows = Object.values(byV).filter((r) => r.deb !== undefined)
     .sort((x, y) => x.v - y.v);
-  el.innerHTML = '<thead><tr><th>grade</th><th>naive</th><th>de-biased</th>'
-    + '<th>middle 50%</th><th>window triples</th></tr></thead><tbody>'
+  const sgn = (x) => (x === undefined ? '&mdash;'
+    : `${x >= 0 ? '+' : ''}${x.toFixed(2)}`);
+  el.innerHTML = '<thead><tr><th>grade</th><th>naive</th><th>next window</th>'
+    + '<th>one-year horizon</th><th>middle 50%</th><th>triples</th></tr></thead><tbody>'
     + rows.map((r) => `<tr><td class="label-cell">V${r.v}</td>`
-      + `<td class="unit muted">${r.naive === undefined ? '&mdash;' : (r.naive >= 0 ? '+' : '') + r.naive.toFixed(2)}</td>`
-      + `<td class="unit"><b>${r.deb >= 0 ? '+' : ''}${r.deb.toFixed(2)}</b></td>`
+      + `<td class="unit muted">${sgn(r.naive)}</td>`
+      + `<td class="unit muted">${sgn(r.short)}</td>`
+      + `<td class="unit"><b>${sgn(r.deb)}</b></td>`
       + `<td class="unit">${r.p25.toFixed(1)} to ${r.p75 >= 0 ? '+' : ''}${r.p75.toFixed(1)}</td>`
       + `<td class="unit">${r.n.toLocaleString()}</td></tr>`).join('')
     + '</tbody>';
@@ -3841,6 +3930,7 @@ function renderV2AdvTable() {
 async function renderV2Time() {
   if (!(await loadV2Time())) return;
   renderV2Advancement();
+  renderV2Accrual();
   renderV2AdvTable();
   renderV2TimeChart();
   renderV2TimeStats();

@@ -7,7 +7,7 @@
     <meta name="kaya-viewer-data-mode" content="static" />
     <link rel="stylesheet" href="/static/tokens.css" />
     <link rel="stylesheet" href="/static/app.css?v=6" />
-    <link rel="stylesheet" href="/static/research.css?v=26" />
+    <link rel="stylesheet" href="/static/research.css?v=29" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -1063,12 +1063,12 @@
               <ol>
                 <li><a href="#v2-headline">The Headline</a></li>
                 <li><a href="#v2-gyms">Gym-by-Gym Grading</a></li>
+                <li><a href="#v2-time">How Climbers Improve Over Time</a></li>
                 <li><a href="#v2-model">The Model, Formally</a></li>
                 <li><a href="#v2-decisions">Decisions and Why</a></li>
                 <li><a href="#v2-quality">What the Data Actually Looks Like</a></li>
                 <li><a href="#v2-gender">The Gender Problem</a></li>
                 <li><a href="#v2-height">The Height Question</a></li>
-                <li><a href="#v2-time">The Missing Dimension: Time</a></li>
                 <li><a href="#v2-diagnostics">Diagnostics</a></li>
               </ol>
             </nav>
@@ -1119,6 +1119,356 @@
               </p>
               <div id="v2-brand-chart" class="chart-mid"></div>
               <p class="caption">Distribution of gym corrections within each company. Each dot is one gym.</p>
+            </section>
+            <!-- ============ TIME ============ -->
+            <section class="article-section" id="v2-time">
+              <h2>How Climbers Improve Over Time</h2>
+              <p class="prose">
+                This section comes early because its answer is an
+                <b>input</b> to the model that follows, not a commentary on it.
+                The model treats a climber as a fixed quantity. They are not.
+                Its ceiling for climber <span>\(u\)</span> at gym
+                <span>\(g\)</span> is
+              </p>
+              <div class="eqn" data-syms="C gym u g" tabindex="0">$$C_{u,g} = \text{ability}_u + \text{gym}_g$$</div>
+              <p class="prose">
+                and there is no <span>\(t\)</span> anywhere in it. So if someone
+                logged at one gym in 2022 and another in 2025, <b>three years of
+                getting better is charged to the second gym</b>. The model has no
+                other place to put it. A gym whose climbers reached it late in
+                their own careers will look stiffer than it is; one they passed
+                through early will look softer.
+              </p>
+              <p class="prose">
+                This section asks two questions in order, because the second
+                cannot be answered without the first: <b>how fast do climbers
+                actually improve</b>, and <b>is the gym result contaminated</b>?
+              </p>
+
+              <div class="head-row">
+                <h3>How fast do climbers advance?</h3>
+                <div class="infowrap">
+                  <button type="button" class="infodot"
+                          aria-label="How the advancement rate is measured">i</button>
+                  <div class="infopop" role="tooltip">
+                    <h5>How this is measured</h5>
+                    <p>
+                      Each climber&rsquo;s sends are bucketed into 90-day
+                      windows. A window with at least 5 sends gets a
+                      <b>level</b>: the hardest grade sent in it. Windowed, not
+                      cumulative &mdash; a running max-so-far only ever goes up,
+                      which would manufacture improvement out of noise. A
+                      windowed max can fall.
+                    </p>
+                    <p>
+                      Consecutive windows up to 15 months apart then give a rate
+                      in grades per year. Both estimators use the same windows
+                      and the same rate; they differ only in which window
+                      decides the grade bin.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <p class="prose">
+                The obvious way to measure this is to take each climber&rsquo;s
+                level now, their level later, and bin the difference by where
+                they started:
+              </p>
+              <div class="eqn-block">
+                $$\text{rate} = \frac{\ell_{2} - \ell_{1}}{\Delta t}\ ,\qquad
+                  \text{binned by }\ \ell_{1}$$
+              </div>
+              <p class="prose">
+                This is wrong, and it is wrong in a way that produces a
+                <i>very convincing</i> answer. Because
+                <span>\(\ell_1\)</span> is a <b>maximum</b> over a handful of
+                sends, a lucky window inflates it &mdash; and the next window,
+                being ordinary, looks like a decline. The same noise that puts a
+                climber in a high bin pushes their measured change downward.
+                <b>The estimator tilts the curve by construction.</b>
+              </p>
+              <div class="callout warn">
+                <div>
+                  <b>How you can tell it is broken.</b> The naive estimator says
+                  V11 climbers lose <b>3.6 grades a year</b>. Nobody does that.
+                  When an estimator returns a physically impossible number at one
+                  end, the whole curve is suspect &mdash; not just that bin.
+                </div>
+              </div>
+              <h4 class="sub-head">The fix: stop asking one measurement to do two jobs</h4>
+              <p class="prose">
+                Look at what <span>\(\ell_1\)</span> is being used for above. It
+                decides <b>which grade bin the climber goes in</b>, and it is
+                also <b>the starting point that gets subtracted</b>. One
+                measurement, two jobs &mdash; and a single piece of luck hits
+                both at once, in opposite directions:
+              </p>
+              <ul class="prose">
+                <li>A climber has a great week, so <span>\(\ell_1\)</span> comes
+                    out a grade too high.</li>
+                <li>Job one files them a grade too high.</li>
+                <li>Job two makes <span>\(\ell_2 - \ell_1\)</span> come out a
+                    grade too low.</li>
+              </ul>
+              <p class="prose">
+                So the top bins are systematically stocked with climbers whose
+                starting point was inflated, and an inflated starting point
+                mechanically produces a negative change. You get &ldquo;strong
+                climbers decline&rdquo; out of data where nobody&rsquo;s ability
+                moved at all.
+              </p>
+              <p class="prose">
+                So hand job one to a <b>different window</b>. Use three windows
+                instead of two: <span>\(w_0\)</span> only decides the bin, and
+                the change is measured between <span>\(w_1\)</span> and
+                <span>\(w_2\)</span> &mdash; windows <span>\(w_0\)</span> had
+                nothing to do with.
+              </p>
+              <div class="eqn-block">
+                $$\text{rate} = \frac{\ell_{w_2} - \ell_{w_1}}{\Delta t}\ ,\qquad
+                  \text{binned by }\ \ell_{w_0}$$
+              </div>
+              <p class="prose">
+                Now the luck that landed someone in the V8 bin happened in a
+                window that is not part of the subtraction. It cannot tilt the
+                measured change either way. <b>The wire between the two errors
+                is cut.</b>
+              </p>
+              <div class="callout">
+                <div>
+                  <b>The same trap outside climbing.</b> Suppose you want to know
+                  whether shorter children grow faster, and your tape measure is
+                  sloppy. If one measurement both decides who counts as short
+                  <i>and</i> serves as the baseline you subtract, then every
+                  child accidentally measured too short is filed as short
+                  <i>and</i> appears to grow extra. You will &ldquo;discover&rdquo;
+                  that short children grow faster &mdash; with a clean, monotone
+                  curve &mdash; even if every child grows at exactly the same
+                  rate. Measure on Monday to decide who is short, measure growth
+                  from Tuesday to Friday, and Monday&rsquo;s slop cannot
+                  manufacture Tuesday-to-Friday growth.
+                </div>
+              </div>
+              <p class="prose">
+                Two costs, and the important one runs in the safe direction.
+                Every climber now needs three good windows instead of two, so
+                20,756 triples replace 30,132 pairs. And because the bin label
+                <span>\(\ell_{w_0}\)</span> is <i>itself</i> noisy, climbers get
+                sorted into slightly wrong bins, which flattens any real
+                relationship. <b>So the de-biased slope is more likely an
+                understatement of the grade dependence than an
+                overstatement</b> &mdash; which is the direction to err in when
+                the claim being made is that advancement slows down.
+              </p>
+
+              <h4 class="sub-head">A second bug: dividing by a small, wobbly number</h4>
+              <p class="prose">
+                Cutting that wire fixes the shape but not the size. Look at
+                <span>\(\Delta t\)</span>. Nothing above pins it down &mdash;
+                <span>\(w_2\)</span> is just &ldquo;the next window with enough
+                sends&rdquo;, so every climber contributes a change measured
+                over their own gap. Those gaps turn out to be short and
+                uneven: the median is <b id="v2-gap-median">3</b> months, and
+                the shortest are barely over one.
+              </p>
+              <p class="prose">
+                Now recall that <span>\(\ell\)</span> is a max over integer
+                grades, so nearly every gap produces a change of exactly
+                <span>\(0\)</span> or <span>\(\pm 1\)</span>. Divide a
+                <span>\(+1\)</span> by a gap of <span>\(0.09\)</span> years and
+                that one climber enters the average at <b>+11 grades a
+                year</b>. A handful of short gaps drags the mean far above
+                anything real:
+              </p>
+              <div class="eqn-block">
+                $$\overline{\left(\frac{\Delta \ell}{\Delta t}\right)}
+                  \;\neq\; \frac{\overline{\Delta \ell}}{\overline{\Delta t}}$$
+              </div>
+              <p class="prose">
+                The averages of ratios and the ratio of averages are different
+                numbers, and with a small noisy denominator they are
+                <i>very</i> different. So fix the denominator: instead of
+                taking whichever window comes next, take the qualifying window
+                that lands closest to <b>one year</b> after
+                <span>\(w_1\)</span>, and keep it only if it lands within three
+                months of that mark. Every climber is then measured over
+                roughly the same stretch of time, and the division stops
+                amplifying anything.
+              </p>
+              <div class="eqn-block">
+                $$\text{rate} = \frac{\ell_{w_2} - \ell_{w_1}}{\Delta t}\ ,\quad
+                  \text{binned by }\ \ell_{w_0}\ ,\quad
+                  |\Delta t - 1\,\text{yr}| \le 3\,\text{months}$$
+              </div>
+              <p class="prose">
+                This is not a plateau in disguise &mdash; improvement really is
+                steady. Measuring the same climbers over a ladder of horizons,
+                the change accumulates almost perfectly linearly, so the
+                implied annual rate is flat from three months out to two years.
+                The short-window estimator was not catching a burst that fades;
+                it was doing arithmetic wrong.
+              </p>
+              <div id="v2-accrual-chart" class="chart-small"></div>
+              <p class="caption" id="v2-accrual-note"></p>
+
+              <h4 class="sub-head">What is left after both fixes</h4>
+              <div id="v2-adv-chart" class="chart-mid"></div>
+              <p class="caption" id="v2-adv-note"></p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-adv-table"></table>
+              </div>
+              <p class="caption">
+                Grades gained per year by current grade, at all three stages.
+                Dashed is naive, dotted is de-biased over the next available
+                window, solid is de-biased over a fixed one-year horizon. The
+                scale is pinned to keep the two corrected curves readable, so
+                the naive one leaves the frame in both directions &mdash; that
+                it does not fit is the point, and its values are in the table.
+                The <b>shape</b> survives every correction &mdash; improvement is
+                fastest at the bottom and flattens to nearly nothing by V6
+                &mdash; while the <b>magnitude</b> falls by roughly a factor of
+                twenty from the first estimator to the last.
+              </p>
+
+              <h3>Is the gym result contaminated?</h3>
+              <p class="prose">
+                Now the question that motivated it. For every
+                <span>\((u,g)\)</span> row, take the date of that
+                climber&rsquo;s hardest send at that gym and centre it
+                <b>within the climber</b>:
+              </p>
+              <div class="eqn-block">
+                $$\tilde t_{u,g} = t_{u,g} - \bar t_u \qquad
+                  \text{where } \bar t_u = \frac{1}{|G_u|}\sum_{g' \in G_u} t_{u,g'}$$
+              </div>
+              <p class="prose">
+                Within-climber centring is what turns this from a description
+                into a test. It does not ask when a gym&rsquo;s climbers were
+                active; it asks whether <b>this gym&rsquo;s row is late for this
+                person</b> &mdash; precisely the quantity an unmodelled
+                improvement trend would smuggle into the gym correction. Average
+                it per gym and plot against the fitted correction:
+              </p>
+              <div id="v2-time-chart" class="chart-mid"></div>
+              <p class="caption" id="v2-time-note"></p>
+              <p class="prose">
+                My first thought was that this is companies, not time &mdash;
+                Movement gyms are both later and stiffer, Touchstone earlier and
+                softer. So the same correlation was computed with each
+                company&rsquo;s mean removed from both axes. It survives, and it
+                survives inside Touchstone alone, across 17 gyms.
+              </p>
+              <div id="v2-time-stats" class="kpi-grid"></div>
+
+              <div class="finding open">
+                <div class="finding-head">
+                  <span class="finding-title">Open &mdash; the correlation is real, the mechanism is not settled</span>
+                  <span class="verdict-pill verdict-open">Open</span>
+                </div>
+                <p id="v2-time-verdict"></p>
+              </div>
+
+              <h3>How this goes into the model</h3>
+              <p class="prose">
+                The obvious repair is one parameter: a population improvement
+                rate <span>\(\tau\)</span> applied to the centred date.
+              </p>
+              <div class="eqn-block">
+                $$C_{u,g} = \text{ability}_u + \text{gym}_g + \tau\,\tilde t_{u,g}$$
+              </div>
+              <p class="prose">
+                One number, no new geometry, and it absorbs exactly the
+                &ldquo;this climber&rsquo;s row here is two years later than
+                their row there&rdquo; effect. <b>But the advancement curve above
+                says a constant is the wrong shape.</b> Improvement is
+                grade-dependent &mdash; around a fifth of a grade a year at V3,
+                essentially flat by V7 &mdash; so a single <span>\(\tau\)</span>
+                would over-correct strong climbers and under-correct weak ones.
+                The rate has to be a function of where the climber already is,
+                and the section above is exactly that function:
+              </p>
+              <div class="eqn-block">
+                $$C_{u,g} = \text{ability}_u + \text{gym}_g
+                  + f\!\left(\bar m_u\right)\tilde t_{u,g}\ ,\qquad
+                  f(m) = \tau_0 + \tau_1 m$$
+              </div>
+              <p class="prose">
+                The decisive choice is whether
+                <span>\(\tau_0, \tau_1\)</span> are <b>fitted</b> or
+                <b>supplied</b>. They are supplied &mdash; fixed at the measured
+                values, contributing a known offset with no free parameter. The
+                reason is that two different mechanisms produce the same
+                correlation, and nothing in this data separates them:
+              </p>
+              <ul class="prose">
+                <li><b>Climbers improved</b> between their two gyms. That is the
+                    curve measured above.</li>
+                <li><b>Gyms&rsquo; grading drifted</b> &mdash; setters across the
+                    network got stiffer over the same period.</li>
+              </ul>
+              <p class="prose">
+                A fitted <span>\(\tau\)</span> would inflate to absorb whichever
+                is larger and then charge all of it to climber improvement,
+                soaking up real gym signal and biasing the corrections toward
+                each other. A fixed offset can only remove the amount
+                improvement actually justifies. It is the conservative
+                direction, and the one that survives being questioned.
+              </p>
+              <div class="callout warn">
+                <div>
+                  <b>The tell that this matters.</b> The observed date-to-correction
+                  slope is <b id="v2-fix-slope">+0.55</b> grades per year, while
+                  measured advancement where the median climber sits is
+                  <b id="v2-fix-rate">+0.10</b>. If improvement were the whole
+                  story those two numbers would agree. They differ by roughly
+                  <b id="v2-fix-ratio">5</b>&times;, so most of the correlation is
+                  <i>not</i> climbers getting better &mdash; and a free
+                  <span>\(\tau\)</span> would land near that ratio and report a
+                  false explanation with confident-looking error bars.
+                </div>
+              </div>
+              <p class="prose">
+                Expect the correction to be small. The gyms span
+                <span id="v2-fix-span">0.90</span> years of centred date, so at
+                the measured rate the offset moves the corrections by about
+                <b id="v2-fix-shift">0.09</b> grades against an observed spread
+                of <span id="v2-fix-spread">1.29</span> &mdash; a few percent. It
+                is worth carrying because it is comparable to the gym-correction
+                standard errors and can reorder gyms that sit close together, not
+                because it rescues the headline. If it moved things by half a
+                grade, that would be evidence the fixed curve is wrong rather
+                than evidence something had been repaired.
+              </p>
+              <p class="prose">
+                One property makes the fixed version safe to apply:
+                <span>\(f\)</span> is nearly flat in absolute terms, running from
+                <span id="v2-fix-lo">0.20</span> at V3 to
+                <span id="v2-fix-hi">0.08</span> at V9. Misfiling a climber by a
+                whole grade changes their offset by hundredths of a grade, so
+                the result does not depend on getting
+                <span>\(\bar m_u\)</span> exactly right.
+              </p>
+              <div class="callout">
+                <div>
+                  <b>Still open, in order.</b>
+                  <br /><br />
+                  <b>1. Carry the date through.</b> An observation is a
+                  (climber, gym) pair &mdash; the hardest send there &mdash; so
+                  the date needed is that send&rsquo;s, centred within climber.
+                  <code>prepare_base_data</code> currently reads the send date,
+                  uses it for visit counts, and drops it.
+                  <br /><br />
+                  <b>2. Report the shift, not a new headline.</b> Keep the
+                  no-offset fit as the comparison arm and quote how far the
+                  corrections move.
+                  <br /><br />
+                  <b>3. Fit <span>\(\tau\)</span> once, as a diagnostic.</b> Not
+                  to ship &mdash; to measure. If the fitted rate lands near the
+                  ratio in the box above rather than near the measured curve,
+                  that is evidence for gym-side grading drift, which deserves its
+                  own section rather than being quietly corrected away.
+                </div>
+              </div>
             </section>
 
             <!-- ============ MODEL ============ -->
@@ -1797,209 +2147,6 @@
               </p>
             </section>
 
-            <!-- ============ TIME ============ -->
-            <section class="article-section" id="v2-time">
-              <h2>The Missing Dimension: Time</h2>
-              <p class="prose">
-                Everything above treats a climber as a fixed quantity. They are
-                not. The model&rsquo;s ceiling for climber
-                <span>\(u\)</span> at gym <span>\(g\)</span> is
-              </p>
-              <div class="eqn" data-syms="C gym u g" tabindex="0">$$C_{u,g} = \text{ability}_u + \text{gym}_g$$</div>
-              <p class="prose">
-                and there is no <span>\(t\)</span> anywhere in it. So if someone
-                logged at one gym in 2022 and another in 2025, <b>three years of
-                getting better is charged to the second gym</b>. The model has no
-                other place to put it. A gym whose climbers reached it late in
-                their own careers will look stiffer than it is; one they passed
-                through early will look softer.
-              </p>
-              <p class="prose">
-                This section asks two questions in order, because the second
-                cannot be answered without the first: <b>how fast do climbers
-                actually improve</b>, and <b>is the gym result contaminated</b>?
-              </p>
-
-              <div class="head-row">
-                <h3>How fast do climbers advance?</h3>
-                <div class="infowrap">
-                  <button type="button" class="infodot"
-                          aria-label="How the advancement rate is measured">i</button>
-                  <div class="infopop" role="tooltip">
-                    <h5>How this is measured</h5>
-                    <p>
-                      Each climber&rsquo;s sends are bucketed into 90-day
-                      windows. A window with at least 5 sends gets a
-                      <b>level</b>: the hardest grade sent in it. Windowed, not
-                      cumulative &mdash; a running max-so-far only ever goes up,
-                      which would manufacture improvement out of noise. A
-                      windowed max can fall.
-                    </p>
-                    <p>
-                      Consecutive windows up to 15 months apart then give a rate
-                      in grades per year. Both estimators use the same windows
-                      and the same rate; they differ only in which window
-                      decides the grade bin.
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <p class="prose">
-                The obvious way to measure this is to take each climber&rsquo;s
-                level now, their level later, and bin the difference by where
-                they started:
-              </p>
-              <div class="eqn-block">
-                $$\text{rate} = \frac{\ell_{2} - \ell_{1}}{\Delta t}\ ,\qquad
-                  \text{binned by }\ \ell_{1}$$
-              </div>
-              <p class="prose">
-                This is wrong, and it is wrong in a way that produces a
-                <i>very convincing</i> answer. Because
-                <span>\(\ell_1\)</span> is a <b>maximum</b> over a handful of
-                sends, a lucky window inflates it &mdash; and the next window,
-                being ordinary, looks like a decline. The same noise that puts a
-                climber in a high bin pushes their measured change downward.
-                <b>The estimator tilts the curve by construction.</b>
-              </p>
-              <div class="callout warn">
-                <div>
-                  <b>How you can tell it is broken.</b> The naive estimator says
-                  V11 climbers lose <b>3.6 grades a year</b>. Nobody does that.
-                  When an estimator returns a physically impossible number at one
-                  end, the whole curve is suspect &mdash; not just that bin.
-                </div>
-              </div>
-              <p class="prose">
-                The fix is to decide the grade bin using a <b>different,
-                earlier window</b> than the one the change is measured from.
-                Window <span>\(w_0\)</span> assigns the bin; the rate is measured
-                from <span>\(w_1\)</span> to <span>\(w_2\)</span>:
-              </p>
-              <div class="eqn-block">
-                $$\text{rate} = \frac{\ell_{w_2} - \ell_{w_1}}{\Delta t}\ ,\qquad
-                  \text{binned by }\ \ell_{w_0}$$
-              </div>
-              <p class="prose">
-                Now the noise in the binning variable is independent of the noise
-                in the measured change, so it cannot induce a slope. It costs a
-                third of the sample &mdash; every climber needs three good
-                windows instead of two &mdash; and it changes the answer by a
-                factor of five.
-              </p>
-              <div id="v2-adv-chart" class="chart-mid"></div>
-              <p class="caption" id="v2-adv-note"></p>
-              <div class="data-table-wrap">
-                <table class="data-table" id="v2-adv-table"></table>
-              </div>
-              <p class="caption">
-                Grades gained per year by current grade. Dashed is the naive
-                estimator, solid is de-biased; the shaded band is the de-biased
-                interquartile range, which is wide because individual climbers
-                vary enormously. The <b>shape</b> is what survives de-biasing:
-                improvement is fastest at the bottom and flattens to nearly
-                nothing by V6.
-              </p>
-
-              <h3>Is the gym result contaminated?</h3>
-              <p class="prose">
-                Now the question that motivated it. For every
-                <span>\((u,g)\)</span> row, take the date of that
-                climber&rsquo;s hardest send at that gym and centre it
-                <b>within the climber</b>:
-              </p>
-              <div class="eqn-block">
-                $$\tilde t_{u,g} = t_{u,g} - \bar t_u \qquad
-                  \text{where } \bar t_u = \frac{1}{|G_u|}\sum_{g' \in G_u} t_{u,g'}$$
-              </div>
-              <p class="prose">
-                Within-climber centring is what turns this from a description
-                into a test. It does not ask when a gym&rsquo;s climbers were
-                active; it asks whether <b>this gym&rsquo;s row is late for this
-                person</b> &mdash; precisely the quantity an unmodelled
-                improvement trend would smuggle into the gym correction. Average
-                it per gym and plot against the fitted correction:
-              </p>
-              <div id="v2-time-chart" class="chart-mid"></div>
-              <p class="caption" id="v2-time-note"></p>
-              <p class="prose">
-                My first thought was that this is companies, not time &mdash;
-                Movement gyms are both later and stiffer, Touchstone earlier and
-                softer. So the same correlation was computed with each
-                company&rsquo;s mean removed from both axes. It survives, and it
-                survives inside Touchstone alone, across 17 gyms.
-              </p>
-              <div id="v2-time-stats" class="kpi-grid"></div>
-
-              <div class="finding open">
-                <div class="finding-head">
-                  <span class="finding-title">Open &mdash; the correlation is real, the mechanism is not settled</span>
-                  <span class="verdict-pill verdict-open">Open</span>
-                </div>
-                <p id="v2-time-verdict"></p>
-              </div>
-
-              <h3>What a fix would look like &mdash; and why not yet</h3>
-              <p class="prose">
-                The obvious repair is one parameter: a population improvement
-                rate <span>\(\tau\)</span> applied to the centred date.
-              </p>
-              <div class="eqn-block">
-                $$C_{u,g} = \text{ability}_u + \text{gym}_g + \tau\,\tilde t_{u,g}$$
-              </div>
-              <p class="prose">
-                One number, no new geometry, and it absorbs exactly the
-                &ldquo;this climber&rsquo;s row here is two years later than
-                their row there&rdquo; effect. <b>But the advancement curve above
-                says a constant is the wrong shape.</b> Improvement is
-                grade-dependent &mdash; nearly a grade a year at V1, essentially
-                flat by V6 &mdash; so a single <span>\(\tau\)</span> would
-                over-correct strong climbers and under-correct weak ones. The
-                honest version makes the rate a function of where the climber
-                already is:
-              </p>
-              <div class="eqn-block">
-                $$C_{u,g} = \text{ability}_u + \text{gym}_g
-                  + \tau\!\left(\bar m_u\right)\tilde t_{u,g}\ ,\qquad
-                  \tau(m) \approx \tau_0 + \tau_1 m$$
-              </div>
-              <p class="prose">
-                Two parameters instead of one, with the slope
-                <span>\(\tau_1\)</span> expected negative and the measured curve
-                above as a prior. That is cheap and well posed. It is <b>not</b>
-                being fitted yet, for one reason: the measured advancement rate
-                is far too small to explain the correlation it would be
-                correcting. Fitting a drift term before knowing what the drift
-                actually is would launder an unexplained correlation into a
-                confident-looking parameter.
-              </p>
-              <div class="callout">
-                <div>
-                  <b>What to do first, in order.</b>
-                  <br /><br />
-                  <b>1. A robustness check that needs none of this.</b> Refit on
-                  a recent window only &mdash; say the last 18 months &mdash; so
-                  within-climber drift is small by construction. If
-                  <span>\(\sigma_{\text{gym}}\)</span> and the gym ranking
-                  survive, the headline result is safe regardless of what causes
-                  the correlation.
-                  <br /><br />
-                  <b>2. Separate the mechanisms.</b> Gyms&rsquo; grading
-                  genuinely drifting over time is a <i>result</i>, not a
-                  confound, and it is the leading candidate for the part
-                  improvement cannot explain. Distinguishing it from selection
-                  effects in when climbers switch gyms needs the date carried
-                  through into the model, which it currently is not:
-                  <code>prepare_base_data</code> reads the send date, uses it
-                  for visit counts, and drops it.
-                  <br /><br />
-                  <b>3. Only then fit
-                  <span>\(\tau(\bar m_u)\)</span></b>, with the advancement curve
-                  as its prior rather than as an afterthought.
-                </div>
-              </div>
-            </section>
-
             <!-- ============ DIAGNOSTICS ============ -->
             <section class="article-section" id="v2-diagnostics">
               <h2>Diagnostics</h2>
@@ -2056,6 +2203,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=70"></script>
+    <script src="/static/app.js?v=74"></script>
   </body>
 </html>

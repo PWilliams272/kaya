@@ -35,6 +35,10 @@ OUT = ROOT / 'src' / 'kaya' / 'viewer_static' / 'v2_time.json'
 WINDOW_D = 90        # days per activity window
 MIN_SENDS = 5        # sends needed before a window gets a level
 MAX_GAP_Y = 1.25     # ignore pairs further apart than this
+HORIZON_Y = 1.0      # headline measurement horizon
+HORIZON_TOL = 0.25   # how far off that horizon a window may land
+ACCRUAL_H = [0.25, 0.5, 0.75, 1.0, 1.5, 2.0]
+ACCRUAL_TOL = {0.25: .12, 0.5: .12, 0.75: .15, 1.0: .25, 1.5: .25, 2.0: .35}
 
 
 def load_sends():
@@ -65,22 +69,45 @@ def windows(s):
     win = (s.groupby(['user_id', 'w'])
              .agg(level=('m', 'max'), n=('m', 'size'), mid=('date', 'mean'))
              .reset_index())
-    return win[win['n'] >= MIN_SENDS].sort_values(['user_id', 'w'])
+    win = win[win['n'] >= MIN_SENDS].sort_values(['user_id', 'w'])
+    win['t'] = (win['mid'] - t0).dt.days / 365.25
+    return win.reset_index(drop=True)
+
+
+def _bin_rows(d, rate_col='rate'):
+    """Collapse a per-triple frame into one row per grade bin."""
+    rows = []
+    for lvl in range(0, 13):
+        b = d[d['level'] == lvl]
+        if len(b) < 40:
+            continue
+        rows.append({
+            'v': lvl, 'n': int(len(b)),
+            'mean': round(float(b[rate_col].mean()), 3),
+            'median': round(float(b[rate_col].median()), 3),
+            'p25': round(float(b[rate_col].quantile(.25)), 3),
+            'p75': round(float(b[rate_col].quantile(.75)), 3),
+            'sem': round(float(b[rate_col].std() / np.sqrt(len(b))), 3),
+        })
+    return rows
 
 
 def rate_table(win, debias):
-    """Grades per year, binned by grade.
+    """Grades per year over the next available window. Both flawed variants.
 
     debias=False bins the change by its own starting level. That level is a
     max over a handful of sends, so a lucky window inflates it and the next
     window looks like a decline -- regression to the max, which mechanically
-    tilts the whole curve downward. It is reported anyway because the size of
-    the difference is the point.
+    tilts the whole curve downward.
 
-    debias=True bins by an EARLIER, non-overlapping window instead: window w0
-    assigns the grade bin, the rate is measured from w1 to w2. The noise in
-    the binning variable is then independent of the noise in the measured
-    change, so it cannot induce a slope. Costs a third of the sample.
+    debias=True fixes that by binning on an EARLIER, non-overlapping window:
+    w0 assigns the grade bin, the change is measured from w1 to w2. But it
+    still divides each climber's change by that climber's own elapsed time,
+    and those elapsed times are short (median 3 months) and variable. A whole
+    grade gained over 0.09 years enters the average as +11 grades/yr, so the
+    mean of the ratios sits far above the ratio of the means. Both are kept
+    because the size of the two corrections is the point; the headline number
+    comes from horizon_table instead.
     """
     g = win.groupby('user_id')
     d = win.copy()
@@ -94,21 +121,59 @@ def rate_table(win, debias):
     d['dy'] = (d['mb'] - d['ma']).dt.days / 365.25
     d = d[(d['dy'] > 0.08) & (d['dy'] <= MAX_GAP_Y)]
     d['rate'] = (d['lb'] - d['la']) / d['dy']
+    return _bin_rows(d), int(d['user_id'].nunique()), int(len(d)), d
 
+
+def triples(win, horizons):
+    """Every (bin, horizon, change) triple, for each requested horizon.
+
+    w0 still assigns the grade bin and w1 still starts the measurement, so
+    the de-biasing is intact. What changes is w2: instead of "the next
+    qualifying window", take the qualifying window whose midpoint lands
+    closest to `h` years after w1, and only keep it if it lands within
+    tolerance. That fixes the denominator, which is what the next-window
+    estimator gets wrong.
+    """
+    out = []
+    for uid, sub in win.groupby('user_id', sort=False):
+        ts, ls = sub['t'].to_numpy(), sub['level'].to_numpy()
+        for i in range(len(sub) - 1):
+            t1, l1, lvl = ts[i + 1], ls[i + 1], ls[i]
+            for h in horizons:
+                j = int(np.argmin(np.abs(ts - (t1 + h))))
+                if j <= i + 1 or abs((ts[j] - t1) - h) > ACCRUAL_TOL[h]:
+                    continue
+                out.append((uid, lvl, h, ls[j] - l1, ts[j] - t1))
+    return pd.DataFrame(out, columns=['user_id', 'level', 'h', 'dl', 'dt'])
+
+
+def horizon_table(tri):
+    """The headline curve: change measured over a fixed ~1-year horizon."""
+    d = tri[tri['h'] == HORIZON_Y].copy()
+    d['rate'] = d['dl'] / d['dt']
+    return _bin_rows(d), int(d['user_id'].nunique()), int(len(d)), d
+
+
+def accrual_table(tri):
+    """Mean change against elapsed time, pooled over the bulk of the sample.
+
+    If change accrues linearly the implied annual rate is flat across
+    horizons, which says the short-window estimator's problem is arithmetic
+    rather than a real plateau in how people improve.
+    """
+    b = tri[tri['level'].between(3, 8)]
     rows = []
-    for lvl in range(0, 13):
-        b = d[d['level'] == lvl]
-        if len(b) < 40:
+    for h in ACCRUAL_H:
+        c = b[b['h'] == h]
+        if len(c) < 40:
             continue
         rows.append({
-            'v': lvl, 'n': int(len(b)),
-            'mean': round(float(b['rate'].mean()), 3),
-            'median': round(float(b['rate'].median()), 3),
-            'p25': round(float(b['rate'].quantile(.25)), 3),
-            'p75': round(float(b['rate'].quantile(.75)), 3),
-            'sem': round(float(b['rate'].std() / np.sqrt(len(b))), 3),
+            'h': h, 'n': int(len(c)),
+            'dl': round(float(c['dl'].mean()), 4),
+            'sem': round(float(c['dl'].std() / np.sqrt(len(c))), 4),
+            'rate': round(float(c['dl'].mean() / c['dt'].mean()), 3),
         })
-    return rows, int(d['user_id'].nunique()), int(len(d))
+    return rows
 
 
 def gym_time(s):
@@ -167,16 +232,30 @@ def main():
     print(f'{len(s):,} boulder sends, {s.user_id.nunique():,} climbers')
     win = windows(s)
 
-    naive, n_u_naive, n_p_naive = rate_table(win, debias=False)
-    deb, n_u_deb, n_p_deb = rate_table(win, debias=True)
-    for tag, rows in (('naive', naive), ('de-biased', deb)):
+    naive, n_u_naive, n_p_naive, _ = rate_table(win, debias=False)
+    short, n_u_short, n_p_short, sd = rate_table(win, debias=True)
+    tri = triples(win, ACCRUAL_H)
+    deb, n_u_deb, n_p_deb, _ = horizon_table(tri)
+    acc = accrual_table(tri)
+
+    for tag, rows in (('naive', naive), ('de-biased, next window', short),
+                      ('de-biased, 1-year horizon', deb)):
         print(f'\n=== {tag} ===')
         print(f'{"grade":>7} {"n":>8} {"mean":>7} {"median":>7} {"p25":>7} {"p75":>7}')
         for r in rows:
             print(f'{"V"+str(r["v"]):>7} {r["n"]:>8,} {r["mean"]:>7.2f} '
                   f'{r["median"]:>7.2f} {r["p25"]:>7.2f} {r["p75"]:>7.2f}')
     fit = np.polyfit([r['v'] for r in deb], [r['mean'] for r in deb], 1)
-    print(f'\nde-biased mean rate vs grade: slope {fit[0]:+.3f}, intercept {fit[1]:+.3f}')
+    print(f'\nheadline mean rate vs grade: slope {fit[0]:+.3f}, intercept {fit[1]:+.3f}')
+
+    gaps = sd['dy'] * 12
+    print(f'\nnext-window gap, months: median {gaps.median():.1f}  '
+          f'p25 {gaps.quantile(.25):.1f}  p75 {gaps.quantile(.75):.1f}  '
+          f'p95 {gaps.quantile(.95):.1f}')
+    print('\naccrual (V3-V8 pooled): change vs elapsed time')
+    for r in acc:
+        print(f'  {r["h"]:>4.2f} yr   mean {r["dl"]:>+6.3f}   '
+              f'implied rate {r["rate"]:>+6.2f}/yr   n={r["n"]:,}')
 
     gt = gym_time(s)
     print(f"\ngym/date: r raw {gt['raw']['r']:+.3f}, "
@@ -184,10 +263,15 @@ def main():
 
     payload = {
         'window_days': WINDOW_D, 'min_sends': MIN_SENDS, 'max_gap_y': MAX_GAP_Y,
+        'horizon_y': HORIZON_Y, 'horizon_tol': HORIZON_TOL,
         'advancement': {
-            'naive': naive, 'debiased': deb,
+            'naive': naive, 'short': short, 'debiased': deb, 'accrual': acc,
             'n_climbers': n_u_deb, 'n_pairs': n_p_deb,
+            'n_climbers_short': n_u_short, 'n_pairs_short': n_p_short,
             'n_climbers_naive': n_u_naive, 'n_pairs_naive': n_p_naive,
+            'gap_months': {k: round(float(gaps.quantile(q)), 1)
+                           for k, q in (('p25', .25), ('median', .5),
+                                        ('p75', .75), ('p95', .95))},
             'fit': {'slope': round(float(fit[0]), 3), 'intercept': round(float(fit[1]), 3)},
         },
         'gym_time': gt,
