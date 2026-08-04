@@ -1166,17 +1166,47 @@
                 \(\tilde h\) and \(\tilde a\) are centred at the median and scaled
                 to standard deviations.
               </p>
+              <p class="prose">
+                The gender-interaction form is easiest to read as what it actually
+                is &mdash; <b>one curve per gender, blended</b>. \(G\) is the
+                probability the climber is female, so \(1-G\) and \(G\) are the
+                weights:
+              </p>
               $$f_{\text{height}}(\tilde h,\ G) \;=\;
-                \gamma_1\tilde h + \gamma_2\tilde h^{2}
-                + G\left(\gamma_1^{\times}\tilde h + \gamma_2^{\times}\tilde h^{2}\right)$$
+                \underbrace{(1-G)\left(\gamma_1^{M}\tilde h + \gamma_2^{M}\tilde h^{2}\right)}_{\text{male-coded curve}}
+                \;+\;
+                \underbrace{G\left(\gamma_1^{F}\tilde h + \gamma_2^{F}\tilde h^{2}\right)}_{\text{female-coded curve}}$$
+              <p class="prose">
+                Note that \(G\) is a <b>probability, not a hard label</b>. A climber
+                whose name is 70% female contributes 0.7 of a row to the female
+                curve and 0.3 to the male one, which is how uncertainty about the
+                name propagates into the height estimate instead of being silently
+                rounded away.
+              </p>
+              <div class="methodology-note">
+                <b>What is actually fitted.</b> The sampler does not see
+                \(\gamma^{M}\) and \(\gamma^{F}\) as two free pairs. It fits a
+                baseline and a <i>difference</i> &mdash;
+                \(\gamma^{M}_{k}=\gamma_k\) and
+                \(\gamma^{F}_{k}=\gamma_k+\gamma_k^{\times}\) &mdash; which is the
+                same function, but lets the prior sit on the thing under test. A
+                tight \(\gamma_k^{\times}\sim\mathcal{N}(0,\,\text{small})\) shrinks
+                the two curves toward <i>each other</i>, so a gender difference has
+                to be earned from the data rather than appearing by default. Fitting
+                two independent pairs would impose no such discipline. The
+                male/female form above is the same model, written for reading.
+              </div>
               $$f_{\text{ape}}(\tilde a) \;=\; \delta_1\tilde a + \delta_2\tilde a^{2}$$
               <p class="prose">
-                Four candidate height shapes are compared by LOO: the quadratic with
-                gender interaction above, a plain quadratic, linear, zero, and a
-                <b>monotone saturating</b> form &mdash; "reach helps until you have
-                enough of it, then stops paying":
+                Six candidate height shapes are compared by LOO on identical data:
+                the gender-blended quadratic above, a plain quadratic, linear, zero,
+                a <b>monotone saturating</b> form &mdash; "reach helps until you have
+                enough of it, then stops paying" &mdash; and a <b>vertex
+                quadratic</b> that estimates the best height directly:
               </p>
-              $$f_{\text{sat}}(\tilde h) \;=\; A\,\operatorname{logistic}\!\left(\frac{\tilde h - h_0}{s}\right)$$
+              $$f_{\text{sat}}(\tilde h) \;=\; A\,\operatorname{logistic}\!\left(\frac{\tilde h - h_0}{s}\right)
+                \qquad
+                f_{\text{vtx}}(\tilde h) \;=\; -\kappa_h\left(\tilde h - p\right)^{2}$$
               <h3>Every symbol, defined</h3>
               <p class="prose">
                 Ability, grades, and gym corrections all live on the <b>same
@@ -1430,6 +1460,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=28"></script>
+    <script src="/static/app.js?v=29"></script>
   </body>
 </html>
