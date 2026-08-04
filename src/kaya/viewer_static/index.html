@@ -7,7 +7,7 @@
     <meta name="kaya-viewer-data-mode" content="static" />
     <link rel="stylesheet" href="/static/tokens.css" />
     <link rel="stylesheet" href="/static/app.css?v=6" />
-    <link rel="stylesheet" href="/static/research.css?v=10" />
+    <link rel="stylesheet" href="/static/research.css?v=11" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -1232,17 +1232,6 @@
               <div class="data-table-wrap">
                 <table class="data-table" id="v2-forms-table"></table>
               </div>
-              <div id="v2-forms-chart" class="chart-mid"></div>
-              <p class="caption">
-                All six shapes on one axis. <b>Click a legend entry to show or
-                hide it</b>; double-click one to isolate it. Shaded bands mark
-                where male and female users actually sit &mdash; which is why the
-                same curve can look like &ldquo;no effect&rdquo; for one group and
-                a strong effect for the other. Note the interaction form&rsquo;s
-                male branch <i>is</i> a plain quadratic by definition, since
-                \(G=0\) removes the interaction.
-              </p>
-
               <h3>Play with the parameters</h3>
               <p class="prose">
                 One card per form: the equation, the shape it produces, and a
@@ -1251,9 +1240,20 @@
                 linear sliders will produce a peak, and no setting of the
                 saturating sliders will produce a decline. Where a fit has
                 landed, the sliders start at the fitted values; the rest start
-                at illustrative ones and are labelled as such.
+                at illustrative ones and are labelled as such. Shaded bands mark
+                where male and female users actually sit, which is why the same
+                curve can look like &ldquo;no effect&rdquo; for one group and a
+                strong effect for the other.
               </p>
               <div id="v2-form-cards" class="form-card-grid"></div>
+              <p class="caption">
+                In every card the <b>left band</b> is where female users sit
+                (64.2 &plusmn; 2.8 in) and the <b>right band</b> is male users
+                (69.2 &plusmn; 3.3 in), each one standard deviation wide. All
+                six cards share a vertical scale so their shapes are directly
+                comparable; drag a slider to an extreme and the axis grows
+                rather than clipping the curve.
+              </p>
 
               <div class="callout">
                 <div>
@@ -1480,6 +1480,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=40"></script>
+    <script src="/static/app.js?v=41"></script>
   </body>
 </html>

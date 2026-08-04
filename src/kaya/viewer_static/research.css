@@ -6,7 +6,7 @@
    Everything below is additive only. */
 
 .article-shell {
-  width: min(100%, 760px);
+  width: min(100%, 920px);
   padding: 24px;
   margin: 0 auto;
   display: flex;
@@ -98,9 +98,9 @@
   line-height: 1.65;
   color: var(--lg-text);
   margin-bottom: 14px;
-  max-width: 68ch;
+  max-width: 76ch;
 }
-.prose p.muted-copy { max-width: 68ch; }
+.prose p.muted-copy { max-width: 76ch; }
 .prose ul, .prose ol {
   margin: 0 0 14px 22px;
   font-size: 15px;
@@ -742,9 +742,15 @@
 
 .form-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
   gap: 14px;
   margin: 16px 0 8px;
+  /* Widen past the prose column so three cards fit without cramping. --fg-w
+     is measured in JS (the pane's usable width, which depends on whether the
+     symbols panel is reserving its gutter); the negative margin re-centres
+     the wider grid on the narrower column. */
+  width: var(--fg-w, 100%);
+  margin-left: calc((100% - var(--fg-w, 100%)) / 2);
 }
 .form-card {
   display: flex;

@@ -2997,36 +2997,35 @@ const V2_HMED = 68.0, V2_HSD = 3.4;   // inches, from the cleaned data
 
 const V2_FORM_SPECS = [
   {
-    key: 'zero', label: 'Zero', colour: '--lg-text-2', dash: 'dot', fitted: false,
+    key: 'zero', label: 'Zero', fitted: false,
     eq: 'f(\\tilde h) = 0',
     claim: 'Height does not affect ability at all. The null the others must beat.',
     params: [],
-    curves: () => [{ name: 'Zero', colour: '--lg-text-2', dash: 'dot', f: () => 0 }],
+    curves: () => [{ name: 'Zero', colour: '--lg-info', dash: 'solid', f: () => 0 }],
   },
   {
-    key: 'linear', label: 'Linear', colour: '--lg-info', dash: 'solid', fitted: false,
+    key: 'linear', label: 'Linear', fitted: false,
     eq: 'f(\\tilde h) = \\gamma_1\\tilde h',
     claim: 'Every inch helps (or hurts) by the same amount, forever. Cannot bend.',
     params: [{ id: 'g1', tex: '\\gamma_1', min: -0.6, max: 0.6, step: 0.01, def: 0.18 }],
     curves: (v) => [{ name: 'Linear', colour: '--lg-info', dash: 'solid', f: (z) => v.g1 * z }],
   },
   {
-    key: 'quadratic', label: 'Quadratic', colour: '--lg-success', dash: 'solid', fitted: false,
+    key: 'quadratic', label: 'Quadratic', fitted: false,
     eq: 'f(\\tilde h) = \\gamma_1\\tilde h + \\gamma_2\\tilde h^{2}',
     claim: 'One bend, no more. A peak (or a trough) sits at \\(-\\gamma_1/2\\gamma_2\\), wherever the data put it.',
     params: [
       { id: 'g1', tex: '\\gamma_1', min: -0.6, max: 0.6, step: 0.01, def: 0.18 },
       { id: 'g2', tex: '\\gamma_2', min: -0.3, max: 0.3, step: 0.005, def: -0.09 },
     ],
-    curves: (v) => [{ name: 'Quadratic', colour: '--lg-success', dash: 'solid',
+    curves: (v) => [{ name: 'Quadratic', colour: '--lg-info', dash: 'solid',
                       f: (z) => v.g1 * z + v.g2 * z * z }],
     note: (v) => (Math.abs(v.g2) < 1e-6 ? 'no curvature - this is a straight line'
       : `vertex at ${(V2_HMED + (-v.g1 / (2 * v.g2)) * V2_HSD).toFixed(1)} in `
         + `(${v.g2 < 0 ? 'a peak' : 'a trough'})`),
   },
   {
-    key: 'quadratic_x_gender', label: 'Quadratic × gender', colour: '--lg-highlight',
-    dash: 'solid', fitted: true,
+    key: 'quadratic_x_gender', label: 'Quadratic × gender', fitted: true,
     eq: '\\begin{aligned} f &= (1-G)\\left(\\gamma_1\\tilde h + \\gamma_2\\tilde h^{2}\\right) \\\\'
       + ' &\\quad + G\\left((\\gamma_1{+}\\gamma_1^{\\times})\\tilde h + (\\gamma_2{+}\\gamma_2^{\\times})\\tilde h^{2}\\right) \\end{aligned}',
     claim: 'A separate quadratic per gender. <b>This is what v1 concluded.</b> Set both \\(\\gamma^{\\times}\\) to zero and the two curves collapse onto each other.',
@@ -3036,18 +3035,17 @@ const V2_FORM_SPECS = [
       { id: 'g1x', tex: '\\gamma_1^{\\times}', min: -0.6, max: 0.6, step: 0.01, def: 0.153 },
       { id: 'g2x', tex: '\\gamma_2^{\\times}', min: -0.3, max: 0.3, step: 0.005, def: 0.159 },
     ],
-    // One hue per form, dash distinguishes the branch within it. The male
-    // branch cannot use --lg-gold: that token resolves to #1976d2, all but
-    // identical to --lg-info on the Linear curve.
+    // Blue for male, orange for female, both solid -- the only card that
+    // draws two curves, so no cross-form colour clash to design around.
     curves: (v) => [
-      { name: 'Male users', colour: '--lg-highlight', dash: 'solid',
+      { name: 'Male users', colour: '--lg-info', dash: 'solid',
         f: (z) => v.g1 * z + v.g2 * z * z },
-      { name: 'Female users', colour: '--lg-highlight', dash: 'dash',
+      { name: 'Female users', colour: '--lg-highlight', dash: 'solid',
         f: (z) => (v.g1 + v.g1x) * z + (v.g2 + v.g2x) * z * z },
     ],
   },
   {
-    key: 'saturating', label: 'Saturating', colour: '--lg-danger', dash: 'solid', fitted: false,
+    key: 'saturating', label: 'Saturating', fitted: false,
     eq: 'f(\\tilde h) = A\\,\\operatorname{logistic}\\!\\left(\\frac{\\tilde h - h_0}{s}\\right)',
     claim: 'Reach helps until you have enough of it, then stops paying. <b>Monotone by construction</b> &mdash; it cannot turn back down. Never tested in v1.',
     params: [
@@ -3055,19 +3053,18 @@ const V2_FORM_SPECS = [
       { id: 'h0', tex: 'h_0', min: -2.5, max: 2.5, step: 0.05, def: -0.4 },
       { id: 's', tex: 's', min: 0.1, max: 2.0, step: 0.05, def: 0.55 },
     ],
-    curves: (v) => [{ name: 'Saturating', colour: '--lg-danger', dash: 'solid',
+    curves: (v) => [{ name: 'Saturating', colour: '--lg-info', dash: 'solid',
                       f: (z) => v.A / (1 + Math.exp(-(z - v.h0) / Math.max(v.s, 0.05))) - v.A / 2 }],
   },
   {
-    key: 'vertex_quadratic', label: 'Vertex quadratic', colour: '--lg-warning',
-    dash: 'dashdot', fitted: false,
+    key: 'vertex_quadratic', label: 'Vertex quadratic', fitted: false,
     eq: 'f(\\tilde h) = -\\kappa_h\\left(\\tilde h - p\\right)^{2}',
     claim: 'The same curve family as the plain quadratic, but the <b>best height \\(p\\) is a parameter</b> you can read an interval off directly. Drag \\(p\\) to move the peak off the median.',
     params: [
       { id: 'kh', tex: '\\kappa_h', min: 0, max: 0.4, step: 0.005, def: 0.035 },
       { id: 'pk', tex: 'p', min: -3, max: 3, step: 0.05, def: 0.9 },
     ],
-    curves: (v) => [{ name: 'Vertex quadratic', colour: '--lg-warning', dash: 'dashdot',
+    curves: (v) => [{ name: 'Vertex quadratic', colour: '--lg-info', dash: 'solid',
                       f: (z) => -v.kh * (z - v.pk) * (z - v.pk) + v.kh * 2 }],
     note: (v) => `peak at ${(V2_HMED + v.pk * V2_HSD).toFixed(1)} in`,
   },
@@ -3113,6 +3110,8 @@ function setV2GlossaryOpen(open, persist = true) {
   // Reserve the gutter so the centred article re-centres beside the panel
   // instead of running underneath it.
   document.getElementById('tab-grading-v2')?.classList.toggle('gloss-open', open);
+  // The grid's usable width just changed by the width of the panel gutter.
+  setTimeout(sizeV2FormGrid, 240);
   if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
   if (persist) {
     try { localStorage.setItem(V2_GLOSS_KEY, open ? '1' : '0'); } catch (e) { /* private mode */ }
@@ -3263,41 +3262,6 @@ function v2BandShapes(showLabels) {
   return { shapes, annotations };
 }
 
-function renderV2FormsChart() {
-  const el = document.getElementById('v2-forms-chart');
-  if (!el || typeof Plotly === 'undefined') return;
-  const { inches, z } = v2HeightGrid();
-
-  const traces = [];
-  V2_FORM_SPECS.forEach((spec) => {
-    const vals = v2FormState[spec.key];
-    spec.curves(vals).forEach((c, i) => {
-      // Only the interaction form draws two curves; name them so the legend
-      // stays readable when everything is switched on at once.
-      const name = spec.curves(vals).length > 1 ? `${spec.label} (${c.name})` : spec.label;
-      traces.push({
-        type: 'scatter', mode: 'lines', name,
-        x: inches, y: z.map(c.f),
-        line: { color: cssVar(c.colour), width: 2.5, dash: c.dash },
-        hovertemplate: `${name}<br>%{x:.0f} in → %{y:+.2f} grades<extra></extra>`,
-      });
-    });
-  });
-
-  const layout = chartLayout('height (inches)');
-  layout.height = 480;
-  layout.yaxis = { ...layout.yaxis, title: { text: 'ability offset (grades)' }, zeroline: true };
-  // Seven entries wrap to three rows, so the legend needs real clearance --
-  // at -0.3 it sat on top of both the tick labels and the axis title.
-  layout.legend = { ...layout.legend, orientation: 'h', y: -0.5, x: 0 };
-  layout.xaxis = { ...layout.xaxis, title: { text: 'height (inches)', standoff: 12 } };
-  layout.margin = { l: 60, r: 24, t: 22, b: 185 };
-  const bands = v2BandShapes(true);
-  layout.shapes = bands.shapes;
-  layout.annotations = bands.annotations;
-  Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
-}
-
 // ---- one interactive card per functional form ----
 
 function renderV2FormCard(spec) {
@@ -3313,21 +3277,22 @@ function renderV2FormCard(spec) {
     hovertemplate: `${c.name}<br>%{x:.0f} in → %{y:+.2f} grades<extra></extra>`,
   }));
 
-  const layout = chartLayout('height (in)');
-  layout.height = 210;
+  const layout = chartLayout('Height (in)');
+  layout.height = 250;
   // Hold a common y-range so the cards stay comparable and a small slider
   // nudge doesn't silently rescale the axis under you -- but grow it rather
   // than clip a curve when someone drags a parameter to an extreme.
   const ys = traces.flatMap((t) => t.y);
   const span = Math.max(1.35, Math.abs(Math.min(...ys)) * 1.08, Math.max(...ys) * 1.08);
-  layout.yaxis = { ...layout.yaxis, title: null, zeroline: true, range: [-span, span] };
-  layout.xaxis = { ...layout.xaxis, title: null };
-  layout.margin = { l: 40, r: 12, t: 8, b: 28 };
+  layout.yaxis = { ...layout.yaxis, zeroline: true, range: [-span, span],
+                   title: { text: 'Ability impact (grades)', standoff: 6 } };
+  layout.xaxis = { ...layout.xaxis, title: { text: 'Height (in)', standoff: 8 } };
+  layout.margin = { l: 58, r: 14, t: 10, b: 48 };
   layout.showlegend = spec.curves(vals).length > 1;
   // Keep the legend clear of the x tick labels -- at -0.22 its background sat
   // 2px under them and hid every tick but the last.
-  layout.legend = { ...layout.legend, orientation: 'h', y: -0.42, x: 0, font: { size: 10 } };
-  if (layout.showlegend) layout.margin.b = 76;
+  layout.legend = { ...layout.legend, orientation: 'h', y: -0.38, x: 0, font: { size: 10 } };
+  if (layout.showlegend) layout.margin.b = 84;
   layout.shapes = v2BandShapes(false).shapes;
   layout.annotations = [];
   Plotly.react(chart, traces, layout, { displayModeBar: false, responsive: true });
@@ -3381,7 +3346,6 @@ function renderV2FormCards() {
       const spec = V2_FORM_BY_KEY[inp.dataset.form];
       v2FormState[spec.key][inp.dataset.param] = parseFloat(inp.value);
       renderV2FormCard(spec);
-      renderV2FormsChart();   // keep the overlay honest about the same values
     });
   });
   host.querySelectorAll('.form-reset').forEach((btn) => {
@@ -3393,12 +3357,41 @@ function renderV2FormCards() {
         if (inp) inp.value = p.def;
       });
       renderV2FormCard(spec);
-      renderV2FormsChart();
     });
   });
 
   V2_FORM_SPECS.forEach(renderV2FormCard);
+  sizeV2FormGrid();
+  if (!renderV2FormCards.resizeBound) {
+    renderV2FormCards.resizeBound = true;
+    let t;
+    window.addEventListener('resize', () => {
+      clearTimeout(t);
+      t = setTimeout(sizeV2FormGrid, 150);
+    });
+  }
 }
+
+// The grid bleeds wider than the prose column so three cards fit comfortably.
+// How much room there is depends on whether the symbols panel is reserving its
+// gutter, which CSS can't see -- so measure the pane and hand CSS the number.
+function sizeV2FormGrid() {
+  const host = document.getElementById('v2-form-cards');
+  const pane = document.getElementById('tab-grading-v2');
+  if (!host || !pane) return;
+  const cs = getComputedStyle(pane);
+  const usable = pane.clientWidth
+    - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0);
+  const shell = host.parentElement.clientWidth;
+  // Never narrower than the column it sits in, never wider than the pane.
+  const w = Math.max(shell, Math.min(1240, usable));
+  host.style.setProperty('--fg-w', `${Math.round(w)}px`);
+  V2_FORM_SPECS.forEach((spec) => {
+    const el = document.getElementById(`v2-fc-chart-${spec.key}`);
+    if (el && typeof Plotly !== 'undefined') Plotly.Plots.resize(el);
+  });
+}
+
 
 let v2Bound = false;
 function bindV2Controls() {
@@ -3421,7 +3414,6 @@ function renderV2Tab() {
   renderV2Decisions();
   renderV2Symbols();
   renderV2FormsTable();
-  renderV2FormsChart();
   renderV2FormCards();
   renderV2Table('v2-gg-table', V2_GG);
   renderV2Table('v2-diag-table', V2_DIAG);
