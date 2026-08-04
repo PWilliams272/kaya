@@ -3225,6 +3225,7 @@ const V2_PARAM_TEX = {
   gamma1: '\\gamma_1', gamma2: '\\gamma_2',
   gamma1_x: '\\gamma_1^{\\times}', gamma2_x: '\\gamma_2^{\\times}',
   delta1: '\\delta_1', delta2: '\\delta_2',
+  delta1_x: '\\delta_1^{\\times}', delta2_x: '\\delta_2^{\\times}',
   sigma_user: '\\sigma_{\\text{user}}', sigma_gym: '\\sigma_{\\text{gym}}',
   log_lambda0: '\\log\\lambda_0', kappa: '\\kappa', rho: '\\rho',
   beta_h_missing: '\\beta_{h\\text{-miss}}', beta_a_missing: '\\beta_{a\\text{-miss}}',
@@ -3238,6 +3239,8 @@ const V2_PARAM_BLURB = {
   gamma1_x: 'how the female height slope differs',
   gamma2_x: 'how the female height curvature differs',
   delta1: 'ape-index slope', delta2: 'ape-index curvature',
+  delta1_x: 'extra ape slope for female users',
+  delta2_x: 'extra ape curvature for female users',
   sigma_user: 'spread of ability between climbers',
   sigma_gym: 'spread of grading style across gyms',
   log_lambda0: 'baseline gap rate (log)', kappa: 'gap rate per extra visit',
@@ -3683,6 +3686,48 @@ function v2CurveBand(fitName, kind, zs, G) {
   return { mean, lo, hi };
 }
 
+// Where each group actually sits on this axis, median +/- 1 SD, in the same
+// two colours the height-form cards higher up the page use. Both are always
+// drawn -- the curves are misleading without them, since most of the x-range
+// holds almost nobody -- but the selected group is the emphasised one.
+function v2GroupBands(kind, selected) {
+  const sc = v2Scales();
+  const defs = [
+    { g: 'male', label: 'Male users', tok: '--lg-info', anchor: 'right',
+      st: sc[`${kind}_male`] },
+    { g: 'female', label: 'Female users', tok: '--lg-highlight', anchor: 'left',
+      st: sc[`${kind}_female`] },
+  ].filter((d) => d.st);
+  // Height puts the two groups side by side; ape puts them concentric, both
+  // centred on zero. Labels anchored the same way in both cases collide in
+  // the concentric one, so which way they grow depends on the geometry.
+  const nested = defs.length === 2
+    && Math.abs(defs[0].st.median - defs[1].st.median) < 0.5 * Math.min(defs[0].st.sd, defs[1].st.sd);
+  const shapes = [], annotations = [];
+  defs.forEach((d) => {
+    const on = d.g === selected;
+    const lo = d.st.median - d.st.sd, hi = d.st.median + d.st.sd;
+    shapes.push({
+      type: 'rect', xref: 'x', yref: 'paper',
+      x0: lo, x1: hi, y0: 0, y1: 1,
+      fillcolor: cssVar(d.tok), opacity: on ? 0.11 : 0.04, line: { width: 0 },
+    });
+    // Side by side: anchor each label to its own outer edge, growing inward
+    // over its own band. Concentric: anchor to opposite edges, growing
+    // outward into the empty space on either side.
+    const left = d.anchor === 'left';
+    annotations.push({
+      x: nested ? (left ? lo : hi) : (left ? lo : hi),
+      xanchor: nested ? (left ? 'right' : 'left') : (left ? 'left' : 'right'),
+      y: 1, yref: 'paper', yanchor: 'bottom', showarrow: false,
+      text: d.label,
+      font: { size: 10, color: cssVar(d.tok) },
+      opacity: on ? 1 : 0.45,
+    });
+  });
+  return { shapes, annotations };
+}
+
 function renderV2FittedForms() {
   if (typeof Plotly === 'undefined' || !V2_POST) return;
   const hEl = document.getElementById('v2-fitted-height');
@@ -3702,7 +3747,11 @@ function renderV2FittedForms() {
     return out;
   };
   const hIn = grid(sc.h_lo, sc.h_hi);
-  const aIn = grid(sc.a_lo, sc.a_hi);
+  // Ape index is centred on zero by construction, so its axis is too, and it
+  // runs out to the 99.5th percentile of |ape| rather than the asymmetric
+  // 1st/99th percentiles the height axis uses.
+  const aMax = Math.ceil(sc.a_abs || Math.max(Math.abs(sc.a_lo), sc.a_hi));
+  const aIn = grid(-aMax, aMax);
   const hZ = hIn.map((v) => (v - sc.h_median) / sc.h_sd);
   const aZ = aIn.map((v) => (v - sc.a_median) / sc.a_sd);
 
@@ -3758,16 +3807,23 @@ function renderV2FittedForms() {
     return l;
   };
 
+  const sel = G ? 'female' : 'male';
   const hLayout = layoutFor('height (inches)', 'grade impact');
-  // Where each group actually sits, so the curves are read over real people.
-  hLayout.shapes = [{
-    type: 'rect', xref: 'x', yref: 'paper',
-    x0: sc.h_median - sc.h_sd, x1: sc.h_median + sc.h_sd, y0: 0, y1: 1,
-    fillcolor: cssVar('--lg-text-2'), opacity: 0.06, line: { width: 0 },
-  }];
+  const hb = v2GroupBands('h', sel);
+  hLayout.shapes = hb.shapes;
+  hLayout.annotations = hb.annotations;
+  hLayout.margin.t = 24;               // room for the band labels
   Plotly.react(hEl, build('height', hIn, hZ), hLayout,
     { displayModeBar: false, responsive: true });
-  Plotly.react(aEl, build('ape', aIn, aZ), layoutFor('ape index (inches)', 'grade impact'),
+
+  const aLayout = layoutFor('ape index (inches)', 'grade impact');
+  const ab = v2GroupBands('a', sel);
+  aLayout.shapes = ab.shapes;
+  aLayout.annotations = ab.annotations;
+  aLayout.margin.t = 24;
+  aLayout.xaxis = { ...aLayout.xaxis, range: [-aMax, aMax], zeroline: true,
+    zerolinecolor: cssVar('--lg-text-2') };
+  Plotly.react(aEl, build('ape', aIn, aZ), aLayout,
     { displayModeBar: false, responsive: true });
 
   const note = document.getElementById('v2-fitted-note');
@@ -3782,8 +3838,27 @@ function renderV2FittedForms() {
       return { fn, span, width };
     }).filter(Boolean);
     const worst = spans.sort((a, b2) => b2.span - a.span)[0];
+    // Only the ape x gender arm's ape curve responds to the toggle; every
+    // other model's ape term is gender-blind. Say so, or the toggle looks
+    // broken on the right-hand panel.
+    const apeByGender = names.filter((f) => v2Fit(f)?.params?.delta1_x)
+      .map((f) => V2_FIT_LABEL[f] || f);
+    const hm = sc.h_male, hf = sc.h_female;
+    const bands = (hm && hf)
+      ? 'Shaded strips are each group&rsquo;s median &plusmn;1 SD &mdash; '
+        + `male ${(hm.median - hm.sd).toFixed(0)}&ndash;${(hm.median + hm.sd).toFixed(0)} in, `
+        + `female ${(hf.median - hf.sd).toFixed(0)}&ndash;${(hf.median + hf.sd).toFixed(0)} in `
+        + '&mdash; with the selected group emphasised. Outside them the curves are '
+        + 'extrapolation. '
+      : '';
+    const apeNote = apeByGender.length
+      ? `On the ape panel the selector only changes <b>${apeByGender.join('</b>, <b>')}</b>: `
+        + 'every other model&rsquo;s ape term is the same for everyone. The bands '
+        + 'still differ, because the two groups&rsquo; ape distributions do. '
+      : 'On the ape panel the selector changes only the bands &mdash; every '
+        + 'model&rsquo;s ape term is the same for everyone. ';
     note.innerHTML = worst
-      ? `Shaded strip is the middle &plusmn;1 SD of heights (${(sc.h_median - sc.h_sd).toFixed(0)}&ndash;${(sc.h_median + sc.h_sd).toFixed(0)} in). `
+      ? bands + apeNote
         + `The largest height effect any model claims is <b>${V2_FIT_LABEL[worst.fn] || worst.fn}</b>, `
         + `travelling <b>${worst.span.toFixed(2)} grades</b> across the whole range `
         + `&mdash; against a credible band up to <b>${worst.width.toFixed(2)} grades</b> wide. `

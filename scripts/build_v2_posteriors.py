@@ -19,7 +19,8 @@ OUT = Path('/Users/peterwilliams/projects/kaya/src/kaya/viewer_static/v2_posteri
 THIN_TO = 150
 
 SCALARS = ['beta0', 'beta_gender', 'gamma1', 'gamma2', 'gamma1_x', 'gamma2_x',
-           'delta1', 'delta2', 'sigma_user', 'sigma_gym', 'log_lambda0',
+           'delta1', 'delta2', 'delta1_x', 'delta2_x',
+           'sigma_user', 'sigma_gym', 'log_lambda0',
            'kappa', 'rho', 'beta_h_missing', 'beta_a_missing',
            'sat_amp', 'sat_h0', 'sat_scale', 'vq_curv', 'vq_peak']
 
@@ -68,9 +69,23 @@ def dataset_scales(fit_args):
     ds = make_dataset(base, nets[fit_args['network']],
                       name_filter=fit_args['name_filter'],
                       label=f"{fit_args['network']}/{fit_args['name_filter']}")
-    h = ds.users['height'].to_numpy(float)
-    a = ds.users['ape_index'].to_numpy(float)
-    return {
+    u = ds.users
+    h = u['height'].to_numpy(float)
+    a = u['ape_index'].to_numpy(float)
+    # p_gf is the probability the climber is female; the model's own split.
+    g = u['p_gf'].to_numpy(float)
+
+    def stats(v):
+        v = v[~np.isnan(v)]
+        if not v.size:
+            return None
+        return {'n': int(v.size),
+                'median': round(float(np.median(v)), 2),
+                'sd': round(float(np.std(v)), 3),
+                'p1': round(float(np.percentile(v, 1)), 2),
+                'p99': round(float(np.percentile(v, 99)), 2)}
+
+    out = {
         'network': fit_args['network'], 'name_filter': fit_args['name_filter'],
         'h_median': round(float(np.nanmedian(h)), 3),
         'h_sd': round(float(np.nanstd(h)), 3),
@@ -82,7 +97,17 @@ def dataset_scales(fit_args):
         'h_hi': round(float(np.nanpercentile(h, 99)), 2),
         'a_lo': round(float(np.nanpercentile(a, 1)), 2),
         'a_hi': round(float(np.nanpercentile(a, 99)), 2),
+        # The ape axis is drawn symmetric about zero, so it needs the widest
+        # side, not each side separately.
+        'a_abs': round(float(np.nanpercentile(np.abs(a), 99.5)), 2),
     }
+    # Per-gender, for the "where each group actually sits" bands. Height and
+    # ape both get them: the ape *model* is gender-blind in every arm except
+    # ape_x_gender, but the ape *distribution* is not.
+    for lab, mask in [('male', g < 0.5), ('female', g >= 0.5)]:
+        out[f'h_{lab}'] = stats(h[mask])
+        out[f'a_{lab}'] = stats(a[mask])
+    return out
 
 
 def main():
