@@ -455,3 +455,115 @@
 .data-table td .katex {
   font-size: 1em;
 }
+
+/* ===================== Grading Model v2 tab ===================== */
+
+/* Headline metric tiles: summary before detail, so the page answers its own
+   question before the reader scrolls. */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin: 1.25rem 0 1.5rem;
+}
+.stat-tile {
+  border: 1px solid var(--lg-border);
+  border-radius: 8px;
+  padding: 0.85rem 0.9rem;
+  background: var(--lg-card);
+}
+.stat-value {
+  font-size: 1.55rem;
+  font-weight: 650;
+  line-height: 1.1;
+  color: var(--lg-gold);
+  font-variant-numeric: tabular-nums;
+}
+.stat-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--lg-text);
+  margin-top: 0.3rem;
+}
+.stat-sub { font-size: 0.75rem; color: var(--lg-text-2); margin-top: 0.15rem; line-height: 1.35; }
+
+/* Decision cards: each is problem -> resolution, because the decisions are
+   the actual content here, not an appendix. */
+.decision-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+.decision-card {
+  border: 1px solid var(--lg-border);
+  border-left: 3px solid var(--lg-gold);
+  border-radius: 6px;
+  padding: 0.85rem 0.95rem;
+  background: var(--lg-card);
+}
+.decision-title { font-weight: 640; margin-bottom: 0.5rem; line-height: 1.3; }
+.decision-why, .decision-res { font-size: 0.85rem; line-height: 1.5; margin-top: 0.45rem; color: var(--lg-text-2); }
+.decision-res { color: var(--lg-text); }
+.decision-why .lbl, .decision-res .lbl {
+  display: block;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--lg-text-2);
+  margin-bottom: 0.15rem;
+}
+
+.controls-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  align-items: end;
+  margin: 1rem 0 0.4rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--lg-border);
+  border-radius: 8px;
+  background: var(--lg-card);
+}
+.controls-inline .ctl { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.8rem; }
+.controls-inline .ctl > span { color: var(--lg-text-2); text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.7rem; }
+.controls-inline .ctl select {
+  background: var(--lg-bg); color: var(--lg-text);
+  border: 1px solid var(--lg-border); border-radius: 5px; padding: 0.35rem 0.5rem; font: inherit; font-size: 0.85rem;
+}
+.controls-inline .ctl-check { flex-direction: row; align-items: center; gap: 0.45rem; }
+.controls-inline .ctl-check span { text-transform: none; letter-spacing: 0; font-size: 0.82rem; color: var(--lg-text); }
+
+.chart-tall { width: 100%; min-height: 360px; }
+.chart-mid { width: 100%; min-height: 260px; }
+
+.reasons { margin: 0.6rem 0 0.6rem 1.1rem; padding: 0; }
+.reasons li { margin-bottom: 0.4rem; line-height: 1.55; }
+
+.finding.open { border-left-color: var(--lg-text-2); }
+.verdict-open { background: color-mix(in srgb, var(--lg-text-2) 18%, transparent); color: var(--lg-text); }
+
+.data-table .ok { color: var(--lg-gold); font-weight: 600; }
+.data-table .mid { color: var(--lg-text-2); }
+.data-table .bad { color: var(--lg-highlight); font-weight: 600; }
+
+/* Symbol glossary: the equations above are unreadable without it, so it gets
+   real structure rather than being a footnote. */
+.sym-table td.sym, .data-table td.sym { white-space: nowrap; }
+.sym-table td.unit, .data-table td.unit {
+  color: var(--lg-text-2);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.sym-group td {
+  background: color-mix(in srgb, var(--lg-gold) 8%, transparent);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 640;
+  color: var(--lg-gold);
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+.sym-table .katex, .data-table .katex { font-size: 1em; }

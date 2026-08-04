@@ -7,7 +7,7 @@
     <meta name="kaya-viewer-data-mode" content="static" />
     <link rel="stylesheet" href="/static/tokens.css" />
     <link rel="stylesheet" href="/static/app.css?v=6" />
-    <link rel="stylesheet" href="/static/research.css?v=1" />
+    <link rel="stylesheet" href="/static/research.css?v=4" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -33,6 +33,7 @@
           <button class="tab-button" type="button" data-tab="user-segmentation">User Analysis</button>
           <button class="tab-button" type="button" data-tab="data-overview">Data Overview</button>
           <button class="tab-button" type="button" data-tab="grading-model">Grading Model</button>
+          <button class="tab-button" type="button" data-tab="grading-v2">Grading Model v2</button>
         </div>
 
         <section id="tab-gym-comparison" class="tab-pane active">
@@ -1037,8 +1038,398 @@
             </footer>
           </div>
         </section>
+        <section id="tab-grading-v2" class="tab-pane">
+          <div class="article-shell embedded">
+            <header class="masthead">
+              <div class="eyebrow">Research &middot; Bayesian Hierarchical Modeling</div>
+              <h1>How Hard Is That Gym, Really?</h1>
+              <p class="dek">
+                A V5 at one gym is not a V5 at another. This model separates a
+                climber's ability from the gym's grading style, using nothing but
+                the grades climbers already log. Version&nbsp;2 rebuilds the
+                estimate on <b>29 gyms across four companies</b> &mdash; and finds
+                the gym-to-gym spread is far wider than a single-chain sample
+                suggested.
+              </p>
+              <div class="meta-row">
+                <span id="v2-updated">Updated 2026-08-04</span>
+                <span class="dot">&middot;</span>
+                <span>PyMC / NUTS &middot; 20,014 observations &middot; 10,357 climbers</span>
+              </div>
+            </header>
+
+            <nav class="toc" aria-label="Contents">
+              <div class="toc-label">Contents</div>
+              <ol>
+                <li><a href="#v2-headline">The Headline</a></li>
+                <li><a href="#v2-gyms">Gym-by-Gym Grading</a></li>
+                <li><a href="#v2-model">The Model, Formally</a></li>
+                <li><a href="#v2-decisions">Decisions and Why</a></li>
+                <li><a href="#v2-quality">What the Data Actually Looks Like</a></li>
+                <li><a href="#v2-gender">The Gender Problem</a></li>
+                <li><a href="#v2-height">The Height Question</a></li>
+                <li><a href="#v2-diagnostics">Diagnostics</a></li>
+              </ol>
+            </nav>
+
+            <!-- ============ HEADLINE ============ -->
+            <section class="article-section" id="v2-headline">
+              <h2>The Headline</h2>
+              <div class="stat-row" id="v2-stats"></div>
+              <p class="prose">
+                Across a connected network of 29 gyms, the stiffest grader and the
+                softest differ by <b>1.26 grades</b> &mdash; more than a full
+                V-grade. Twenty of the 29 differ from the network average by a
+                margin that excludes zero.
+              </p>
+              <div class="callout">
+                <b>Why this is bigger than the previous estimate.</b> Version&nbsp;1
+                measured six gyms that all belong to <i>Touchstone</i>. Those six
+                span only <b>0.25 grades</b> between them &mdash; they are a single
+                company with a shared setting culture, so what v1 really measured
+                was <i>within-brand consistency</i>, not gym-to-gym variation. The
+                full network spans <b>4.9&times;</b> wider.
+              </div>
+            </section>
+
+            <!-- ============ GYMS ============ -->
+            <section class="article-section" id="v2-gyms">
+              <h2>Gym-by-Gym Grading</h2>
+              <p class="prose">
+                Each gym's correction says how its labels sit relative to the network
+                average, in grade units. <b>Positive is stiffer</b> (a climb labelled
+                V5 there plays harder than V5 elsewhere); <b>negative is softer</b>.
+                Bars show the 89% credible interval; hollow markers are gyms whose
+                interval still contains zero.
+              </p>
+              <div class="controls-inline">
+                <label class="ctl">
+                  <span>Colour by</span>
+                  <select id="v2-colour-by">
+                    <option value="brand">Company</option>
+                    <option value="direction">Stiff / soft</option>
+                    <option value="sig">Credibly different</option>
+                  </select>
+                </label>
+                <label class="ctl">
+                  <span>Show</span>
+                  <select id="v2-filter-brand"><option value="">All companies</option></select>
+                </label>
+                <label class="ctl ctl-check">
+                  <input type="checkbox" id="v2-only-sig" />
+                  <span>Only credibly different</span>
+                </label>
+              </div>
+              <div id="v2-gym-chart" class="chart-tall"></div>
+              <p class="caption">
+                Per-gym grading correction, 29-gym network, 89% credible intervals.
+                Hover for exact values.
+              </p>
+
+              <h3>Does grading run in the family?</h3>
+              <p class="prose">
+                Partly. Movement grades about <b>0.36 grades stiffer</b> than
+                Touchstone on average &mdash; but the spread <i>within</i> Touchstone
+                (&minus;0.79 to +0.34) is as wide as the gap between brands, so
+                house style is real but nowhere near the whole story.
+              </p>
+              <div id="v2-brand-chart" class="chart-mid"></div>
+              <p class="caption">Distribution of gym corrections within each company. Each dot is one gym.</p>
+            </section>
+
+            <!-- ============ MODEL ============ -->
+            <section class="article-section" id="v2-model">
+              <h2>The Model, Formally</h2>
+              <p class="prose">
+                An item-response-theory model: climbs are test questions, climbers are
+                test-takers, a send is a correct answer. The wrinkle is that Kaya
+                records <i>only</i> sends &mdash; never failed attempts &mdash; so the
+                standard IRT likelihood is not identified. Everything below follows
+                from working around that one missing piece of data.
+              </p>
+
+              <h3>Ability</h3>
+              <p class="prose">Each climber \(u\) has a latent ability on the grade scale:</p>
+              $$\text{ability}_u = \beta_0 + \mathbf{x}_u^{\top}\boldsymbol{\beta} + \sigma_{\text{user}}\,\tilde\epsilon_u,
+                \qquad \tilde\epsilon_u \sim \mathcal{N}(0,1)$$
+              <p class="prose">
+                where \(\mathbf{x}_u\) is the covariate row for that climber &mdash;
+                gender, height terms, ape-index terms, and two missingness indicators
+                &mdash; <b>each column centred to mean zero</b>, which makes
+                \(\beta_0\) orthogonal to every slope.
+              </p>
+
+              <h3>Height and ape index</h3>
+              <p class="prose">
+                Height and ape index are near-independent here
+                (\(r = +0.137\)), so their shapes are specified separately.
+                \(\tilde h\) and \(\tilde a\) are centred at the median and scaled
+                to standard deviations.
+              </p>
+              $$f_{\text{height}}(\tilde h,\ G) \;=\;
+                \gamma_1\tilde h + \gamma_2\tilde h^{2}
+                + G\left(\gamma_1^{\times}\tilde h + \gamma_2^{\times}\tilde h^{2}\right)$$
+              $$f_{\text{ape}}(\tilde a) \;=\; \delta_1\tilde a + \delta_2\tilde a^{2}$$
+              <p class="prose">
+                Four candidate height shapes are compared by LOO: the quadratic with
+                gender interaction above, a plain quadratic, linear, zero, and a
+                <b>monotone saturating</b> form &mdash; "reach helps until you have
+                enough of it, then stops paying":
+              </p>
+              $$f_{\text{sat}}(\tilde h) \;=\; A\,\operatorname{logistic}\!\left(\frac{\tilde h - h_0}{s}\right)$$
+              <h3>Every symbol, defined</h3>
+              <p class="prose">
+                Ability, grades, and gym corrections all live on the <b>same
+                scale</b> &mdash; V-grades &mdash; which is what makes a correction
+                of &ldquo;+0.4&rdquo; readable as &ldquo;four tenths of a grade
+                stiffer.&rdquo;
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table sym-table" id="v2-symbols"></table>
+              </div>
+
+              <h3>The six height forms tested</h3>
+              <p class="prose">
+                The point of comparing these is that they encode genuinely
+                different claims about the world, not just different numbers of
+                parameters. All are compared by LOO on identical data.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-forms-table"></table>
+              </div>
+              <div class="controls-inline">
+                <label class="ctl">
+                  <span>Show shape</span>
+                  <select id="v2-form-pick">
+                    <option value="all">All six</option>
+                    <option value="zero">Zero</option>
+                    <option value="linear">Linear</option>
+                    <option value="quadratic">Quadratic</option>
+                    <option value="quadratic_x_gender">Quadratic &times; gender</option>
+                    <option value="saturating">Saturating</option>
+                    <option value="vertex_quadratic">Vertex quadratic (peak as a parameter)</option>
+                  </select>
+                </label>
+                <label class="ctl ctl-check">
+                  <input type="checkbox" id="v2-form-dist" checked />
+                  <span>Show where climbers actually are</span>
+                </label>
+              </div>
+              <div id="v2-forms-chart" class="chart-mid"></div>
+              <p class="caption">
+                Shapes each functional form can express, drawn with illustrative
+                coefficients &mdash; <b>not fitted values</b>. The point is what each
+                form is structurally capable of saying (each drawn with its own coefficients &mdash; note the interaction form&rsquo;s male-coded branch <i>is</i> a plain quadratic by definition, since \(G=0\) removes the interaction). Shaded bands show where
+                male-coded and female-coded climbers actually sit, which is why the
+                same curve can look like &ldquo;no effect&rdquo; for one group and a
+                strong effect for the other.
+              </p>
+
+              <div class="callout">
+                <div>
+                  <b>Does centring height at the median force the peak to sit there?</b>
+                  No &mdash; worth being explicit about, because it looks like it
+                  should. Centring only fixes where \(\tilde h=0\) falls; it says
+                  nothing about where the curve turns over. For
+                  \(f(\tilde h)=\gamma_1\tilde h+\gamma_2\tilde h^2\) the vertex sits
+                  at \(\tilde h^{*}=-\gamma_1/2\gamma_2\), which the data are free to
+                  put anywhere &mdash; v1&rsquo;s own fitted coefficients implied a peak
+                  roughly 10 inches <i>below</i> the median.
+                  <br /><br />
+                  What centring does change is the <i>implied prior</i> on that peak.
+                  A ratio of two normals is Cauchy-like &mdash; heavy-tailed and piled
+                  up near zero &mdash; so the plain quadratic quietly favours a peak
+                  near the median, and gives a badly-behaved interval whenever
+                  \(\gamma_2\) is close to zero. The vertex quadratic makes the peak
+                  \(p\) a parameter with a prior of its own, so it reports a credible
+                  interval directly instead of propagating error through a division.
+                  Both forms are fitted; if they disagree about where the best height
+                  is, that disagreement is itself the finding.
+                </div>
+              </div>
+
+              <h3>Gym correction</h3>
+              <p class="prose">
+                The model is identified only up to an additive shift between ability
+                and correction, so corrections are constrained to sum to zero
+                <i>exactly</i> &mdash; "relative to the average gym" by construction:
+              </p>
+              $$\text{gym}_g = \sigma_{\text{gym}}\,\tilde\delta_g,
+                \qquad \tilde\delta \sim \text{ZeroSumNormal}(0,1)$$
+              $$C_{u,g} = \text{ability}_u + \text{gym}_g$$
+
+              <h3>The gap, and the likelihood</h3>
+              <p class="prose">
+                Nobody sends their true limit every session, so the logged max sits at
+                or below the ceiling by a non-negative <i>gap</i>, whose rate rises
+                with how many chances the climber has had to find their limit:
+              </p>
+              $$\log \lambda_{u,g} = \log\lambda_0 + \kappa\,\tilde n_{u,g} + \rho\,\tilde r_u$$
+              $$\text{gap}_{u,g}\sim\text{Exponential}(\lambda_{u,g}),
+                \qquad m_{u,g} = C_{u,g} - \text{gap}_{u,g} + \varepsilon,\ \ \varepsilon\sim\mathcal{N}(0,\sigma_{\text{link}})$$
+              <p class="prose">
+                A Normal minus an Exponential is an <b>Exponentially Modified
+                Gaussian</b>, so the gap integrates out in closed form and never has to
+                be sampled:
+              </p>
+              $$-m_{u,g} \;\sim\; \text{ExGaussian}\!\left(-C_{u,g},\ \sigma_{\text{link}},\ 1/\lambda_{u,g}\right)$$
+              <p class="prose">
+                That removes one latent variable per observation &mdash; 32,501 of them
+                on this network &mdash; and turns the likelihood into an ordinary
+                observed node, so LOO and posterior predictive checks work natively.
+                Verified against numerical integration of the original formulation to
+                1&times;10<sup>&minus;8</sup>.
+              </p>
+            </section>
+
+            <!-- ============ DECISIONS ============ -->
+            <section class="article-section" id="v2-decisions">
+              <h2>Decisions and Why</h2>
+              <p class="prose">
+                Most of the work in v2 was not new structure &mdash; it was finding
+                and fixing things that quietly biased v1.
+              </p>
+              <div class="decision-grid" id="v2-decisions-grid"></div>
+            </section>
+
+            <!-- ============ DATA QUALITY ============ -->
+            <section class="article-section" id="v2-quality">
+              <h2>What the Data Actually Looks Like</h2>
+
+              <h3>Implausible bodies</h3>
+              <p class="prose">
+                The height field contains values of 12 inches and a stack of exactly
+                96 inches (a slider hitting its cap); ape index reaches &plusmn;30.
+                Under 1% of rows &mdash; invisible in a mean, <b>decisive in a
+                quadratic</b>: the 50 most extreme users carried
+                <b>10.3%</b> of all squared-height leverage. The entire v1 height
+                investigation ran with these in.
+              </p>
+              <div id="v2-height-hist" class="chart-mid"></div>
+              <p class="caption">Reported heights. Shaded region is kept; values outside are treated as missing.</p>
+
+              <h3>How much of each climber do we use?</h3>
+              <p class="prose">
+                The model reduces every climber-gym pair to a single number: their
+                hardest send. That is <b>2.76%</b> of all logged sends. It sounds
+                brutal, but 77.5% of sends sit two or more grades below the climber's
+                own max &mdash; warm-ups and volume, carrying little information about
+                a ceiling.
+              </p>
+              <div id="v2-discard-chart" class="chart-mid"></div>
+              <p class="caption">Distance of each send below that climber's own maximum at the same gym.</p>
+            </section>
+
+            <!-- ============ GENDER ============ -->
+            <section class="article-section" id="v2-gender">
+              <h2>The Gender Problem</h2>
+              <p class="prose">
+                Kaya has no gender field, so v1 inferred it from first names with
+                <code>gender_guesser</code>, which returns a <i>label</i> and nothing
+                else. v2 uses <code>nomquamgender</code>, which aggregates 30+ name
+                sources into a calibrated probability with a sample size behind it
+                &mdash; 94.6% coverage against 83.6%.
+              </p>
+              <div class="callout warn">
+                <b>The trap.</b> Misclassification is not random with respect to
+                height. A tall person with a female-leaning name is probably male
+                &mdash; P(female) falls from 0.89 at 62in to <b>0.11 at 74in</b> for
+                the same name. Because gender carries a ~1.6-grade main effect, that
+                leaks straight into the height coefficient and can manufacture a
+                "height helps women" finding out of nothing.
+              </div>
+              <p class="prose">
+                Height is used to sharpen the name prior via Bayes &mdash; but
+                deliberately <i>never</i> the climbing data, which would let the model
+                reassign someone's gender to explain their ability and make the two
+                effects mutually reinforcing.
+              </p>
+              $$P(F \mid \text{name},h) \;=\;
+                \frac{p_{\text{name}}\,\mathcal{N}(h;\mu_F,\sigma_F)}
+                     {p_{\text{name}}\,\mathcal{N}(h;\mu_F,\sigma_F) + (1-p_{\text{name}})\,\mathcal{N}(h;\mu_M,\sigma_M)}$$
+              <h3>Does the probability actually mean anything?</h3>
+              <p class="prose">
+                Height is an independent check, and it tracks the name probability
+                monotonically across every bin &mdash; strong evidence the numbers are
+                calibrated rather than decorative.
+              </p>
+              <div id="v2-gender-validation" class="chart-mid"></div>
+              <p class="caption">Mean reported height by name-based P(female). Independent validation.</p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-gg-table"></table>
+              </div>
+            </section>
+
+            <!-- ============ HEIGHT ============ -->
+            <section class="article-section" id="v2-height">
+              <h2>The Height Question</h2>
+              <div class="finding open">
+                <div class="finding-head">
+                  <span class="finding-title">Open &mdash; three competing explanations, being tested now</span>
+                  <span class="verdict-pill verdict-open">In progress</span>
+                </div>
+                <p>
+                  Version&nbsp;1 concluded that height has no effect for male-coded
+                  climbers and a real positive effect for female-coded ones. That
+                  conclusion now has three possible sources, and they have not yet been
+                  separated:
+                </p>
+                <ol class="reasons">
+                  <li><b>Outlier leverage.</b> A handful of impossible heights dominating a quadratic.</li>
+                  <li><b>Gender misclassification.</b> Tall female-labelled climbers who are mostly male, and male climbers are stronger on average.</li>
+                  <li><b>A genuine saturating effect.</b> Reach helps up to a point, then stops &mdash; which would look exactly like "no effect for tall men, real effect for shorter women," because 61.5% of men sit above the knee and only 10.9% of women do.</li>
+                </ol>
+                <p>
+                  All three predict the same pattern. Distinguishing them is what the
+                  current fits are for; results will land here rather than being
+                  guessed at.
+                </p>
+              </div>
+              <p class="prose">
+                One thing already settled: the earlier investigation rejected an
+                asymmetric bump function because its shape looked wrong &mdash; left
+                width 1.59in against right width 12.87in. That is not a failed bell
+                curve. That is what a <i>saturating</i> curve looks like when you force
+                a symmetric bump onto it, and no one had fitted that shape directly.
+              </p>
+            </section>
+
+            <!-- ============ DIAGNOSTICS ============ -->
+            <section class="article-section" id="v2-diagnostics">
+              <h2>Diagnostics</h2>
+              <p class="prose">
+                Reported honestly, per parameter block &mdash; some of this model mixes
+                well and some does not, and the difference matters for which numbers
+                on this page can be trusted.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-diag-table"></table>
+              </div>
+              <p class="prose">
+                The sampler hits maximum tree depth on essentially every iteration
+                (1,023 leapfrog steps per draw). The cause is structural rather than
+                fixable by reparameterisation: <b>65% of climbers appear at only one
+                gym</b>, so for those climbers the personal ability offset, the
+                observation noise, and the gap all compete to explain a single
+                residual. Four separate reparameterisations were tried; none moved it.
+              </p>
+              <div class="methodology-note">
+                <b>Reproducibility.</b> Model in <code>src/kaya/grading_model_v2.py</code>.
+                Network selected as the largest set of gyms connected by &ge;50 shared
+                climbers &mdash; connectivity is what makes gym corrections identifiable
+                at all. Body measurements outside 4&prime;0&Prime;&ndash;7&prime;0&Prime;
+                and |ape| &gt; 12in are treated as missing, not believed.
+              </div>
+            </section>
+
+            <footer class="article-footer">
+              All estimates from real Kaya send logs on the 29-gym connected network,
+              fitted with PyMC/NUTS. Sections marked in&nbsp;progress are exactly that.
+            </footer>
+          </div>
+        </section>
       </main>
     </div>
-    <script src="/static/app.js?v=23"></script>
+    <script src="/static/app.js?v=28"></script>
   </body>
 </html>

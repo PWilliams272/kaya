@@ -1,0 +1,596 @@
+"""Grading model v2: probabilistic gender, EMG likelihood, flexible height forms.
+
+Successor to grading_model.py. Keeps that model's structure (IRT-style
+ability + hierarchical gym correction + one-sided gap likelihood) but
+changes four things, each independently switchable so they can be tested
+one at a time:
+
+1. **Probabilistic gender.** grading_model.py coded gender as a hard
+   0/0.5/1 from gender_guesser labels. That is both coarse (`mostly_female`
+   -> 1.0 when its true P(female) is ~0.66; `unknown` -> 0.5 when its true
+   P(female) is ~0.38) and, critically, *height-correlated*: a tall person
+   with a female-ish name is more likely male (P(female)=0.46 at 70in,
+   0.11 at 74in). Since gender has a ~1-grade main effect, that
+   misclassification leaks sex signal into the height coefficient and can
+   manufacture the "height helps female-coded climbers" finding. Handled
+   here either by filtering to confident names, or by marginalizing over
+   latent sex (see `gender_mode`).
+
+2. **EMG likelihood.** m = ceiling - gap + noise with gap ~ Exponential is
+   a Normal minus an Exponential, i.e. an Exponentially Modified Gaussian,
+   which has a closed form. Marginalizing `gap` analytically removes one
+   latent per observation (6.4k at 6 gyms, 33k at 29), gives a real
+   `observed=` node so LOO/PPC work natively, and is what may finally let
+   sigma_link be estimated rather than pinned at 0.5.
+
+3. **Flexible height forms**, including a monotone saturating curve
+   ("reach helps until you have enough") which the original investigation
+   never tested -- the asymmetric bump it rejected (left width 1.59in vs
+   right 12.87in) is what a saturating curve looks like when you force a
+   symmetric bell onto it.
+
+4. **Bounded per-climb quantization.** Grades are continuous but labels are
+   integers: a climb that is truly 5.3 gets written down as 5, and every
+   climber who sends it is understated by the same 0.3. That per-climb
+   offset is physically bounded to +/-0.5, unlike the unbounded
+   Normal/StudentT/horseshoe priors that previously collapsed sigma_user to
+   zero -- a bounded offset *cannot* absorb per-user ability variance.
+"""
+
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Sequence
+
+import numpy as np
+import pandas as pd
+import pymc as pm
+import pytensor.tensor as pt
+
+from kaya.data_access import BOULDER_GRADE_TO_NUM, KayaDataAccessor, route_grade_to_num
+
+# Plausible adult ranges, in inches. Values outside these are treated as
+# missing rather than believed -- see prepare_base_data.
+HEIGHT_PLAUSIBLE = (48.0, 84.0)     # 4'0" - 7'0"
+APE_PLAUSIBLE = (-12.0, 12.0)       # wingspan minus height
+
+
+# --------------------------------------------------------------------------
+# Data preparation
+# --------------------------------------------------------------------------
+
+def prepare_base_data(
+    discipline: str = 'bouldering',
+    accessor: Optional[KayaDataAccessor] = None,
+) -> Dict[str, pd.DataFrame]:
+    """Read sends once and build the full (all-gym) observation/user tables.
+
+    Expensive (reads the whole sends table), so callers should cache the
+    result and subset it with `make_dataset` rather than calling this per fit.
+    """
+    import nomquamgender as nqg
+
+    accessor = accessor or KayaDataAccessor()
+    sends = accessor.read_sends(
+        source='local_db',
+        columns=['user_id', 'gym_id', 'date', 'grade', 'climb_type', 'climb_id',
+                 'height', 'ape_index', 'first_name'],
+        parse_dates=False,
+        order_by=False,
+    )
+    ct = sends['climb_type'].fillna('').astype(str).str.lower()
+    if discipline == 'bouldering':
+        sends = sends[ct.str.contains('boulder')].copy()
+        sends['m'] = sends['grade'].map(BOULDER_GRADE_TO_NUM)
+    else:
+        sends = sends[ct.str.contains('route') | ct.str.contains('rope')].copy()
+        sends['m'] = sends['grade'].apply(route_grade_to_num)
+
+    sends = sends[sends['m'].notna() & sends['user_id'].notna()
+                  & sends['gym_id'].notna() & sends['climb_id'].notna()].copy()
+    for c in ('user_id', 'gym_id', 'climb_id'):
+        sends[c] = sends[c].astype(str)
+
+    gcols = ['user_id', 'gym_id']
+    per_pair = sends.groupby(gcols, as_index=False).agg(
+        n_visits=('date', 'nunique'), n_sends_gym=('m', 'size'))
+    # NOTE: ties at the max grade are broken arbitrarily by tail(1). Harmless
+    # for `m` (tied climbs share the grade) but it does pin the observation to
+    # one arbitrary climb_id, which matters for climb-level quantization.
+    hardest = (sends.sort_values(gcols + ['m']).groupby(gcols, as_index=False)
+               .tail(1)[gcols + ['climb_id', 'm']])
+    obs = hardest.merge(per_pair, on=gcols, how='left')
+
+    # n_at_max: how many times the climber actually sent their hardest grade
+    # here. Far more direct evidence of "have they found their ceiling?" than
+    # visit count -- 51.5% of pairs sent their max exactly once (could be a
+    # soft climb or a lucky day) while 3.1% sent it 10+ times (clearly
+    # plateaued there). Only ~2.8% of raw sends survive into the model at all,
+    # and this recovers some of the discarded signal without restructuring the
+    # likelihood. Note the *spacing* between top grades carries almost nothing
+    # -- the 2nd-highest distinct grade is exactly 1 below the max 90.8% of
+    # the time, because grades are integers -- so counts, not gaps, are where
+    # the recoverable information is.
+    mx = sends.merge(hardest[gcols + ['m']].rename(columns={'m': '_mx'}), on=gcols, how='left')
+    n_at_max = (mx[mx['m'] == mx['_mx']].groupby(gcols, as_index=False)
+                .size().rename(columns={'size': 'n_at_max'}))
+    obs = obs.merge(n_at_max, on=gcols, how='left')
+    obs['n_at_max'] = obs['n_at_max'].fillna(1).astype(float)
+
+    climbs = sends[['climb_id', 'gym_id']].drop_duplicates('climb_id').reset_index(drop=True)
+
+    users = sends.groupby('user_id', as_index=False).agg(
+        n_sends=('m', 'size'), n_sesh=('date', 'nunique'),
+        height=('height', 'first'), ape_index=('ape_index', 'first'),
+        first_name=('first_name', 'first'),
+    )
+    users['n_sends_per_sesh'] = users['n_sends'] / users['n_sesh'].clip(lower=1)
+    users['height'] = users['height'] / 2.54
+    users['ape_index'] = users['ape_index'] / 2.54
+
+    # Implausible body measurements -> NaN (i.e. treated as missing, not
+    # dropped: the user's sends are still valid data). The raw field contains
+    # obvious entry artifacts -- heights of 12in and a pile of exactly 96in
+    # (a slider cap), ape indices of +/-30in. Only ~0.9% of heights and ~1.5%
+    # of ape values, but they are catastrophic in a QUADRATIC term: the 50
+    # most extreme users carry 10.3% of all sum-of-squares leverage in h_c^2.
+    # The original height investigation (five functional forms, the bump, the
+    # gender interaction) was run with these still in.
+    users.loc[~users['height'].between(*HEIGHT_PLAUSIBLE), 'height'] = np.nan
+    users.loc[~users['ape_index'].between(*APE_PLAUSIBLE), 'ape_index'] = np.nan
+
+    # --- probabilistic gender from name, then sharpened by height ---
+    nm = users['first_name'].fillna('').astype(str).str.strip().str.lower()
+    ann = nqg.NBGC().annotate(nm.tolist(), as_df=True)
+    users['p_gf'] = ann['p(gf)'].values
+    users['name_counts'] = ann['counts'].fillna(0).values
+
+    conf = users[(users['name_counts'] >= 100) & users['height'].notna()]
+    hm = conf.loc[conf['p_gf'] <= 0.02, 'height']
+    hf = conf.loc[conf['p_gf'] >= 0.98, 'height']
+    height_dists = {'mu_m': hm.mean(), 'sd_m': hm.std(), 'mu_f': hf.mean(), 'sd_f': hf.std()}
+    users['w_female'] = _p_female_given_name_height(
+        users['p_gf'].values, users['height'].values, **height_dists)
+
+    users = users.set_index('user_id')
+    return {'observations': obs.reset_index(drop=True), 'users': users,
+            'climbs': climbs, 'height_dists': height_dists}
+
+
+def _p_female_given_name_height(p_gf, height, mu_m, sd_m, mu_f, sd_f):
+    """P(female | name, height).
+
+    Deliberately uses ONLY the name prior and the height likelihood -- never
+    the ability data. Letting ability inform latent sex would let the model
+    reassign gender to explain ability, making "tall people are abler" and
+    "tall people are likelier male" mutually reinforcing. Cutting that
+    feedback keeps the height->ability effect identified by variation in
+    *names*, which is independent of height.
+    """
+    from scipy.stats import norm
+    p = np.clip(np.asarray(p_gf, dtype=float), 1e-4, 1 - 1e-4)
+    h = np.asarray(height, dtype=float)
+    lf = norm.pdf(h, mu_f, sd_f) * p
+    lm = norm.pdf(h, mu_m, sd_m) * (1 - p)
+    with np.errstate(invalid='ignore'):
+        joint = lf / (lf + lm)
+    return np.where(np.isnan(h), p, joint)
+
+
+def gym_network(base: Dict[str, pd.DataFrame], min_shared_users: int = 50) -> List[str]:
+    """Largest set of gyms connected by >= min_shared_users shared climbers.
+
+    Connectivity is what identifies gym corrections at all -- an isolated gym
+    shares no climbers with the rest, so its correction is confounded with
+    the abilities of its own users.
+    """
+    import collections
+    obs = base['observations']
+    per_user = obs.groupby('user_id')['gym_id'].nunique()
+    multi = obs[obs['user_id'].isin(per_user[per_user >= 2].index)]
+    pairs = multi.merge(multi, on='user_id')
+    pairs = pairs[pairs['gym_id_x'] < pairs['gym_id_y']]
+    edges = pairs.groupby(['gym_id_x', 'gym_id_y']).size().reset_index(name='shared')
+    edges = edges[edges['shared'] >= min_shared_users]
+
+    adj = collections.defaultdict(set)
+    for a, b in zip(edges['gym_id_x'], edges['gym_id_y']):
+        adj[a].add(b); adj[b].add(a)
+    seen, comps = set(), []
+    for node in adj:
+        if node in seen:
+            continue
+        stack, comp = [node], []
+        while stack:
+            x = stack.pop()
+            if x in seen:
+                continue
+            seen.add(x); comp.append(x)
+            stack.extend(adj[x] - seen)
+        comps.append(comp)
+    return sorted(max(comps, key=len)) if comps else []
+
+
+@dataclass
+class DatasetV2:
+    observations: pd.DataFrame
+    users: pd.DataFrame
+    climbs: pd.DataFrame
+    label: str
+
+    def summary(self) -> Dict[str, Any]:
+        o = self.observations
+        return {'label': self.label, 'n_obs': len(o), 'n_users': o['user_id'].nunique(),
+                'n_gyms': o['gym_id'].nunique(), 'n_climbs': o['climb_id'].nunique(),
+                'pct_multi_gym': float((o.groupby('user_id')['gym_id'].nunique() >= 2).mean()),
+                'median_visits': float(o['n_visits'].median())}
+
+
+def make_dataset(
+    base: Dict[str, pd.DataFrame],
+    gym_ids: Sequence[str],
+    name_filter: str = 'all',
+    confident_threshold: float = 0.05,
+    min_name_counts: int = 100,
+    label: str = '',
+) -> DatasetV2:
+    """Subset the base data to a gym network and (optionally) confident names.
+
+    name_filter:
+      'all'       -- every user, however ambiguous their name
+      'confident' -- only p(gf) <= threshold or >= 1-threshold, with enough
+                     name observations behind it. This is the decisive test
+                     for whether the height finding survives once
+                     gender-misclassification leakage is removed.
+    """
+    gym_ids = [str(g) for g in gym_ids]
+    obs = base['observations']
+    obs = obs[obs['gym_id'].isin(gym_ids)].copy()
+    users = base['users']
+
+    if name_filter == 'confident':
+        p = users['p_gf']
+        keep = ((p <= confident_threshold) | (p >= 1 - confident_threshold)) \
+            & (users['name_counts'] >= min_name_counts)
+        obs = obs[obs['user_id'].isin(users.index[keep])].copy()
+
+    users = users.loc[users.index.isin(obs['user_id'].unique())].copy()
+    climbs = base['climbs']
+    climbs = climbs[climbs['climb_id'].isin(obs['climb_id'].unique())].reset_index(drop=True)
+    return DatasetV2(obs.reset_index(drop=True), users, climbs, label or name_filter)
+
+
+# --------------------------------------------------------------------------
+# Model
+# --------------------------------------------------------------------------
+
+# Forms that are linear in their parameters, so the whole covariate block can
+# be QR-reparameterized. 'saturating' cannot (h0 and s enter nonlinearly).
+LINEAR_IN_PARAMS = {'zero', 'linear', 'quadratic', 'quadratic_x_gender'}
+
+
+def _design_columns(height_form, h, a, gender, ape_quadratic, ape_x_gender=False):
+    """Covariate design matrix and the coefficient name for each column.
+
+    Height and ape index are near-independent in this data (r = +0.137), so
+    their functional forms are specified separately rather than jointly.
+    """
+    cols, names = [gender], ['beta_gender']
+    if height_form == 'linear':
+        cols += [h]; names += ['gamma1']
+    elif height_form == 'quadratic':
+        cols += [h, h ** 2]; names += ['gamma1', 'gamma2']
+    elif height_form == 'quadratic_x_gender':
+        cols += [h, h ** 2, gender * h, gender * h ** 2]
+        names += ['gamma1', 'gamma2', 'gamma1_x', 'gamma2_x']
+    cols += [a]; names += ['delta1']
+    if ape_quadratic:
+        cols += [a ** 2]; names += ['delta2']
+    if ape_x_gender:
+        cols += [gender * a]; names += ['delta1_x']
+        if ape_quadratic:
+            cols += [gender * a ** 2]; names += ['delta2_x']
+    return np.column_stack(cols), names
+
+
+def _height_term(form, h, gender, prefix=''):
+    """Return the height contribution to ability for a given functional form."""
+    if form == 'zero':
+        return 0.0
+    if form == 'linear':
+        g1 = pm.Normal(f'{prefix}gamma1', 0, 1)
+        return g1 * h
+    if form == 'quadratic':
+        g1 = pm.Normal(f'{prefix}gamma1', 0, 1)
+        g2 = pm.Normal(f'{prefix}gamma2', 0, 0.3)
+        return g1 * h + g2 * h ** 2
+    if form == 'quadratic_x_gender':
+        # The published specification: separate quadratic for female-coded.
+        g1 = pm.Normal(f'{prefix}gamma1', 0, 1)
+        g2 = pm.Normal(f'{prefix}gamma2', 0, 0.3)
+        g1x = pm.Normal(f'{prefix}gamma1_x', 0, 0.5)
+        g2x = pm.Normal(f'{prefix}gamma2_x', 0, 0.15)
+        return g1 * h + g2 * h ** 2 + gender * (g1x * h + g2x * h ** 2)
+    if form == 'vertex_quadratic':
+        # f = -kappa (h - p)^2, with p the peak height ITSELF rather than a
+        # quantity derived from gamma1/gamma2. Mathematically the same family
+        # as the plain quadratic -- centring never constrained the vertex,
+        # which v1's own fit demonstrates by placing it ~9.9in below the
+        # median -- but here the peak carries its own prior and its own
+        # credible interval, so "where is the best height" is answered
+        # directly instead of by propagating error through -gamma1/(2 gamma2).
+        # When curvature is weak, kappa -> 0 and p becomes unidentified; that
+        # shows up honestly as a very wide posterior on p rather than a
+        # confident-looking number.
+        kappa_h = pm.HalfNormal(f'{prefix}vq_curv', 0.3)
+        peak = pm.Normal(f'{prefix}vq_peak', 0, 1.5)   # in SDs from median height
+        return -kappa_h * (h - peak) ** 2
+    if form == 'saturating':
+        # A * logistic((h - h0)/s): monotone, bounded, saturating. Encodes
+        # "reach helps until you have enough of it, then stops paying."
+        # h is in z-units here, so the knee and width priors are too.
+        amp = pm.Normal(f'{prefix}sat_amp', 0, 1)
+        h0 = pm.Normal(f'{prefix}sat_h0', 0, 1.5)    # knee, in SDs from median height
+        s = pm.HalfNormal(f'{prefix}sat_scale', 1.0)
+        return amp * pm.math.sigmoid((h - h0) / (s + 1e-6))
+    raise ValueError(f'unknown height_form {form!r}')
+
+
+def build_model_v2(
+    dataset: DatasetV2,
+    *,
+    height_form: str = 'quadratic_x_gender',
+    gender_mode: str = 'point',          # 'point' | 'marginalize'
+    ape_quadratic: bool = True,
+    ape_x_gender: bool = False,
+    likelihood: str = 'emg',             # 'emg' | 'gap_latent'
+    estimate_sigma_link: bool = True,
+    sigma_link_fixed: float = 0.5,
+    climb_quantization: bool = False,
+    quant_halfwidth: float = 0.5,
+    include_reliability: bool = True,
+    use_n_at_max: bool = False,
+    store_user_terms: bool = False,
+) -> pm.Model:
+    """Build the v2 PyMC model.
+
+    gender_mode:
+      'point'       -- plug in w_female (P(female | name, height)) as a
+                       continuous covariate. Correct for the linear main
+                       effect, but biased for interactions, since
+                       E[f(G)] != f(E[G]).
+      'marginalize' -- treat sex as a latent binary per user and marginalize
+                       it out exactly (NUTS cannot sample discrete
+                       parameters). Handles the interaction correctly. Costs
+                       two likelihood evaluations.
+    """
+    obs, users, climbs = dataset.observations, dataset.users, dataset.climbs
+
+    user_ids = users.index.tolist()
+    uidx = {u: i for i, u in enumerate(user_ids)}
+    gym_ids = sorted(obs['gym_id'].unique())
+    gidx = {g: i for i, g in enumerate(gym_ids)}
+    climb_ids = climbs['climb_id'].tolist()
+    cidx = {c: i for i, c in enumerate(climb_ids)}
+
+    obs_u = obs['user_id'].map(uidx).to_numpy()
+    obs_g = obs['gym_id'].map(gidx).to_numpy()
+    obs_c = obs['climb_id'].map(cidx).to_numpy()
+    m = obs['m'].to_numpy(float)
+    # Centered on its own median, exactly as grading_model.py already does for
+    # the reliability signal r -- and for the same reason it documents there
+    # (rho was measured at corr = -0.91 with lambda0 before centering). Raw
+    # n_visits has median ~7, so (1 + kappa*n) is ~(1 + 7*kappa) for a typical
+    # user, making kappa little more than a rescaling of lambda0. That fix was
+    # applied to rho but never to kappa, which sits in the same product.
+    n_visits_raw = obs['n_visits'].to_numpy(float)
+    nv_scale = float(np.nanmedian(n_visits_raw)) or 1.0
+    n_visits = n_visits_raw / nv_scale - 1.0
+    n_at_max_raw = obs['n_at_max'].to_numpy(float) if 'n_at_max' in obs else np.ones(len(obs))
+    nm_scale = float(np.nanmedian(n_at_max_raw)) or 1.0
+    n_at_max = n_at_max_raw / nm_scale - 1.0
+    n_users = len(user_ids)
+
+    # Centered AND standardized. The original model used raw centered inches,
+    # so h_c**2 ran to 3136 while gamma2 ~ N(0, 0.3) -- a prior implying the
+    # height quadratic could contribute +/-106 grades when the whole grade
+    # range is ~12. That is both a nonsense prior and severe anisotropy for
+    # NUTS. In z-units h_z**2 is O(1) and the priors below mean what they say.
+    height = users['height'].to_numpy(float)
+    ape = users['ape_index'].to_numpy(float)
+    h_sd = float(np.nanstd(height)) or 1.0
+    a_sd = float(np.nanstd(ape)) or 1.0
+    h_obs = ~np.isnan(height)
+    a_obs = ~np.isnan(ape)
+    h_c = np.nan_to_num((height - np.nanmedian(height)) / h_sd, nan=0.0)
+    a_c = np.nan_to_num((ape - np.nanmedian(ape)) / a_sd, nan=0.0)
+    # Missingness INDICATORS rather than pretending the missing are average.
+    # 15.8% of heights and 43.9% of ape indices are absent; zero-filling them
+    # asserts a measurement that was never taken, piles ~44% of users onto a
+    # single covariate value, attenuates the slope toward zero, and drags the
+    # intercept with it (measured: design-column means of 0.85/0.64, beta0 at
+    # R-hat 1.19 / ESS 16). With an indicator the slope is identified only by
+    # users who actually reported a value, while the missing group gets its
+    # own offset -- unbiased under missing-at-random, and one parameter each
+    # instead of the ~19k latents full imputation would add.
+    h_miss = (~h_obs).astype(float)
+    a_miss = (~a_obs).astype(float)
+    scales = {'h_sd': h_sd, 'a_sd': a_sd,
+              'h_median': float(np.nanmedian(height)), 'a_median': float(np.nanmedian(ape)),
+              'h_missing_frac': float(h_miss.mean()), 'a_missing_frac': float(a_miss.mean())}
+    w_female = users['w_female'].fillna(0.5).to_numpy(float)
+
+    nsps = users['n_sends_per_sesh'].to_numpy(float)
+    r_scale = np.nanmedian(nsps)
+    r_user = (nsps / r_scale - 1.0) if r_scale else np.zeros_like(nsps)
+    r_obs = np.nan_to_num(r_user[obs_u], nan=0.0)
+    median_m = float(np.nanmedian(m))
+
+    coords = {'user': user_ids, 'gym': gym_ids, 'climb': climb_ids, 'obs': np.arange(len(obs))}
+
+    with pm.Model(coords=coords) as model:
+        beta0 = pm.Normal('beta0', mu=median_m, sigma=5)
+        sigma_user = pm.HalfNormal('sigma_user', sigma=2)
+        eps_raw = pm.Normal('epsilon_raw', 0, 1, dims='user')
+        # Not a Deterministic by default: at 16k users x 2k draws that is
+        # ~250MB of stored trace per user-dimensioned quantity, and it is
+        # recoverable post-hoc as sigma_user * epsilon_raw.
+        epsilon = sigma_user * eps_raw
+        if store_user_terms:
+            pm.Deterministic('epsilon', epsilon, dims='user')
+
+        # --- covariate block, built as an explicitly centered design matrix ---
+        # Centering every column makes beta0 orthogonal to all slopes. Before
+        # this, h**2 and a**2 had means of 0.85 and 0.64, so the intercept was
+        # entangled with every coefficient and mixed terribly.
+        Xcols, Xnames = _design_columns(
+            height_form, h_c, a_c, w_female, ape_quadratic, ape_x_gender)
+        Xcols = np.column_stack([Xcols, h_miss, a_miss])
+        Xnames = Xnames + ['beta_h_missing', 'beta_a_missing']
+        X_mean = Xcols.mean(axis=0)
+        Xc = Xcols - X_mean
+
+        PRIOR_SD = {'beta_gender': 2.0, 'gamma1': 1.0, 'gamma2': 0.3,
+                    'gamma1_x': 0.5, 'gamma2_x': 0.15, 'delta1': 1.0,
+                    'delta2': 0.3, 'delta1_x': 0.5, 'delta2_x': 0.15,
+                    'beta_h_missing': 1.0, 'beta_a_missing': 1.0}
+        coefs = [pm.Normal(nm, 0, PRIOR_SD.get(nm, 1.0)) for nm in Xnames]
+        beta_vec = pt.stack(coefs)
+        # Columns involving gender are rebuilt per-branch in marginalize mode,
+        # so keep the pieces separate rather than collapsing to one dot product.
+        gender_cols = [i for i, nm in enumerate(Xnames)
+                       if nm == 'beta_gender' or nm.endswith('_x')]
+        static_idx = [i for i in range(len(Xnames)) if i not in gender_cols]
+        static_term = pt.dot(Xc[:, static_idx], beta_vec[static_idx])
+
+        sigma_gym = pm.HalfNormal('sigma_gym', sigma=1.5)
+        # ZeroSumNormal, not Normal: the model is identified only up to an
+        # additive shift between ability and gym correction (design doc
+        # section 6). A zero-MEAN prior anchors that only softly -- with G
+        # gyms the realized mean still drifts with sd sigma_gym/sqrt(G),
+        # leaving a near-flat ridge that NUTS crawls along (measured: tree
+        # depth pinned at the maximum of 10, 1023 leapfrog steps per draw,
+        # step size 0.016, zero divergences -- textbook elongated geometry).
+        # Summing to zero by construction removes the direction entirely,
+        # and is exactly what "anchor to the average gym" was meant to mean.
+        gym_raw = pm.ZeroSumNormal('gym_correction_raw', sigma=1, dims='gym')
+        gym_correction = pm.Deterministic('gym_correction', sigma_gym * gym_raw, dims='gym')
+        # Mean-centered view: the model is only identified up to an additive
+        # shift between ability and correction (design doc section 6), so
+        # gym-vs-gym differences are the meaningful quantity, not levels.
+        pm.Deterministic('gym_correction_c', gym_correction - pt.mean(gym_correction),
+                         dims='gym')
+
+        correction = gym_correction[obs_g]
+        if climb_quantization:
+            # Bounded per-climb offset: grades are continuous, labels are
+            # integers, so a climb truly at 5.3 labelled 5 understates every
+            # sender by the same 0.3. Physically |offset| <= 0.5, which is
+            # why this cannot eat sigma_user the way the previous unbounded
+            # Normal/StudentT/horseshoe priors did.
+            q = pm.Uniform('climb_quant', -quant_halfwidth, quant_halfwidth, dims='climb')
+            correction = correction - q[obs_c]
+
+        sigma_link = (pm.HalfNormal('sigma_link', sigma=1.0) if estimate_sigma_link
+                      else sigma_link_fixed)
+
+        # Log-link rate. The original multiplicative form (1 + kappa*n) can go
+        # NEGATIVE once n is centered (a 1-visit user sits at -0.875, so any
+        # kappa > 1.14 breaks the Exponential), and its coefficients are only
+        # interpretable relative to a raw-unit baseline. exp() is positive by
+        # construction, needs no sign constraint, and with mean-zero centered
+        # covariates lambda0 is cleanly "the rate for a typical user" instead
+        # of being entangled with kappa and rho.
+        log_lambda0 = pm.Normal('log_lambda0', mu=0.0, sigma=1.0)
+        log_rate = log_lambda0
+        if include_reliability:
+            kappa = pm.Normal('kappa', 0, 0.5)
+            rho = pm.Normal('rho', 0, 0.5)
+            log_rate = log_rate + kappa * n_visits + rho * r_obs
+        if use_n_at_max:
+            # Repeatedly topping out at the same grade is direct evidence the
+            # ceiling is near it, so it raises the rate (shrinking the gap).
+            psi = pm.Normal('psi', 0, 0.5)
+            log_rate = log_rate + psi * n_at_max
+        rate = pm.math.exp(log_rate)
+        pm.Deterministic('lambda0', pm.math.exp(log_lambda0))
+        nu = 1.0 / rate      # ExGaussian's nu is the exponential's MEAN
+
+        name_to_coef = {nm: coefs[i] for i, nm in enumerate(Xnames)}
+        col_of = {nm: i for i, nm in enumerate(Xnames)}
+
+        def ability_for(gender_vec, use_static=True):
+            """Ability, with the gender-dependent design columns rebuilt.
+
+            In marginalize mode gender_vec is a hard 0/1 per branch rather
+            than the plug-in probability, so every column containing gender
+            has to be recomputed; the gender-free columns (height main
+            effects, ape, missingness indicators) are shared and precomputed.
+            Each rebuilt column keeps the SAME centering constant as the
+            fitted design matrix, so beta0 stays orthogonal in both branches.
+            """
+            term = beta0 + epsilon
+            if use_static:
+                term = term + static_term
+            for nm in Xnames:
+                if nm != 'beta_gender' and not nm.endswith('_x'):
+                    continue
+                j = col_of[nm]
+                if nm == 'beta_gender':
+                    col = gender_vec
+                elif nm == 'gamma1_x':
+                    col = gender_vec * h_c
+                elif nm == 'gamma2_x':
+                    col = gender_vec * h_c ** 2
+                elif nm == 'delta1_x':
+                    col = gender_vec * a_c
+                elif nm == 'delta2_x':
+                    col = gender_vec * a_c ** 2
+                else:
+                    raise ValueError(f'unhandled gender column {nm!r}')
+                term = term + name_to_coef[nm] * (col - X_mean[j])
+            if height_form not in LINEAR_IN_PARAMS:
+                # Nonlinear-in-parameters forms (saturating, vertex_quadratic)
+                # cannot live in the design matrix, so they are added here.
+                # Guarding on the set rather than naming one form is what a
+                # smoke test caught: vertex_quadratic was silently contributing
+                # nothing because only 'saturating' was routed through.
+                term = term + _height_term(height_form, h_c, gender_vec)
+            return term
+
+        def obs_logp(ability):
+            ceiling = ability[obs_u] + correction
+            # m = ceiling - gap + noise  =>  -m = Normal(-ceiling, s) + Exp
+            return pm.logp(pm.ExGaussian.dist(mu=-ceiling, sigma=sigma_link, nu=nu), -m)
+
+        if gender_mode == 'marginalize':
+            # Sex is a latent binary per user; marginalize exactly (NUTS
+            # cannot sample discrete parameters). Ability is shared across a
+            # user's observations, so the mixture must be taken at USER
+            # level, not per observation -- hence the segment-sum before
+            # logsumexp. inc_subtensor accumulates over repeated indices.
+            ll_f = obs_logp(ability_for(pt.ones(n_users)))
+            ll_m = obs_logp(ability_for(pt.zeros(n_users)))
+            user_ll_f = pt.inc_subtensor(pt.zeros(n_users)[obs_u], ll_f)
+            user_ll_m = pt.inc_subtensor(pt.zeros(n_users)[obs_u], ll_m)
+            logw_f = np.log(np.clip(w_female, 1e-6, 1 - 1e-6))
+            logw_m = np.log(np.clip(1 - w_female, 1e-6, 1 - 1e-6))
+            stacked = pt.stack([logw_f + user_ll_f, logw_m + user_ll_m])
+            per_user = pt.logsumexp(stacked, axis=0)
+            pm.Potential('marginal_lik', pt.sum(per_user))
+            # Leave-one-USER-out is the right LOO unit here anyway, since a
+            # user's observations share both epsilon and the latent sex.
+            pm.Deterministic('log_lik_user', per_user, dims='user')
+            if store_user_terms:
+                pm.Deterministic('p_female_post',
+                                 pt.exp(logw_f + user_ll_f - per_user), dims='user')
+        else:
+            ability = ability_for(w_female)
+            if store_user_terms:
+                pm.Deterministic('ability', ability, dims='user')
+            # A real observed node (not a Potential): PyMC then derives the
+            # pointwise log-likelihood itself, so az.loo / posterior
+            # predictive checks work without hand-built log_lik terms.
+            ceiling = ability[obs_u] + correction
+            pm.ExGaussian('m_obs', mu=-ceiling, sigma=sigma_link, nu=nu,
+                          observed=-m, dims='obs')
+
+    return model
