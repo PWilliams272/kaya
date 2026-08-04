@@ -250,81 +250,35 @@ now at the merge commit containing all of this work.
 
 ## 9. Reusable UI pattern — the docked reference panel (added 2026-08-04)
 
-The Grading Model v2 tab has a **collapsible right-hand panel that stays in
-view while you scroll, plus two-way hover linking between the prose and the
-panel**. The owner likes this behaviour and wants it reused elsewhere, so
-treat it as a house pattern rather than a one-off. Generalised, it fits any
-page where the reader has to hold a vocabulary in their head while scrolling
-past the things that use it — symbol glossaries, column dictionaries for a
-wide table, a legend for a set of charts, gym-ID → gym-name lookups.
+**Moved.** The full spec now lives in `docs/docked-reference-panel.md`, as a
+standalone, self-contained document — behaviour contract, style spec, markup,
+CSS, JS, four traps, accessibility checklist, and the info-dot sibling pattern.
+It carries the code inline so another repo can implement the pattern without
+reading this codebase. That file is the one to hand to anyone reusing this;
+keep it updated when the panel changes.
 
-**Where it lives**
+Short version: a panel fixed to the right gutter that stays in view while
+scrolling, collapses to a slim vertical handle, remembers its state, and is
+two-way hover-linked to the prose — hovering a referring element filters the
+panel to the entries it uses and dims the rest; hovering an entry marks the
+elements that use it; clicking a referring element toggles the panel open onto
+its entries or shut again. Linking is by plain string keys (`data-syms` on the
+element, `data-sym` on the row), so it generalises past equations to table
+column dictionaries, chart legends, or ID→name lookups.
 
-| piece | file | anchor |
-|---|---|---|
-| markup | `src/kaya/viewer_static/index.html` | `<aside id="v2-glossary" class="glossary">` (~L1469) |
-| styles | `src/kaya/viewer_static/research.css` | `/* ==== docked symbol glossary ==== */` (~L571) |
-| data | `src/kaya/viewer_static/app.js` | `V2_SYMBOLS` (~L2941), rows are `[key, latex, description, unit]` |
-| behaviour | `src/kaya/viewer_static/app.js` | `setV2GlossaryOpen` / `highlightV2Symbols` / `bindV2Glossary` (~L3022–3130) |
+The two traps that dominate the work, and which recur elsewhere in this
+codebase: (1) a CSS transition that starts while its container is
+`display: none` sticks in `playState: "running"` and pins the property,
+outranking even inline styles — gate transitions behind a class JS adds after
+the resting position is set, with a `setTimeout` backstop because
+`requestAnimationFrame` never fires in a backgrounded tab; (2) a fixed panel
+must push content, not overlay it — `padding-right` on the pane so a
+`margin: 0 auto` column re-centres. Both are written up properly in the doc.
 
-**How the linking works.** Each referring element carries the keys it uses
-(`<div class="eqn" data-syms="lambda lambda0 kappa n rho r">`), and each panel
-row carries `data-sym="<key>"`. Hover filters the panel to the matching rows
-and dims the rest; hovering a row marks the elements that use it. The keys are
-plain strings, so nothing about this is equation-specific — the same wiring
-works for `data-cols` on a table or `data-series` on a chart.
-
-### Two traps, both worth knowing before reusing this
-
-**1. Never start a CSS transition on an element inside an inactive tab pane.**
-Panes are `display: none` until selected (`app.css`, `.tab-pane`). A transition
-that begins in that state sticks in `playState: "running"` forever and *pins
-the property at its start value* — and because transitions outrank inline
-styles in the cascade, even `el.style.foo = ...` cannot override it. This
-cost real debugging time: the panel silently refused to open, and later
-`padding-right` refused to apply, both with correct, matching, high-specificity
-CSS. The fix is to declare transitions only under a class (`.is-animated`,
-`.gloss-anim`) that JS adds *after* the resting position is set:
-
-```js
-const enableAnim = () => {
-  if (panel.classList.contains('is-animated')) return;
-  panel.getAnimations().forEach((a) => a.cancel());
-  pane?.getAnimations().forEach((a) => a.cancel());
-  panel.classList.add('is-animated');
-  pane?.classList.add('gloss-anim');
-};
-requestAnimationFrame(() => requestAnimationFrame(enableAnim));
-setTimeout(enableAnim, 120);   // rAF never fires in a background tab
-```
-
-The `setTimeout` backstop is not belt-and-braces — **`requestAnimationFrame`
-does not fire at all while the tab is backgrounded**, so without it the class
-would never be added for anyone who opens the page in a background tab. This
-has the useful side effect of stopping the panel visibly sliding in every time
-the tab is selected.
-
-**2. A fixed panel must push the content, not just overlay it.** The article is
-`width: min(100%, 760px); margin: 0 auto`. A panel fixed to the right gutter
-clipped the last ~15px of every line on a 1470px viewport. Reserve the space by
-putting `padding-right` on the *pane* while the panel is open — the centred
-column then re-centres in what's left (185–945 open, 355–1115 closed). Below
-1180px there is no gutter to reserve, so the panel overlays as a drawer and
-defaults to shut instead.
-
-**Debugging note for whoever touches this next.** Verifying it through Chrome
-automation is misleading: the driven tab reports `document.visibilityState:
-"hidden"` and its animation clock is frozen at `0`, so *no* transition ever
-advances and everything looks stuck. Check `document.timeline.currentTime`
-before believing a motion bug, and verify resting geometry with transitions
-stripped (`classList.remove('is-animated')` + `getAnimations().forEach(a =>
-a.cancel())`) rather than waiting on the clock.
-
-**Accessibility already wired:** `aria-expanded` / `aria-controls` on the
-handle, `Escape` to close, referring elements are `tabindex="0"` so the
-highlight works from the keyboard, and `prefers-reduced-motion` drops the
-transitions. Panel state persists in `localStorage` under
-`kaya.v2.glossary.open`.
+Reference implementation: `src/kaya/viewer_static/` — `index.html`
+(`<aside id="v2-glossary">`), `research.css`
+(`/* ==== docked symbol glossary ==== */`), `app.js` (`V2_SYMBOLS`,
+`setV2GlossaryOpen` / `highlightV2Symbols` / `bindV2Glossary` / `bindInfoDots`).
 
 ## What's next
 

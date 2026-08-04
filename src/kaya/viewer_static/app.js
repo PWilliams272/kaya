@@ -2800,17 +2800,20 @@ function renderV2GymChart() {
       type: 'scatter', mode: 'markers', name: b, legendgroup: b,
       x: rs.map((r) => r.m),
       y: rs.map((r) => r.g),
+      // Error bars take the company's colour too -- a grey bar reads as a
+      // separate annotation rather than as this point's uncertainty.
       error_x: {
         type: 'data', symmetric: false,
         array: rs.map((r) => r.hi - r.m),
         arrayminus: rs.map((r) => r.m - r.lo),
-        color: cssVar('--lg-text-2'), thickness: 1.6, width: 3, opacity: 0.75,
+        color: hexToRgba(c, 0.45), thickness: 1.6, width: 3,
       },
-      // Hollow marker = interval still contains zero.
+      // Hollow marker = interval still contains zero. Fills are knocked back
+      // so 29 dots read as a field rather than 29 competing signals.
       marker: {
         size: 11,
-        color: rs.map((r) => (r.s ? c : cssVar('--lg-card'))),
-        line: { width: 2, color: c },
+        color: rs.map((r) => (r.s ? hexToRgba(c, 0.72) : cssVar('--lg-card'))),
+        line: { width: 2, color: hexToRgba(c, 0.85) },
       },
       hovertemplate: `<b>%{y}</b><br>${b}<br>correction %{x:+.3f} grades<extra></extra>`,
     };
@@ -2950,8 +2953,8 @@ const V2_SYMBOLS = [
   ['eps', '\\(\\tilde\\epsilon_u\\)', 'climber \\(u\\)&rsquo;s personal ability offset, standardised', 'SDs'],
   ['x', '\\(\\mathbf{x}_u\\)', 'covariate row for climber \\(u\\): gender, height terms, ape terms, missingness flags', '&mdash;'],
   ['group', 'Body and gender'],
-  ['h', '\\(\\tilde h\\)', 'height, centred at the median and divided by its SD', 'SDs (1 SD &asymp; 3.4 in)'],
-  ['a', '\\(\\tilde a\\)', 'ape index (wingspan &minus; height), centred and scaled the same way', 'SDs (1 SD &asymp; 2.6 in)'],
+  ['h', '\\(\\tilde h\\)', 'height, centred at the median and divided by its SD', 'SDs (1 SD &asymp; {H_SD} in)'],
+  ['a', '\\(\\tilde a\\)', 'ape index (wingspan &minus; height), centred and scaled the same way', 'SDs (1 SD &asymp; {A_SD} in)'],
   ['G', '\\(G\\)', 'probability the climber is female, from their first name sharpened by height. 0 = male, 1 = female', 'probability'],
   ['gM', '\\(\\gamma_1^{M},\\ \\gamma_2^{M}\\)', 'slope and curvature of the height curve for <b>male users</b>. Identical to \\(\\gamma_1,\\gamma_2\\) &mdash; the male curve <i>is</i> the baseline', 'grades / SD, grades / SD²'],
   ['gF', '\\(\\gamma_1^{F},\\ \\gamma_2^{F}\\)', 'slope and curvature of the height curve for <b>female users</b>. Not sampled directly; equals \\(\\gamma_k+\\gamma_k^{\\times}\\)', 'grades / SD, grades / SD²'],
@@ -2995,7 +2998,12 @@ const V2_FORMS = [
 // chart and the interactive cards, so the two can never drift apart.
 // `fitted: true` means the defaults are real posterior means (v3_conf,
 // net50/confident); otherwise they are illustrative and marked as such.
-const V2_HMED = 68.0, V2_HSD = 3.4;   // inches, from the cleaned data
+// Height centring, in inches. These are a property of the fitted dataset, not
+// constants -- v2Scales() reads them off the fits once those have loaded, and
+// these are only the value before that. (An earlier hard-coded 3.4 was simply
+// wrong for net50/confident, whose SD is 3.92 in.)
+const v2HMed = () => v2Scales().h_median;
+const v2HSd = () => v2Scales().h_sd;
 
 const V2_FORM_SPECS = [
   {
@@ -3023,7 +3031,7 @@ const V2_FORM_SPECS = [
     curves: (v) => [{ name: 'Quadratic', colour: '--lg-info', dash: 'solid',
                       f: (z) => v.g1 * z + v.g2 * z * z }],
     note: (v) => (Math.abs(v.g2) < 1e-6 ? 'no curvature - this is a straight line'
-      : `vertex at ${(V2_HMED + (-v.g1 / (2 * v.g2)) * V2_HSD).toFixed(1)} in `
+      : `vertex at ${(v2HMed() + (-v.g1 / (2 * v.g2)) * v2HSd()).toFixed(1)} in `
         + `(${v.g2 < 0 ? 'a peak' : 'a trough'})`),
   },
   {
@@ -3068,7 +3076,7 @@ const V2_FORM_SPECS = [
     ],
     curves: (v) => [{ name: 'Vertex quadratic', colour: '--lg-info', dash: 'solid',
                       f: (z) => -v.kh * (z - v.pk) * (z - v.pk) + v.kh * 2 }],
-    note: (v) => `peak at ${(V2_HMED + v.pk * V2_HSD).toFixed(1)} in`,
+    note: (v) => `peak at ${(v2HMed() + v.pk * v2HSd()).toFixed(1)} in`,
   },
 ];
 
@@ -3087,12 +3095,16 @@ const V2_HEIGHT_BANDS = [
 function renderV2Symbols() {
   const el = document.getElementById('v2-symbols');
   if (!el) return;
+  const sc = v2Scales();
+  const sub = (t) => String(t)
+    .replace('{H_SD}', sc.h_sd.toFixed(1))
+    .replace('{A_SD}', sc.a_sd.toFixed(1));
   let html = '<tbody>';
   V2_SYMBOLS.forEach((r) => {
     if (r[0] === 'group') {
       html += `<tr class="sym-group"><td colspan="2">${r[1]}</td></tr>`;
     } else {
-      const unit = (r[3] && r[3] !== '&mdash;') ? `<span class="unit">${r[3]}</span>` : '';
+      const unit = (r[3] && r[3] !== '&mdash;') ? `<span class="unit">${sub(r[3])}</span>` : '';
       html += `<tr class="sym-row" data-sym="${r[0]}">`
         + `<td class="sym">${r[1]}</td><td>${r[2]}${unit}</td></tr>`;
     }
@@ -3423,6 +3435,20 @@ function renderV2ParamDetail(name) {
           font: { size: 10, color: cssVar('--lg-text-2') } });
         layout.margin.t = 22;
       }
+      if (!nWarm) {
+        // Only fits run after discard_tuned_samples=False went in have their
+        // warm-up; say which those are rather than leaving a silent absence.
+        const withWarm = v2FitNames().filter((f) => v2Fit(f)?.n_warmup)
+          .map((f) => V2_FIT_LABEL[f] || f);
+        layout.annotations.push({
+          xref: 'paper', x: 0.5, yref: 'paper', y: 1, yanchor: 'bottom',
+          showarrow: false, font: { size: 10, color: cssVar('--lg-text-2') },
+          text: withWarm.length
+            ? `warm-up not kept for this fit — see ${withWarm[withWarm.length - 1]}`
+            : 'warm-up not kept for this fit',
+        });
+        layout.margin.t = 22;
+      }
       layout.xaxis = { ...layout.xaxis, title: {
         text: nWarm ? 'draw (thinned; 0 = end of warm-up)' : 'draw (thinned, post-warm-up)',
         standoff: 8 } };
@@ -3566,6 +3592,209 @@ function renderV2AcrossFits(name) {
   }
 }
 
+// ---- what each model concluded about the body ----
+//
+// The parameter posteriors above are knobs; these are the curves they add up
+// to. Every fit's height form and shared ape form, drawn on one pair of axes
+// with credible bands, so the shapes can be compared directly.
+
+// The centring/scaling the model applied. Comes from the fits on disk -- the
+// numbers are a property of the dataset, not constants.
+const V2_SCALES_FALLBACK = {
+  h_median: 68.0, h_sd: 3.917, a_median: 0.0, a_sd: 1.558,
+  h_lo: 59, h_hi: 76, a_lo: -3, a_hi: 5,
+};
+const v2Scales = () => ({ ...V2_SCALES_FALLBACK, ...(V2_POST?.scales || {}) });
+
+// f_height for one draw, in z-units, per the model's own definition. G is the
+// gender indicator the interaction terms multiply.
+function v2HeightAt(form, d, z, G) {
+  switch (form) {
+    case 'zero': return 0;
+    case 'linear': return d.gamma1 * z;
+    case 'quadratic': return d.gamma1 * z + d.gamma2 * z * z;
+    case 'quadratic_x_gender':
+      return d.gamma1 * z + d.gamma2 * z * z
+        + G * (d.gamma1_x * z + d.gamma2_x * z * z);
+    case 'vertex_quadratic': return -d.vq_curv * (z - d.vq_peak) ** 2;
+    case 'saturating':
+      return d.sat_amp / (1 + Math.exp(-(z - d.sat_h0) / (d.sat_scale + 1e-6)));
+    default: return 0;
+  }
+}
+
+function v2ApeAt(d, z, G) {
+  let v = (d.delta1 || 0) * z + (d.delta2 || 0) * z * z;
+  if (d.delta1_x !== undefined) v += G * ((d.delta1_x || 0) * z + (d.delta2_x || 0) * z * z);
+  return v;
+}
+
+// Percentile of an already-sorted array.
+function v2Pct(sorted, p) {
+  const i = (sorted.length - 1) * p;
+  const lo = Math.floor(i), hi = Math.ceil(i);
+  return lo === hi ? sorted[lo] : sorted[lo] + (sorted[hi] - sorted[lo]) * (i - lo);
+}
+
+// Posterior mean curve plus an 89% band, evaluated draw by draw and centred
+// per draw at z = 0. Centring per draw (not on the mean curve) is what keeps
+// the band honest: the constant is not identified, only the shape is.
+function v2CurveBand(fitName, kind, zs, G) {
+  const fit = v2Fit(fitName);
+  if (!fit) return null;
+  const form = fit.height_form;
+  const need = kind === 'height'
+    ? { zero: [], linear: ['gamma1'], quadratic: ['gamma1', 'gamma2'],
+        quadratic_x_gender: ['gamma1', 'gamma2', 'gamma1_x', 'gamma2_x'],
+        vertex_quadratic: ['vq_curv', 'vq_peak'],
+        saturating: ['sat_amp', 'sat_h0', 'sat_scale'] }[form] || []
+    : ['delta1', 'delta2'];
+  if (kind === 'height' && form === 'zero') return { flat: true };
+  if (need.some((p) => !fit.params[p])) return null;
+
+  const cols = {};
+  need.forEach((p) => { cols[p] = fit.params[p].chains.flat(); });
+  if (kind === 'ape') {
+    ['delta1_x', 'delta2_x'].forEach((p) => {
+      if (fit.params[p]) cols[p] = fit.params[p].chains.flat();
+    });
+  }
+  const nD = cols[Object.keys(cols)[0]].length;
+  const mean = [], lo = [], hi = [];
+  const at = kind === 'height'
+    ? (d, z) => v2HeightAt(form, d, z, G)
+    : (d, z) => v2ApeAt(d, z, G);
+  // One draw object reused across the grid -- this runs ~250k times.
+  const d = {};
+  for (const z of zs) {
+    const vals = new Array(nD);
+    for (let i = 0; i < nD; i++) {
+      for (const p in cols) d[p] = cols[p][i];
+      vals[i] = at(d, z) - at(d, 0);
+    }
+    let s = 0;
+    for (const v of vals) s += v;
+    mean.push(s / nD);
+    vals.sort((a, b) => a - b);
+    lo.push(v2Pct(vals, 0.055));
+    hi.push(v2Pct(vals, 0.945));
+  }
+  return { mean, lo, hi };
+}
+
+function renderV2FittedForms() {
+  if (typeof Plotly === 'undefined' || !V2_POST) return;
+  const hEl = document.getElementById('v2-fitted-height');
+  const aEl = document.getElementById('v2-fitted-ape');
+  if (!hEl || !aEl) return;
+  // The card bleeds past the prose column; set that width before drawing or
+  // Plotly measures the narrow column and the second panel overhangs.
+  setV2FormGridWidth();
+  const G = document.getElementById('v2-fitted-gender')?.value === 'female' ? 1 : 0;
+  const showBand = document.getElementById('v2-fitted-band')?.checked !== false;
+  const sc = v2Scales();
+  const names = v2FitNames();
+
+  const grid = (lo, hi, n = 55) => {
+    const step = (hi - lo) / (n - 1), out = [];
+    for (let i = 0; i < n; i++) out.push(lo + i * step);
+    return out;
+  };
+  const hIn = grid(sc.h_lo, sc.h_hi);
+  const aIn = grid(sc.a_lo, sc.a_hi);
+  const hZ = hIn.map((v) => (v - sc.h_median) / sc.h_sd);
+  const aZ = aIn.map((v) => (v - sc.a_median) / sc.a_sd);
+
+  const build = (kind, xs, zs) => {
+    const traces = [];
+    names.forEach((fn, idx) => {
+      const c = cssVar(V2_FIT_HUES[idx % V2_FIT_HUES.length]);
+      const label = V2_FIT_LABEL[fn] || fn;
+      const band = v2CurveBand(fn, kind, zs, G);
+      if (!band) return;
+      if (band.flat) {
+        // The zero form is a claim too: a flat line at zero, no band.
+        traces.push({
+          type: 'scatter', mode: 'lines', name: label, legendgroup: fn,
+          x: xs, y: xs.map(() => 0),
+          line: { color: c, width: 2, dash: 'dot' },
+          hovertemplate: `${label}<br>no height effect<extra></extra>`,
+        });
+        return;
+      }
+      if (showBand) {
+        traces.push({
+          type: 'scatter', mode: 'lines', x: xs, y: band.lo, legendgroup: fn,
+          line: { width: 0 }, showlegend: false, hoverinfo: 'skip',
+        });
+        traces.push({
+          type: 'scatter', mode: 'lines', x: xs, y: band.hi, legendgroup: fn,
+          line: { width: 0 }, fill: 'tonexty', fillcolor: hexToRgba(c, 0.13),
+          showlegend: false, hoverinfo: 'skip',
+        });
+      }
+      traces.push({
+        type: 'scatter', mode: 'lines', name: label, legendgroup: fn,
+        x: xs, y: band.mean, line: { color: c, width: 2.2 },
+        hovertemplate: `${label}<br>%{x:.0f} → %{y:+.2f} grades<extra></extra>`,
+      });
+    });
+    return traces;
+  };
+
+  const layoutFor = (title, ytitle) => {
+    const l = chartLayout(title);
+    l.height = 340;
+    // Seven models wrap to two legend rows; the bottom margin and legend y are
+    // measured against that, not guessed, or the legend lands on the x title.
+    l.margin = { l: 56, r: 20, t: 10, b: 124 };
+    l.xaxis = { ...l.xaxis, automargin: false,
+      title: { text: title, standoff: 10 } };
+    l.yaxis = { ...l.yaxis, automargin: false, title: { text: ytitle, standoff: 6 },
+      zeroline: true, zerolinecolor: cssVar('--lg-text-2') };
+    l.legend = { ...l.legend, orientation: 'h', y: -0.42, yanchor: 'top', x: 0,
+      font: { size: 10 } };
+    return l;
+  };
+
+  const hLayout = layoutFor('height (inches)', 'grade impact');
+  // Where each group actually sits, so the curves are read over real people.
+  hLayout.shapes = [{
+    type: 'rect', xref: 'x', yref: 'paper',
+    x0: sc.h_median - sc.h_sd, x1: sc.h_median + sc.h_sd, y0: 0, y1: 1,
+    fillcolor: cssVar('--lg-text-2'), opacity: 0.06, line: { width: 0 },
+  }];
+  Plotly.react(hEl, build('height', hIn, hZ), hLayout,
+    { displayModeBar: false, responsive: true });
+  Plotly.react(aEl, build('ape', aIn, aZ), layoutFor('ape index (inches)', 'grade impact'),
+    { displayModeBar: false, responsive: true });
+
+  const note = document.getElementById('v2-fitted-note');
+  if (note) {
+    // The honest summary number: how far the best curve travels across the
+    // middle 98% of climbers, compared with how wide its band is there.
+    const spans = names.map((fn) => {
+      const b = v2CurveBand(fn, 'height', hZ, G);
+      if (!b || b.flat) return null;
+      const span = Math.max(...b.mean) - Math.min(...b.mean);
+      const width = Math.max(...b.hi.map((v, i) => v - b.lo[i]));
+      return { fn, span, width };
+    }).filter(Boolean);
+    const worst = spans.sort((a, b2) => b2.span - a.span)[0];
+    note.innerHTML = worst
+      ? `Shaded strip is the middle &plusmn;1 SD of heights (${(sc.h_median - sc.h_sd).toFixed(0)}&ndash;${(sc.h_median + sc.h_sd).toFixed(0)} in). `
+        + `The largest height effect any model claims is <b>${V2_FIT_LABEL[worst.fn] || worst.fn}</b>, `
+        + `travelling <b>${worst.span.toFixed(2)} grades</b> across the whole range `
+        + `&mdash; against a credible band up to <b>${worst.width.toFixed(2)} grades</b> wide. `
+        + (worst.span < worst.width
+          ? 'The band is wider than the effect, which is the whole story: the shapes '
+            + 'differ but none of them is separated from a flat line.'
+          : 'That is a real effect, but read it against a gym-to-gym spread of '
+            + 'well over a grade.')
+      : '';
+  }
+}
+
 // ---- corner plot ----
 
 // Canonical ordering for the everything-at-once corner plot: the same order
@@ -3597,7 +3826,7 @@ function renderV2Corner() {
   const el = document.getElementById('v2-corner');
   if (!el || typeof Plotly === 'undefined' || !V2_POST) return;
   const groupKey = document.getElementById('v2-corner-group')?.value || 'height';
-  const overlay = document.getElementById('v2-corner-overlay')?.value || 'one';
+  let overlay = document.getElementById('v2-corner-overlay')?.value || 'one';
   let style = document.getElementById('v2-corner-style')?.value || 'both';
   const primaryName = v2SelectedFit();
 
@@ -3606,6 +3835,15 @@ function renderV2Corner() {
   const wide = groupKey === 'all';
   el.classList.toggle('chart-bleed-wide', wide);
   if (wide) setV2CornerWidth();
+
+  // Say it in the control, not only in the caption underneath the plot.
+  const ovSel = document.getElementById('v2-corner-overlay');
+  const ovAll = ovSel?.querySelector('option[value="all"]');
+  if (ovAll) {
+    ovAll.disabled = wide;
+    ovAll.textContent = wide ? 'All models overlaid — too slow here' : 'All models overlaid';
+    if (wide && ovSel.value === 'all') { ovSel.value = 'one'; overlay = 'one'; }
+  }
 
   const names0 = ['one', undefined].includes(overlay)
     ? v2CornerNames(groupKey, [v2Fit(primaryName)].filter(Boolean))
@@ -3642,25 +3880,41 @@ function renderV2Corner() {
   // something up or the page locks for seconds.
   const nCells = (N * (N + 1)) / 2;
   let downgraded = '';
-  // Overlaying seven models across every parameter is ~1,200 subplots' worth
-  // of traces; the browser will draw it, but slowly enough to feel broken.
-  if (nCells * chosen.length > 700 && chosen.length > 1) {
+  // Overlaying in the everything view is not a fallback, it is not possible:
+  // every panel-model pair is its own SVG subplot trace, and 171 panels x 7
+  // models is ~1,200 of them, which takes Plotly well over half a minute and
+  // freezes the tab while it works. Measured, not assumed -- contours-only
+  // does not help, because the cost is the trace count, not the trace type.
+  if (chosen.length > 1 && nCells > 90) {
     const keep = chosen.includes(primaryName) ? primaryName : chosen[0];
     chosen.length = 0;
     chosen.push(keep);
-    downgraded = `Showing <b>${V2_FIT_LABEL[keep] || keep}</b> alone: ${N} parameters `
-      + 'across every model is too many panels to draw at a usable speed. '
-      + 'Pick a smaller parameter group to overlay them.';
+    downgraded = `Overlaying models is off in this view: ${nCells} panels &times; every `
+      + 'model is ~1,200 separate plots, which takes over half a minute to draw. '
+      + `Showing <b>${V2_FIT_LABEL[keep] || keep}</b> alone. Pick a parameter group `
+      + 'above to compare models.';
   }
   const load = nCells * chosen.length;
-  if ((nCells > 60 || load > 260) && style !== 'points') {
+  // Points are what makes a smaller overlay unreadable as well as slow: seven
+  // scatter clouds on one panel is mud, and contours survive the density.
+  const heavy = load > 260 || nCells > 60;
+  if (heavy && chosen.length > 1 && style !== 'contour') {
+    style = 'contour';
+    downgraded += (downgraded ? ' ' : '')
+      + `Contours only here: ${nCells} panels &times; ${chosen.length} models `
+      + 'is more scatter than one panel can show. Narrow the parameter group '
+      + 'to get the points back.';
+  } else if (heavy && style === 'both') {
     style = 'points';
     downgraded += (downgraded ? ' ' : '')
-      + `Contours are off here: ${nCells} panels &times; ${chosen.length} `
-      + 'model(s) is more than they can be drawn for at a usable speed. '
-      + 'Narrow the parameter group to get them back.';
+      + `Points only here: ${nCells} panels is more than contours can be fitted `
+      + 'to at a usable speed.';
   }
   const MAX_PTS = load > 300 ? 120 : (chosen.length > 3 ? 220 : 500);
+  // Coarser contours when there are hundreds of panels: at 56px a cell, four
+  // levels and 18 bins is detail nobody can see and everybody waits for.
+  const cLevels = heavy ? 2 : 4;
+  const cBins = heavy ? 12 : 18;
 
   // Draws, per fit, thinned to the same stride across parameters so each cell
   // is a genuine joint sample rather than a scatter of unrelated numbers.
@@ -3750,9 +4004,9 @@ function renderV2Corner() {
             type: 'histogram2dcontour',
             x: dx, y: dy, xaxis: xa, yaxis: ya,
             colorscale: [[0, c], [1, c]], showscale: false,
-            ncontours: 4, contours: { coloring: 'lines' },
+            ncontours: cLevels, contours: { coloring: 'lines' },
             line: { width: 1.1, smoothing: 1.3 },
-            nbinsx: 18, nbinsy: 18,
+            nbinsx: cBins, nbinsy: cBins,
             hoverinfo: 'skip', ...legend(),
           });
         }
@@ -3990,6 +4244,9 @@ function bindV2Inference() {
   ['v2-corner-group', 'v2-corner-overlay', 'v2-corner-style'].forEach((id) => {
     document.getElementById(id)?.addEventListener('change', renderV2Corner);
   });
+  ['v2-fitted-gender', 'v2-fitted-band'].forEach((id) => {
+    document.getElementById(id)?.addEventListener('change', renderV2FittedForms);
+  });
 }
 
 async function loadV2Posterior() {
@@ -4013,8 +4270,15 @@ async function loadV2Posterior() {
 async function renderV2Inference() {
   if (!(await loadV2Posterior())) return;
   bindV2Inference();
+  // The glossary quotes the height/ape SDs, which only arrive with the fits.
+  renderV2Symbols();
+  if (typeof window.renderMathInElement === 'function') {
+    const el = document.getElementById('v2-symbols');
+    if (el) window.renderMathInElement(el, { delimiters: [{ left: '\\(', right: '\\)', display: false }] });
+  }
   renderV2PostGrid();
   renderV2Sampler();
+  renderV2FittedForms();
   renderV2Corner();
   const sel = document.getElementById('v2-param-pick');
   renderV2ParamDetail(sel?.value || Object.keys(v2Fit(v2SelectedFit()).params)[0]);
@@ -4110,14 +4374,19 @@ function bindV2Glossary() {
     // Clicking the equation is the way in when the panel is shut: it opens the
     // panel and lands on this equation's symbols. highlightV2Symbols scrolls
     // the first hit into view, but only once the panel has actually widened.
+    // Click is a toggle: open the panel onto this equation's symbols, or shut
+    // it again if it is already open.
     const openTo = () => {
-      const wasShut = panel.dataset.open !== 'true';
-      if (wasShut) setV2GlossaryOpen(true);
-      if (wasShut) setTimeout(() => highlightV2Symbols(keys), 220);
-      else highlightV2Symbols(keys);
+      if (panel.dataset.open === 'true') {
+        highlightV2Symbols(null);
+        setV2GlossaryOpen(false);
+        return;
+      }
+      setV2GlossaryOpen(true);
+      setTimeout(() => highlightV2Symbols(keys), 220);
     };
     eq.setAttribute('role', 'button');
-    eq.setAttribute('title', 'Show these symbols in the reference panel');
+    eq.setAttribute('title', 'Show these symbols in the reference panel (click again to close it)');
     eq.addEventListener('click', openTo);
     eq.addEventListener('keydown', (ev) => {
       if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openTo(); }
@@ -4181,7 +4450,7 @@ function renderV2FormsTable() {
 function v2HeightGrid() {
   const inches = [];
   for (let h = 58; h <= 78; h += 0.25) inches.push(h);
-  return { inches, z: inches.map((h) => (h - V2_HMED) / V2_HSD) };
+  return { inches, z: inches.map((h) => (h - v2HMed()) / v2HSd()) };
 }
 
 // Bands showing where each group actually sits. Always drawn -- the shapes are
@@ -4506,7 +4775,8 @@ function sizeV2FormGrid() {
   if (typeof Plotly === 'undefined') return;
   const ids = V2_FORM_SPECS.map((spec) => `v2-fc-chart-${spec.key}`)
     .concat(['v2-gap-chart', 'v2-visits-chart', 'v2-param-dens', 'v2-param-trace',
-             'v2-across-fits'], cornerWide ? [] : ['v2-corner'])
+             'v2-across-fits', 'v2-fitted-height', 'v2-fitted-ape'],
+            cornerWide ? [] : ['v2-corner'])
     .concat(Object.keys(v2Fit(v2SelectedFit())?.params || {}).map((n) => `v2-pt-${n}`));
   ids.forEach((id) => {
     const el = document.getElementById(id);

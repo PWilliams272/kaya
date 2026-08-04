@@ -204,22 +204,30 @@ def kaya_api_post(
 
 
 def search_for_gym(
-    search_term: str
+    search_term: str,
+    offset: int = 0,
+    count: int = 100
 ) -> pd.DataFrame:
     """Search for a gym using a search term.
 
     Args:
         search_term (str): The search term to look for gyms.
+        offset (int, optional): Result offset, for paging past the first
+            page. Defaults to 0.
+        count (int, optional): Results per page. Defaults to 100.
 
     Returns:
-        pd.DataFrame: DataFrame containing gym search results.
+        pd.DataFrame: DataFrame containing gym search results. Columns are
+            id, slug, name, boulder_count, route_count, address, city,
+            postal_code, region, country, follower_count, is_official,
+            website.
     """
     json_data = {
         'operationName': 'webSearchForGym',
         'variables': {
             'term': search_term,
-            'offset': 0,
-            'count': 100,
+            'offset': offset,
+            'count': count,
         },
         'query': (
             'query webSearchForGym($term: String!, $offset: Int!, '

@@ -7,7 +7,7 @@
     <meta name="kaya-viewer-data-mode" content="static" />
     <link rel="stylesheet" href="/static/tokens.css" />
     <link rel="stylesheet" href="/static/app.css?v=6" />
-    <link rel="stylesheet" href="/static/research.css?v=17" />
+    <link rel="stylesheet" href="/static/research.css?v=19" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -1475,6 +1475,43 @@
               <div id="v2-across-fits" class="chart-mid"></div>
               <p class="caption" id="v2-across-note"></p>
 
+              <h3>What each model concluded about the body</h3>
+              <p class="prose">
+                The parameters above are the model&rsquo;s internal knobs; these
+                are the curves they add up to. Every fitted height form is drawn
+                on the same axes with its 89% credible band, and beside it the
+                ape-index curve, which every model shares. Each curve is pinned
+                to zero at the median so they are comparable &mdash; what is
+                being read off is the <b>shape</b>, and how much of the vertical
+                axis the band covers. Click a model in the legend to isolate it.
+              </p>
+              <div class="param-detail">
+                <div class="controls-inline">
+                  <label class="ctl">
+                    <span>Curves for</span>
+                    <select id="v2-fitted-gender">
+                      <option value="male">Male users</option>
+                      <option value="female">Female users</option>
+                    </select>
+                  </label>
+                  <label class="ctl ctl-check">
+                    <input type="checkbox" id="v2-fitted-band" checked />
+                    <span>Show credible bands</span>
+                  </label>
+                </div>
+                <div class="param-detail-grid">
+                  <div>
+                    <h4 class="chart-label">Height</h4>
+                    <div id="v2-fitted-height" class="chart-mid"></div>
+                  </div>
+                  <div>
+                    <h4 class="chart-label">Ape index</h4>
+                    <div id="v2-fitted-ape" class="chart-mid"></div>
+                  </div>
+                </div>
+                <p class="caption" id="v2-fitted-note"></p>
+              </div>
+
               <h3>How the parameters trade off against each other</h3>
               <p class="prose">
                 A corner plot shows every pair of parameters plotted against one
@@ -1748,6 +1785,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=59"></script>
+    <script src="/static/app.js?v=61"></script>
   </body>
 </html>

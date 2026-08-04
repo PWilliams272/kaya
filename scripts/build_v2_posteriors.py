@@ -55,6 +55,36 @@ def prior_draws(fit_args, n=1500):
     return out
 
 
+def dataset_scales(fit_args):
+    """The centring/scaling the model applies to height and ape index.
+
+    The viewer needs these to put its x-axes back in inches. They are a
+    property of the fitted dataset, not constants -- net50/confident has
+    h_sd 3.92 in, and an earlier hard-coded 3.4 in the page was simply wrong.
+    """
+    from kaya.grading_model_v2 import make_dataset
+    base = pickle.load(open(TMP / 'base_bouldering.pkl', 'rb'))
+    nets = json.loads((TMP / 'networks.json').read_text())['networks']
+    ds = make_dataset(base, nets[fit_args['network']],
+                      name_filter=fit_args['name_filter'],
+                      label=f"{fit_args['network']}/{fit_args['name_filter']}")
+    h = ds.users['height'].to_numpy(float)
+    a = ds.users['ape_index'].to_numpy(float)
+    return {
+        'network': fit_args['network'], 'name_filter': fit_args['name_filter'],
+        'h_median': round(float(np.nanmedian(h)), 3),
+        'h_sd': round(float(np.nanstd(h)), 3),
+        'a_median': round(float(np.nanmedian(a)), 3),
+        'a_sd': round(float(np.nanstd(a)), 3),
+        # 1st/99th percentiles, so the viewer draws curves over the range the
+        # data actually covers instead of extrapolating into empty space.
+        'h_lo': round(float(np.nanpercentile(h, 1)), 2),
+        'h_hi': round(float(np.nanpercentile(h, 99)), 2),
+        'a_lo': round(float(np.nanpercentile(a, 1)), 2),
+        'a_hi': round(float(np.nanpercentile(a, 99)), 2),
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--skip-priors', action='store_true')
@@ -115,6 +145,8 @@ def main():
             except Exception as e:
                 print(f'  {name}: prior sampling failed ({e})')
         payload['fits'][name] = fit
+        if 'scales' not in payload:
+            payload['scales'] = dataset_scales(res['args'])
         print(f"  {name}: {len(fit['params'])} params, warmup="
               f"{fit['n_warmup'] or 'no'}, prior={'yes' if 'prior' in fit else 'no'}")
         del idata
