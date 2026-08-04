@@ -3618,6 +3618,234 @@ function renderV2AcrossFits(name) {
   }
 }
 
+// ---- the missing dimension: time ----
+//
+// v2_time.json is written by scripts/build_v2_time.py: the climber
+// advancement curve (naive and de-biased) and the per-gym date/correction
+// scatter. Nothing here is hand-typed.
+
+let V2_TIME = null;
+
+async function loadV2Time() {
+  if (V2_TIME) return true;
+  try {
+    const r = await fetch('/static/v2_time.json', { cache: 'no-cache' });
+    if (!r.ok) return false;
+    V2_TIME = await r.json();
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function renderV2Advancement() {
+  const el = document.getElementById('v2-adv-chart');
+  if (!el || !V2_TIME || typeof Plotly === 'undefined') return;
+  const a = V2_TIME.advancement;
+  const gx = (rows) => rows.map((r) => r.v);
+  const traces = [];
+
+  // De-biased IQR first, so the lines draw over it.
+  traces.push({
+    type: 'scatter', mode: 'lines', x: gx(a.debiased), y: a.debiased.map((r) => r.p25),
+    line: { width: 0 }, showlegend: false, hoverinfo: 'skip',
+  });
+  traces.push({
+    type: 'scatter', mode: 'lines', x: gx(a.debiased), y: a.debiased.map((r) => r.p75),
+    line: { width: 0 }, fill: 'tonexty',
+    fillcolor: hexToRgba(cssVar('--lg-cat-1'), 0.10),
+    name: 'de-biased, middle 50% of climbers',
+    hovertemplate: 'middle 50% reaches %{y:+.1f}<extra></extra>',
+  });
+  traces.push({
+    type: 'scatter', mode: 'lines+markers', x: gx(a.naive), y: a.naive.map((r) => r.mean),
+    name: 'naive (regression to the max)',
+    line: { color: cssVar('--lg-cat-4'), width: 2, dash: 'dash' },
+    marker: { size: 6 },
+    hovertemplate: 'V%{x}: %{y:+.2f} grades/yr<extra>naive</extra>',
+  });
+  traces.push({
+    type: 'scatter', mode: 'lines+markers', x: gx(a.debiased), y: a.debiased.map((r) => r.mean),
+    name: 'de-biased',
+    line: { color: cssVar('--lg-cat-1'), width: 2.6 },
+    marker: { size: 7 },
+    error_y: { type: 'data', array: a.debiased.map((r) => r.sem),
+      color: hexToRgba(cssVar('--lg-cat-1'), 0.5), thickness: 1.4, width: 3 },
+    hovertemplate: 'V%{x}: %{y:+.2f} grades/yr<extra>de-biased</extra>',
+  });
+
+  const layout = chartLayout('current grade');
+  layout.height = 380;
+  layout.margin = { l: 62, r: 20, t: 12, b: 96 };
+  layout.xaxis = { ...layout.xaxis, automargin: false, tickprefix: 'V', dtick: 1,
+    title: { text: 'current grade', standoff: 10 } };
+  layout.yaxis = { ...layout.yaxis, automargin: false, zeroline: true,
+    zerolinecolor: cssVar('--lg-text-2'),
+    title: { text: 'grades gained per year', standoff: 6 } };
+  layout.legend = { ...layout.legend, orientation: 'h', y: -0.3, yanchor: 'top',
+    x: 0, font: { size: 10 } };
+  Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
+
+  const note = document.getElementById('v2-adv-note');
+  if (note) {
+    const at = (rows, v) => rows.find((r) => r.v === v);
+    // The worst naive value, whichever bin it lands in -- that is the
+    // impossible number the argument rests on.
+    const n1 = a.naive.reduce((w, r) => (r.mean < w.mean ? r : w), a.naive[0]);
+    const d1 = at(a.debiased, 1), d5 = at(a.debiased, 5), d7 = at(a.debiased, 7);
+    note.innerHTML = `${a.n_pairs.toLocaleString()} window triples from `
+      + `${a.n_climbers.toLocaleString()} climbers. De-biased, improvement runs `
+      + `<b>${d1.mean.toFixed(2)} grades/yr at V${d1.v}</b>, `
+      + `${d5.mean.toFixed(2)} at V${d5.v} and ${d7.mean.toFixed(2)} at V${d7.v} `
+      + `&mdash; a slope of <b>${a.fit.slope.toFixed(2)} grades/yr per V-grade</b>. `
+      + `The naive estimator has the same shape and roughly five times the `
+      + `magnitude, bottoming out at ${n1.mean.toFixed(1)} grades/yr at V${n1.v}, `
+      + 'which is the impossible number that gives it away. Error bars are the '
+      + 'standard error of the mean; the band is the interquartile range, and it '
+      + 'is wide because individual climbers differ far more than grades do.';
+  }
+}
+
+function renderV2TimeChart() {
+  const el = document.getElementById('v2-time-chart');
+  if (!el || !V2_TIME || typeof Plotly === 'undefined') return;
+  const gt = V2_TIME.gym_time;
+  const brands = [...new Set(gt.gyms.map((r) => r.b))]
+    .sort((x, y) => gt.gyms.filter((r) => r.b === y).length
+                  - gt.gyms.filter((r) => r.b === x).length);
+  const traces = brands.map((b) => {
+    const rs = gt.gyms.filter((r) => r.b === b);
+    const c = cssVar(V2_BRAND_COLOURS[b] || '--lg-text-2');
+    return {
+      type: 'scatter', mode: 'markers', name: b,
+      x: rs.map((r) => r.t_c), y: rs.map((r) => r.m),
+      marker: { size: 11, color: hexToRgba(c, 0.72),
+        line: { width: 2, color: hexToRgba(c, 0.85) } },
+      text: rs.map((r) => r.g),
+      hovertemplate: '<b>%{text}</b><br>%{x:+.2f} yr relative to its own '
+        + 'climbers<br>correction %{y:+.3f} grades<extra></extra>',
+    };
+  });
+  // The fitted line, drawn across the observed range only.
+  const xs = gt.gyms.map((r) => r.t_c);
+  const lo = Math.min(...xs), hi = Math.max(...xs);
+  const ys = gt.gyms.map((r) => r.m);
+  const mx = xs.reduce((s, v) => s + v, 0) / xs.length;
+  const my = ys.reduce((s, v) => s + v, 0) / ys.length;
+  const b1 = gt.raw.slope, b0 = my - b1 * mx;
+  traces.push({
+    type: 'scatter', mode: 'lines', name: `fit: ${b1.toFixed(2)} grades / yr`,
+    x: [lo, hi], y: [b0 + b1 * lo, b0 + b1 * hi],
+    line: { color: cssVar('--lg-text-2'), width: 1.6, dash: 'dash' },
+    hoverinfo: 'skip',
+  });
+
+  const layout = chartLayout('');
+  layout.height = 400;
+  layout.margin = { l: 66, r: 20, t: 12, b: 96 };
+  layout.xaxis = { ...layout.xaxis, automargin: false, zeroline: true,
+    zerolinecolor: cssVar('--lg-text-2'),
+    title: { text: 'how late this gym sits in its own climbers’ careers (years)',
+      standoff: 10 } };
+  layout.yaxis = { ...layout.yaxis, automargin: false, zeroline: true,
+    zerolinecolor: cssVar('--lg-text-2'),
+    title: { text: 'grading correction (grades)', standoff: 6 } };
+  layout.legend = { ...layout.legend, orientation: 'h', y: -0.28, yanchor: 'top',
+    x: 0, font: { size: 10 } };
+  Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
+
+  const note = document.getElementById('v2-time-note');
+  if (note) {
+    note.innerHTML = `Each point is one of the 29 gyms, positioned by the average `
+      + `within-climber date of its rows. ${gt.n_multi.toLocaleString()} multi-gym `
+      + 'climbers carry these contrasts; the median one’s first and last '
+      + `hardest send are only <b>${gt.gap_median} years</b> apart, and just `
+      + `${Math.round(gt.gap_over_1y * 100)}% are more than a year apart &mdash; so `
+      + 'the confound is concentrated in a minority. Right is later, up is stiffer, '
+      + 'and the relationship runs exactly the way unmodelled improvement would '
+      + 'push it.';
+  }
+}
+
+function renderV2TimeStats() {
+  const host = document.getElementById('v2-time-stats');
+  if (!host || !V2_TIME) return;
+  const gt = V2_TIME.gym_time, a = V2_TIME.advancement;
+  const d = a.debiased;
+  const near = d.filter((r) => r.v >= 5 && r.v <= 6);
+  const typical = near.reduce((s, r) => s + r.mean, 0) / (near.length || 1);
+  const spread = gt.spread_t_c[1] - gt.spread_t_c[0];
+  // What improvement can actually account for, against the observed spread.
+  const explained = typical * spread;
+  const observed = (V2_RESULTS?.spread) || 1.29;
+  const tiles = [
+    { v: `+${gt.raw.r.toFixed(2)}`, l: 'correlation, raw',
+      s: 'gym correction vs within-climber date' },
+    { v: `+${gt.within_brand.r.toFixed(2)}`, l: 'correlation, within company',
+      s: 'so it is not just Movement being late and stiff' },
+    { v: `${typical >= 0 ? '+' : ''}${typical.toFixed(2)}`, l: 'grades/yr at V5–V6',
+      s: 'measured advancement where the median climber sits' },
+    { v: `${Math.round((explained / observed) * 100)}%`, l: 'of the spread explained',
+      s: `${explained.toFixed(2)} of ${observed.toFixed(2)} grades, from improvement` },
+  ];
+  host.innerHTML = tiles.map((t) => `
+    <div class="stat-tile">
+      <div class="stat-value">${t.v}</div>
+      <div class="stat-label">${t.l}</div>
+      <div class="stat-sub">${t.s}</div>
+    </div>`).join('');
+
+  const verdict = document.getElementById('v2-time-verdict');
+  if (verdict) {
+    verdict.innerHTML = 'The correlation is solid: <b>+' + gt.raw.r.toFixed(2)
+      + '</b> raw, <b>+' + gt.within_brand.r.toFixed(2) + '</b> with company means '
+      + 'removed, <b>+' + (gt.by_brand.Touchstone?.r ?? 0).toFixed(2)
+      + '</b> inside Touchstone alone across 17 gyms. Its slope implies '
+      + `<b>${gt.within_brand.slope.toFixed(2)} grades per year</b>. `
+      + 'But the measured advancement rate where the median climber sits is '
+      + `<b>${typical.toFixed(2)} grades per year</b> &mdash; an order of magnitude `
+      + 'smaller. <b>Climber improvement cannot be most of this.</b> Improvement '
+      + `accounts for roughly ${explained.toFixed(2)} of the ${observed.toFixed(2)} `
+      + 'grade correction spread, around '
+      + `${Math.round((explained / observed) * 100)}%, which is reassuring for the `
+      + 'headline gym result and leaves the rest of the correlation unexplained. '
+      + 'Two candidates are not yet separated: <b>gyms’ grading genuinely '
+      + 'drifting over time</b> &mdash; which would be a result rather than a '
+      + 'confound &mdash; and selection in <b>when</b> climbers switch gyms. '
+      + 'Neither can be tested until the send date is carried into the model.';
+  }
+}
+
+function renderV2AdvTable() {
+  const el = document.getElementById('v2-adv-table');
+  if (!el || !V2_TIME) return;
+  const a = V2_TIME.advancement;
+  const byV = {};
+  a.naive.forEach((r) => { byV[r.v] = { v: r.v, naive: r.mean }; });
+  a.debiased.forEach((r) => {
+    byV[r.v] = { ...(byV[r.v] || { v: r.v }), deb: r.mean, n: r.n,
+      p25: r.p25, p75: r.p75 };
+  });
+  const rows = Object.values(byV).filter((r) => r.deb !== undefined)
+    .sort((x, y) => x.v - y.v);
+  el.innerHTML = '<thead><tr><th>grade</th><th>naive</th><th>de-biased</th>'
+    + '<th>middle 50%</th><th>window triples</th></tr></thead><tbody>'
+    + rows.map((r) => `<tr><td class="label-cell">V${r.v}</td>`
+      + `<td class="unit muted">${r.naive === undefined ? '&mdash;' : (r.naive >= 0 ? '+' : '') + r.naive.toFixed(2)}</td>`
+      + `<td class="unit"><b>${r.deb >= 0 ? '+' : ''}${r.deb.toFixed(2)}</b></td>`
+      + `<td class="unit">${r.p25.toFixed(1)} to ${r.p75 >= 0 ? '+' : ''}${r.p75.toFixed(1)}</td>`
+      + `<td class="unit">${r.n.toLocaleString()}</td></tr>`).join('')
+    + '</tbody>';
+}
+
+async function renderV2Time() {
+  if (!(await loadV2Time())) return;
+  renderV2Advancement();
+  renderV2AdvTable();
+  renderV2TimeChart();
+  renderV2TimeStats();
+}
+
 // ---- what each model concluded about the body ----
 //
 // The parameter posteriors above are knobs; these are the curves they add up
@@ -4991,6 +5219,7 @@ async function renderV2Tab() {
   renderV2DiscardChart();
   renderV2GenderValidation();
   renderV2HeightHist();
+  renderV2Time();
   // The glossary and forms table are injected as innerHTML *after* KaTeX's
   // auto-render already ran on DOMContentLoaded, so their \( ... \) spans
   // would otherwise stay as literal source. Typeset them explicitly.

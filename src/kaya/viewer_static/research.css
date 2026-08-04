@@ -1121,3 +1121,18 @@
   font-weight: 700;
   margin: 0;
 }
+
+/* .caption has been used throughout the write-up with no style behind it, so
+   captions read as body copy and run into the paragraph after them. These
+   carry real explanation rather than just labelling a figure, so the
+   treatment stays restrained: a step down and a step back, not fine print. */
+.caption {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--lg-text-2);
+  /* No cap: the write-up's paragraphs use <p class="prose">, which the
+     `.prose p` descendant rule never matches, so body copy runs the full
+     column width. A capped caption would look indented against it. */
+  margin: 6px 0 22px;
+}
+.caption b { color: var(--lg-text); }
