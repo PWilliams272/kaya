@@ -1,0 +1,15 @@
+[Unit]
+Description=Daily pull of kaya viewer-cache JSON from S3 onto local disk
+
+[Timer]
+# kaya-viewer-cache Lambda runs daily at noon UTC and has taken up to ~10.5
+# minutes; 13:00 UTC gives a real margin without waiting an extra day if the
+# Lambda run is ever a bit slow.
+OnCalendar=*-*-* 13:00:00 UTC
+Persistent=true
+# Also catch a fresh cache shortly after any host reboot, independent of
+# the daily schedule.
+OnBootSec=5min
+
+[Install]
+WantedBy=timers.target

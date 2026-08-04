@@ -64,3 +64,34 @@ report) `t3.medium` resize will do the exact same thing to
 that change** — not as an afterthought once a deploy mysteriously times out.
 Current value (confirmed live as of 2026-07-28 via
 `aws ec2 describe-instances`): `3.16.167.114`.
+
+## Viewer-cache sync timer (host-side, outside this workflow)
+
+Separate from the above: the live site reads its JSON from a local static
+directory (`data/viewer_payloads/latest/`, FastAPI's `/viewer-data` mount),
+not live from S3. Found and fixed 2026-08-03 — that directory had been
+populated once by hand and nothing kept it in sync with the daily
+`kaya-viewer-cache` Lambda's S3 output (`kaya/viewer-cache/`), so the site
+had been silently serving a stale 2026-07-28 snapshot.
+
+Fixed with a systemd timer installed directly on the host (via SSH, not
+through this GitHub Actions workflow — deliberately decoupled so code
+deploys and data refreshes don't block each other):
+
+- `kaya-viewer-cache-sync.service` / `.timer` — unit files live in this repo
+  at `lambda_deployment/host_systemd/`, but are **not** deployed by any
+  workflow; they were copied to `/etc/systemd/system/` on the host by hand
+  and enabled with `systemctl enable --now kaya-viewer-cache-sync.timer`.
+- Runs `python -m kaya.sync_viewer_cache_to_host`
+  (`src/kaya/sync_viewer_cache_to_host.py`) daily at 13:00 UTC (an hour
+  after the Lambda's noon UTC run), plus once ~5 minutes after any host
+  reboot. Uses the host's existing `ec2-kaya-viewer-role` IAM instance
+  profile (already scoped read-only to `kaya/viewer-cache/*`) — no
+  credentials to provision.
+- **If this host is ever rebuilt**, redeploy by hand: `pip install -e .`
+  already makes `kaya.sync_viewer_cache_to_host` importable (it's a normal
+  module under `src/kaya/`), so just copy the two unit files from
+  `lambda_deployment/host_systemd/` to `/etc/systemd/system/`, `systemctl
+  daemon-reload`, then `systemctl enable --now kaya-viewer-cache-sync.timer`.
+- Check it's alive: `systemctl list-timers kaya-viewer-cache-sync.timer` and
+  `journalctl -u kaya-viewer-cache-sync.service -n 20`.

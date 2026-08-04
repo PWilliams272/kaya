@@ -1,0 +1,12 @@
+[Unit]
+Description=Pull kaya viewer-cache JSON from S3 onto local disk
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/ubuntu/kaya_viewer
+ExecStart=/home/ubuntu/kaya_viewer/.venv/bin/python -m kaya.sync_viewer_cache_to_host
+User=ubuntu
+Environment=KAYA_S3_BUCKET=my-kaya-data-545009868532-us-east-2
+Environment=KAYA_S3_PREFIX=kaya
+Environment=AWS_REGION=us-east-2
