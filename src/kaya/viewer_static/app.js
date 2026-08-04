@@ -2438,7 +2438,6 @@ async function activateTab(tabName) {
     bindExplorerControls();
     refreshExplorer();
   } else if (tabName === 'grading-v2') {
-    bindV2Controls();
     renderV2Tab();
   } else {
     await ensureGymComparisonData();
@@ -2744,16 +2743,14 @@ const V2_DECISIONS = [
 // with real opacity -- an earlier version used --lg-gold-soft (10% alpha) for
 // Bouldering Project, which rendered those gyms effectively invisible.
 const V2_BRAND_COLOURS = {
-  'Touchstone': '--lg-gold',            // blue, the house accent (17 of 29 gyms)
-  'Movement': '--lg-highlight',         // copper
-  'Bouldering Project': '--lg-success',  // green
-  'Stronghold': '--lg-warning',          // ochre
+  'Touchstone': '--lg-cat-1',           // blue, the house accent (17 of 29 gyms)
+  'Movement': '--lg-cat-2',             // copper
+  'Bouldering Project': '--lg-cat-3',   // green
+  'Stronghold': '--lg-cat-5',           // violet -- ochre read as a second copper
 };
 
-function v2Colour(row, mode) {
-  if (mode === 'brand') return cssVar(V2_BRAND_COLOURS[row.b] || '--lg-text-2') || '#888';
-  if (mode === 'sig') return row.s ? cssVar('--lg-gold') : cssVar('--lg-text-2');
-  return row.m >= 0 ? cssVar('--lg-highlight') : cssVar('--lg-gold');
+function v2Colour(row) {
+  return cssVar(V2_BRAND_COLOURS[row.b] || '--lg-text-2') || '#888';
 }
 
 function renderV2Stats() {
@@ -2789,36 +2786,58 @@ function renderV2Table(id, rows) {
 function renderV2GymChart() {
   const el = document.getElementById('v2-gym-chart');
   if (!el || typeof Plotly === 'undefined') return;
-  const mode = document.getElementById('v2-colour-by')?.value || 'brand';
-  const brand = document.getElementById('v2-filter-brand')?.value || '';
-  const onlySig = document.getElementById('v2-only-sig')?.checked;
-  let rows = V2_GYMS.filter((r) => (!brand || r.b === brand) && (!onlySig || r.s));
-  const trace = {
-    type: 'scatter', mode: 'markers', orientation: 'h',
-    x: rows.map((r) => r.m),
-    y: rows.map((r) => r.g),
-    error_x: {
-      type: 'data', symmetric: false,
-      array: rows.map((r) => r.hi - r.m),
-      arrayminus: rows.map((r) => r.m - r.lo),
-      color: cssVar('--lg-text-2'), thickness: 1.6, width: 3, opacity: 0.75,
-    },
-    marker: {
-      size: 11,
-      color: rows.map((r) => (r.s ? v2Colour(r, mode) : cssVar('--lg-card'))),
-      line: { width: 2, color: rows.map((r) => v2Colour(r, mode)) },
-    },
-    hovertemplate: '<b>%{y}</b><br>correction %{x:+.3f} grades<extra></extra>',
-  };
+  const rows = V2_GYMS;
+  // One trace per company, so Plotly's own legend does the show/hide. The row
+  // order is pinned to the (correction-sorted) full list -- otherwise splitting
+  // into traces would regroup the axis by company.
+  const order = rows.map((r) => r.g);
+  const brands = [...new Set(rows.map((r) => r.b))]
+    .sort((a, b) => rows.filter((r) => r.b === b).length - rows.filter((r) => r.b === a).length);
+  const traces = brands.map((b) => {
+    const rs = rows.filter((r) => r.b === b);
+    const c = v2Colour(rs[0]);
+    return {
+      type: 'scatter', mode: 'markers', name: b, legendgroup: b,
+      x: rs.map((r) => r.m),
+      y: rs.map((r) => r.g),
+      error_x: {
+        type: 'data', symmetric: false,
+        array: rs.map((r) => r.hi - r.m),
+        arrayminus: rs.map((r) => r.m - r.lo),
+        color: cssVar('--lg-text-2'), thickness: 1.6, width: 3, opacity: 0.75,
+      },
+      // Hollow marker = interval still contains zero.
+      marker: {
+        size: 11,
+        color: rs.map((r) => (r.s ? c : cssVar('--lg-card'))),
+        line: { width: 2, color: c },
+      },
+      hovertemplate: `<b>%{y}</b><br>${b}<br>correction %{x:+.3f} grades<extra></extra>`,
+    };
+  });
   const layout = chartLayout('grading correction (grades) — negative = softer, positive = stiffer');
   layout.height = Math.max(360, rows.length * 26 + 90);
   layout.margin = { l: 260, r: 30, t: 14, b: 52 };
   layout.shapes = [{
-    type: 'line', x0: 0, x1: 0, y0: -0.5, y1: rows.length - 0.5,
+    type: 'line', xref: 'x', yref: 'paper', x0: 0, x1: 0, y0: 0, y1: 1,
     line: { color: cssVar('--lg-text-2'), width: 1, dash: 'dot' },
   }];
-  layout.yaxis = { ...layout.yaxis, automargin: true, tickfont: { size: 11 } };
-  Plotly.react(el, [trace], layout, { displayModeBar: false, responsive: true });
+  layout.yaxis = {
+    ...layout.yaxis, automargin: true, tickfont: { size: 11 },
+    categoryorder: 'array', categoryarray: order,
+    range: [-0.5, rows.length - 0.5],
+  };
+  layout.showlegend = true;
+  // Parked bottom-right, the one corner the sorted data leaves empty.
+  // Vertical, not the horizontal default from chartLayout -- a horizontal
+  // legend spreads across the bottom and lands on top of the softest gyms.
+  layout.legend = {
+    ...layout.legend, orientation: 'v',
+    x: 0.99, y: 0.01, xanchor: 'right', yanchor: 'bottom',
+    bgcolor: cssVar('--lg-card'), bordercolor: cssVar('--lg-border'),
+    borderwidth: 1, font: { size: 11 }, itemsizing: 'constant',
+  };
+  Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
 }
 
 function renderV2BrandChart() {
@@ -3223,8 +3242,10 @@ const V2_FIT_LABEL = {
   v3_quad: 'quadratic', v3_vtx: 'vertex quadratic',
   v3_apex: 'quad × gender + ape×gender', v3_zsu: 'quad × gender (zero-sum users)',
 };
-const V2_FIT_HUES = ['--lg-info', '--lg-highlight', '--lg-success', '--lg-danger',
-                     '--lg-warning', '--lg-text-2'];
+// Eight distinct hues -- there are seven fits, and the status tokens only give
+// five usable colours (two of which are near-identical blues).
+const V2_FIT_HUES = ['--lg-cat-1', '--lg-cat-2', '--lg-cat-3', '--lg-cat-4',
+                     '--lg-cat-5', '--lg-cat-6', '--lg-cat-7', '--lg-cat-8'];
 
 const V2_CORNER_GROUPS = {
   height: { label: 'Height block', of: ['beta0', 'gamma1', 'gamma2', 'gamma1_x', 'gamma2_x'] },
@@ -3547,75 +3568,220 @@ function renderV2AcrossFits(name) {
 
 // ---- corner plot ----
 
+// Canonical ordering for the everything-at-once corner plot: the same order
+// the symbol glossary walks, so the two read alike.
+const V2_PARAM_ORDER = Object.keys(V2_PARAM_TEX);
+
+function v2CornerNames(groupKey, fits) {
+  const present = (n) => fits.some((f) => f.params[n]);
+  if (groupKey === 'all') return V2_PARAM_ORDER.filter(present);
+  return (V2_CORNER_GROUPS[groupKey]?.of || []).filter(present);
+}
+
+// Pearson correlation of two equal-length draw vectors.
+function v2Corr(a, b) {
+  const n = Math.min(a.length, b.length);
+  if (n < 3) return 0;
+  let ma = 0, mb = 0;
+  for (let i = 0; i < n; i++) { ma += a[i]; mb += b[i]; }
+  ma /= n; mb /= n;
+  let sab = 0, sa = 0, sb = 0;
+  for (let i = 0; i < n; i++) {
+    const da = a[i] - ma, db = b[i] - mb;
+    sab += da * db; sa += da * da; sb += db * db;
+  }
+  return sa && sb ? sab / Math.sqrt(sa * sb) : 0;
+}
+
 function renderV2Corner() {
   const el = document.getElementById('v2-corner');
-  if (!el || typeof Plotly === 'undefined') return;
-  const fit = v2Fit(v2SelectedFit());
-  if (!fit) return;
+  if (!el || typeof Plotly === 'undefined' || !V2_POST) return;
   const groupKey = document.getElementById('v2-corner-group')?.value || 'height';
-  const group = V2_CORNER_GROUPS[groupKey];
-  const names = group.of.filter((n) => fit.params[n]);
-  if (names.length < 2) {
+  const overlay = document.getElementById('v2-corner-overlay')?.value || 'one';
+  let style = document.getElementById('v2-corner-style')?.value || 'both';
+  const primaryName = v2SelectedFit();
+
+  // The everything plot bleeds out past the prose column; the grouped ones
+  // stay inside it. Do this before drawing so Plotly measures the final width.
+  const wide = groupKey === 'all';
+  el.classList.toggle('chart-bleed-wide', wide);
+  if (wide) setV2CornerWidth();
+
+  const names0 = ['one', undefined].includes(overlay)
+    ? v2CornerNames(groupKey, [v2Fit(primaryName)].filter(Boolean))
+    : v2CornerNames(groupKey, v2FitNames().map(v2Fit).filter(Boolean));
+  const names = names0;
+  const N = names.length;
+  if (N < 2) {
     Plotly.purge(el);
     el.innerHTML = '<p class="form-noparams">This fit does not contain enough of '
-      + `the ${group.label.toLowerCase()} parameters to draw a corner plot.</p>`;
+      + 'these parameters to draw a corner plot.</p>';
+    const n0 = document.getElementById('v2-corner-note');
+    if (n0) n0.innerHTML = '';
     return;
   }
   if (!el._fullLayout) el.innerHTML = '';
 
-  // Built from ordinary scatter subplots rather than Plotly's `splom`, which
-  // is a WebGL/regl trace and fails outright wherever WebGL is unavailable.
-  const draws = names.map((n) => fit.params[n].chains.flat());
-  const N = names.length;
-  const MAX_PTS = 500;
-  const stride = Math.max(1, Math.ceil(draws[0].length / MAX_PTS));
-  const sub = draws.map((d) => d.filter((_, i) => i % stride === 0));
+  // Which fits are drawn, and in what colour. A fit earns a place only if it
+  // shares at least two of these parameters -- one gets you a diagonal and
+  // nothing else.
+  const allNames = v2FitNames();
+  const chosen = (overlay === 'all' ? allNames : [primaryName])
+    .filter((n) => {
+      const f = v2Fit(n);
+      return f && names.filter((p) => f.params[p]).length >= 2;
+    });
+  if (!chosen.length) chosen.push(primaryName);
+  const colourOf = {};
+  chosen.forEach((n) => {
+    colourOf[n] = cssVar(V2_FIT_HUES[allNames.indexOf(n) % V2_FIT_HUES.length]);
+  });
 
-  // One shared range per parameter, so a column and its row line up.
-  const ranges = draws.map((d) => {
-    const lo = Math.min(...d), hi = Math.max(...d), pad = (hi - lo) * 0.06 || 0.05;
+  // Cost control. Every cell is a separate SVG subplot, and contours cost
+  // several times a scatter, so a 15-parameter plot across 7 fits has to give
+  // something up or the page locks for seconds.
+  const nCells = (N * (N + 1)) / 2;
+  let downgraded = '';
+  // Overlaying seven models across every parameter is ~1,200 subplots' worth
+  // of traces; the browser will draw it, but slowly enough to feel broken.
+  if (nCells * chosen.length > 700 && chosen.length > 1) {
+    const keep = chosen.includes(primaryName) ? primaryName : chosen[0];
+    chosen.length = 0;
+    chosen.push(keep);
+    downgraded = `Showing <b>${V2_FIT_LABEL[keep] || keep}</b> alone: ${N} parameters `
+      + 'across every model is too many panels to draw at a usable speed. '
+      + 'Pick a smaller parameter group to overlay them.';
+  }
+  const load = nCells * chosen.length;
+  if ((nCells > 60 || load > 260) && style !== 'points') {
+    style = 'points';
+    downgraded += (downgraded ? ' ' : '')
+      + `Contours are off here: ${nCells} panels &times; ${chosen.length} `
+      + 'model(s) is more than they can be drawn for at a usable speed. '
+      + 'Narrow the parameter group to get them back.';
+  }
+  const MAX_PTS = load > 300 ? 120 : (chosen.length > 3 ? 220 : 500);
+
+  // Draws, per fit, thinned to the same stride across parameters so each cell
+  // is a genuine joint sample rather than a scatter of unrelated numbers.
+  const data = {};       // fit -> param -> full draws
+  const pts = {};        // fit -> param -> thinned draws
+  chosen.forEach((fn) => {
+    const f = v2Fit(fn);
+    data[fn] = {}; pts[fn] = {};
+    let stride = 1;
+    names.forEach((p) => {
+      if (!f.params[p]) return;
+      const d = f.params[p].chains.flat();
+      data[fn][p] = d;
+      stride = Math.max(stride, Math.ceil(d.length / MAX_PTS));
+    });
+    names.forEach((p) => {
+      if (data[fn][p]) pts[fn][p] = data[fn][p].filter((_, i) => i % stride === 0);
+    });
+  });
+
+  // One shared range per parameter across every drawn fit, so a column and its
+  // row line up and the overlay is actually comparable.
+  const ranges = names.map((p) => {
+    let lo = Infinity, hi = -Infinity;
+    chosen.forEach((fn) => {
+      const d = data[fn][p];
+      if (!d) return;
+      for (const v of d) { if (v < lo) lo = v; if (v > hi) hi = v; }
+    });
+    if (!Number.isFinite(lo)) return [-1, 1];
+    const pad = (hi - lo) * 0.06 || 0.05;
     return [lo - pad, hi + pad];
   });
 
   const traces = [], layout = chartLayout('');
-  layout.height = Math.max(380, 150 * N);
-  layout.margin = { l: 78, r: 16, t: 14, b: 66 };
-  layout.showlegend = false;
+  // Grouped plots get generous square-ish cells; the everything plot is width
+  // bound, so it goes square instead of stretching cells into tall slivers.
+  // Its width has to be stated outright -- react() reuses the width it last
+  // measured, which for the first draw is the prose column, not the bled-out
+  // element.
+  if (wide) {
+    layout.width = Math.max(520, el.clientWidth);
+    layout.height = layout.width;
+  } else {
+    layout.height = Math.max(380, (N > 8 ? 108 : 150) * N);
+  }
+  layout.margin = { l: N > 8 ? 62 : 78, r: 16, t: 14, b: N > 8 ? 58 : 66 };
+  const dense = N > 11;   // tick labels stop being readable past here
   delete layout.xaxis; delete layout.yaxis;
 
   const gap = 0.055 / Math.max(1, N - 1);
   const cell = (k) => (k === 0 ? '' : String(k + 1));
+  const seenLegend = {};
   let k = 0;
   for (let i = 0; i < N; i++) {
     for (let j = 0; j <= i; j++) {
       const xa = `x${cell(k)}`, ya = `y${cell(k)}`;
       const isDiag = i === j;
-      if (isDiag) {
-        const grid = v2Grid(ranges[i][0], ranges[i][1], 90);
-        traces.push({
-          type: 'scatter', mode: 'lines', x: grid, y: v2Kde(draws[i], grid),
-          xaxis: xa, yaxis: ya, fill: 'tozeroy',
-          line: { color: cssVar('--lg-info'), width: 1.5 },
-          fillcolor: `color-mix(in srgb, ${cssVar('--lg-info')} 22%, transparent)`,
-          hoverinfo: 'skip',
-        });
-      } else {
-        traces.push({
-          type: 'scatter', mode: 'markers', x: sub[j], y: sub[i],
-          xaxis: xa, yaxis: ya,
-          marker: { color: cssVar('--lg-info'), size: 2.5, opacity: 0.3 },
-          hovertemplate: `${names[j]} %{x:.3f}<br>${names[i]} %{y:.3f}<extra></extra>`,
-        });
-      }
+      chosen.forEach((fn) => {
+        const c = colourOf[fn];
+        const label = V2_FIT_LABEL[fn] || fn;
+        // Legend entry once per fit, on whichever cell that fit first appears
+        // in; legendgroup makes the click toggle the whole model at once.
+        const legend = () => {
+          const first = !seenLegend[fn];
+          seenLegend[fn] = true;
+          return { legendgroup: fn, name: label, showlegend: first };
+        };
+        if (isDiag) {
+          const d = data[fn][names[i]];
+          if (!d) return;
+          const grid = v2Grid(ranges[i][0], ranges[i][1], 90);
+          traces.push({
+            type: 'scatter', mode: 'lines', x: grid, y: v2Kde(d, grid),
+            xaxis: xa, yaxis: ya,
+            fill: chosen.length === 1 ? 'tozeroy' : undefined,
+            line: { color: c, width: 1.5 },
+            fillcolor: `color-mix(in srgb, ${c} 22%, transparent)`,
+            hoverinfo: 'skip', ...legend(),
+          });
+          return;
+        }
+        const dx = data[fn][names[j]], dy = data[fn][names[i]];
+        if (!dx || !dy) return;
+        if (style !== 'points') {
+          traces.push({
+            type: 'histogram2dcontour',
+            x: dx, y: dy, xaxis: xa, yaxis: ya,
+            colorscale: [[0, c], [1, c]], showscale: false,
+            ncontours: 4, contours: { coloring: 'lines' },
+            line: { width: 1.1, smoothing: 1.3 },
+            nbinsx: 18, nbinsy: 18,
+            hoverinfo: 'skip', ...legend(),
+          });
+        }
+        if (style !== 'contour') {
+          traces.push({
+            type: 'scatter', mode: 'markers',
+            x: pts[fn][names[j]], y: pts[fn][names[i]], xaxis: xa, yaxis: ya,
+            marker: {
+              color: c, size: N > 8 ? 2 : 2.5,
+              // Points under contours are texture, not the message; the more
+              // models are stacked the more they have to step back.
+              opacity: style === 'both' ? 0.5 / (chosen.length + 2) : 0.34,
+            },
+            hovertemplate: `${label}<br>${names[j]} %{x:.3f}<br>${names[i]} %{y:.3f}<extra></extra>`,
+            ...legend(),
+          });
+        }
+      });
       const bottom = i === N - 1;
       const left = j === 0 && !isDiag;
+      const tf = { size: N > 8 ? 8 : 9 };
+      const titleFont = { size: N > 8 ? 9 : 10 };
       layout[`xaxis${cell(k)}`] = {
         domain: [j / N + gap, (j + 1) / N - gap],
         anchor: ya, range: ranges[j],
-        showticklabels: bottom, nticks: 4, automargin: false,
+        showticklabels: bottom && !dense, nticks: N > 8 ? 3 : 4, automargin: false,
         gridcolor: cssVar('--lg-border'), zerolinecolor: cssVar('--lg-border'),
-        title: bottom ? { text: names[j], standoff: 6, font: { size: 10 } } : undefined,
-        tickfont: { size: 9 },
+        title: bottom ? { text: names[j], standoff: 6, font: titleFont } : undefined,
+        tickfont: tf,
       };
       layout[`yaxis${cell(k)}`] = {
         domain: [1 - (i + 1) / N + gap, 1 - i / N - gap],
@@ -3623,48 +3789,78 @@ function renderV2Corner() {
         // The diagonal's vertical axis is a density, not the parameter, so it
         // gets neither the shared range nor a label.
         range: isDiag ? undefined : ranges[i],
-        showticklabels: left, nticks: 4, automargin: false,
+        showticklabels: left && !dense, nticks: N > 8 ? 3 : 4, automargin: false,
         gridcolor: cssVar('--lg-border'), zerolinecolor: cssVar('--lg-border'),
-        title: left ? { text: names[i], standoff: 6, font: { size: 10 } } : undefined,
-        tickfont: { size: 9 },
+        title: left ? { text: names[i], standoff: 6, font: titleFont } : undefined,
+        tickfont: tf,
       };
       k++;
     }
   }
-  Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
+
+  // The upper-right triangle of a corner plot is empty by construction, which
+  // is exactly where the legend wants to live.
+  layout.showlegend = chosen.length > 1;
+  if (layout.showlegend) {
+    // Top-right is empty by construction in a lower-triangle corner plot.
+    layout.legend = {
+      ...layout.legend, orientation: 'v',
+      x: 1, y: 1, xanchor: 'right', yanchor: 'top',
+      bgcolor: cssVar('--lg-card'), bordercolor: cssVar('--lg-border'),
+      borderwidth: 1, font: { size: 11 }, itemsizing: 'constant',
+    };
+  }
+  // responsive is off in the wide case on purpose: the width is pinned above,
+  // and Plotly's resize observer would otherwise redraw 120 subplots on every
+  // frame of the glossary panel's slide.
+  Plotly.react(el, traces, layout, { displayModeBar: false, responsive: !wide });
 
   const note = document.getElementById('v2-corner-note');
-  if (note) {
-    const corr = (a, b) => {
-      const n = a.length;
-      const ma = a.reduce((x, y) => x + y, 0) / n, mb = b.reduce((x, y) => x + y, 0) / n;
-      let sab = 0, sa = 0, sb = 0;
-      for (let i2 = 0; i2 < n; i2++) {
-        const da = a[i2] - ma, db = b[i2] - mb;
-        sab += da * db; sa += da * da; sb += db * db;
-      }
-      return sab / Math.sqrt(sa * sb);
-    };
-    let worst = null;
-    for (let i = 0; i < N; i++) {
-      for (let j = i + 1; j < N; j++) {
-        const r = corr(draws[i], draws[j]);
-        if (!worst || Math.abs(r) > Math.abs(worst.r)) worst = { r, a: names[i], b: names[j] };
-      }
+  if (!note) return;
+  const primary = v2Fit(chosen.includes(primaryName) ? primaryName : chosen[0]);
+  const pName = V2_FIT_LABEL[chosen.includes(primaryName) ? primaryName : chosen[0]];
+  let worst = null;
+  for (let i = 0; i < N; i++) {
+    for (let j = i + 1; j < N; j++) {
+      const a = primary.params[names[i]], b = primary.params[names[j]];
+      if (!a || !b) continue;
+      const r = v2Corr(a.chains.flat(), b.chains.flat());
+      if (!worst || Math.abs(r) > Math.abs(worst.r)) worst = { r, a: names[i], b: names[j] };
     }
-    note.innerHTML = worst
-      ? 'Diagonal cells are each parameter on its own; off-diagonal cells are pairs. '
-        + `Strongest pairing here: <b>${worst.a}</b> and <b>${worst.b}</b>, `
-        + `correlation <b>${worst.r.toFixed(2)}</b>. `
-        + (Math.abs(worst.r) > 0.7
-          ? 'A tight diagonal ridge like that means the two are <b>trading off against '
-            + 'each other</b> — the data pin down their combination far better than '
-            + 'either alone, and the sampler has to crawl along that ridge. This is '
-            + 'the geometry behind the convergence trouble on this page.'
-          : 'Nothing here is strongly entangled, which is what you want: each '
-            + 'parameter is being identified more or less on its own.')
-      : '';
   }
+  let html = 'Diagonal cells are each parameter on its own; off-diagonal cells are pairs. ';
+  if (chosen.length > 1) {
+    html += `Each colour is one model &mdash; click the legend to isolate one. `
+      + 'A parameter a model does not contain is simply absent from its cells. '
+      + `Correlations quoted below are for <b>${pName}</b>. `;
+  }
+  if (worst) {
+    html += `Strongest pairing: <b>${worst.a}</b> and <b>${worst.b}</b>, `
+      + `correlation <b>${worst.r.toFixed(2)}</b>. `
+      + (Math.abs(worst.r) > 0.7
+        ? 'A tight diagonal ridge like that means the two are <b>trading off against '
+          + 'each other</b> — the data pin down their combination far better than '
+          + 'either alone, and the sampler has to crawl along that ridge. This is '
+          + 'the geometry behind the convergence trouble on this page.'
+        : 'Nothing here is strongly entangled, which is what you want: each '
+          + 'parameter is being identified more or less on its own.');
+  }
+  if (downgraded) html += ` <b>${downgraded}</b>`;
+  note.innerHTML = html;
+}
+
+// The everything-at-once corner plot wants the whole pane, not the 920px prose
+// column. Same trick as setV2FormGridWidth, but without its 1240px cap.
+function setV2CornerWidth() {
+  const el = document.getElementById('v2-corner');
+  const pane = document.getElementById('tab-grading-v2');
+  if (!el || !pane) return;
+  const cs = getComputedStyle(pane);
+  const usable = pane.clientWidth
+    - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0);
+  const shell = el.parentElement.clientWidth;
+  pane.style.setProperty('--fg-wide', `${Math.round(Math.max(shell, usable))}px`);
+  void el.offsetWidth;   // force layout so Plotly measures the new width
 }
 
 // ---- sampler diagnostics ----
@@ -3774,6 +3970,9 @@ function bindV2Inference() {
       o.value = k; o.textContent = g.label;
       groupSel.appendChild(o);
     });
+    const o = document.createElement('option');
+    o.value = 'all'; o.textContent = 'Everything (full width)';
+    groupSel.appendChild(o);
   }
 
   fitSel?.addEventListener('change', () => {
@@ -3788,7 +3987,9 @@ function bindV2Inference() {
     document.getElementById(id)?.addEventListener('change',
       () => renderV2ParamDetail(paramSel.value));
   });
-  groupSel?.addEventListener('change', renderV2Corner);
+  ['v2-corner-group', 'v2-corner-overlay', 'v2-corner-style'].forEach((id) => {
+    document.getElementById(id)?.addEventListener('change', renderV2Corner);
+  });
 }
 
 async function loadV2Posterior() {
@@ -3905,6 +4106,22 @@ function bindV2Glossary() {
     eq.addEventListener('mouseleave', off);
     eq.addEventListener('focus', on);
     eq.addEventListener('blur', off);
+
+    // Clicking the equation is the way in when the panel is shut: it opens the
+    // panel and lands on this equation's symbols. highlightV2Symbols scrolls
+    // the first hit into view, but only once the panel has actually widened.
+    const openTo = () => {
+      const wasShut = panel.dataset.open !== 'true';
+      if (wasShut) setV2GlossaryOpen(true);
+      if (wasShut) setTimeout(() => highlightV2Symbols(keys), 220);
+      else highlightV2Symbols(keys);
+    };
+    eq.setAttribute('role', 'button');
+    eq.setAttribute('title', 'Show these symbols in the reference panel');
+    eq.addEventListener('click', openTo);
+    eq.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openTo(); }
+    });
   });
 
   // Reverse direction: hovering a definition marks the equations that use it.
@@ -4276,9 +4493,20 @@ function setV2FormGridWidth() {
 
 function sizeV2FormGrid() {
   setV2FormGridWidth();
+  const corner = document.getElementById('v2-corner');
+  // The everything plot pins its own width, so resizing it is not enough --
+  // it has to be redrawn against the new pane width.
+  const cornerWide = corner?.classList.contains('chart-bleed-wide');
+  if (cornerWide) {
+    const before = corner._fullLayout?.width || 0;
+    setV2CornerWidth();
+    // Redrawing 120 subplots is expensive; only do it if the width moved.
+    if (Math.abs(corner.clientWidth - before) > 4) renderV2Corner();
+  }
   if (typeof Plotly === 'undefined') return;
   const ids = V2_FORM_SPECS.map((spec) => `v2-fc-chart-${spec.key}`)
-    .concat(['v2-gap-chart', 'v2-visits-chart', 'v2-param-dens', 'v2-param-trace'])
+    .concat(['v2-gap-chart', 'v2-visits-chart', 'v2-param-dens', 'v2-param-trace',
+             'v2-across-fits'], cornerWide ? [] : ['v2-corner'])
     .concat(Object.keys(v2Fit(v2SelectedFit())?.params || {}).map((n) => `v2-pt-${n}`));
   ids.forEach((id) => {
     const el = document.getElementById(id);
@@ -4287,22 +4515,40 @@ function sizeV2FormGrid() {
   });
 }
 
-
-let v2Bound = false;
-function bindV2Controls() {
-  if (v2Bound) return;
-  const sel = document.getElementById('v2-filter-brand');
-  if (sel && sel.options.length <= 1) {
-    [...new Set(V2_GYMS.map((r) => r.b))].sort().forEach((b) => {
-      const o = document.createElement('option');
-      o.value = b; o.textContent = b; sel.appendChild(o);
+// Info dots open on hover for free (CSS), but a click pins them open so touch
+// works and so a long panel can be scrolled without it vanishing underfoot.
+let infoDotsBound = false;
+function bindInfoDots() {
+  if (infoDotsBound) return;
+  infoDotsBound = true;
+  document.addEventListener('click', (ev) => {
+    const dot = ev.target.closest('.infodot');
+    const wrap = dot?.closest('.infowrap');
+    document.querySelectorAll('.infowrap.is-pinned').forEach((w) => {
+      if (w !== wrap) w.classList.remove('is-pinned');
     });
-  }
-  ['v2-colour-by', 'v2-filter-brand', 'v2-only-sig'].forEach((id) => {
-    document.getElementById(id)?.addEventListener('change', renderV2GymChart);
+    if (wrap) {
+      wrap.classList.toggle('is-pinned');
+      // Flip the anchor if the popover would run off the left of the pane.
+      const pop = wrap.querySelector('.infopop');
+      if (pop) {
+        pop.classList.remove('pop-left');
+        const r = pop.getBoundingClientRect();
+        if (r.left < 8) pop.classList.add('pop-left');
+      }
+      ev.preventDefault();
+    } else if (!ev.target.closest('.infopop')) {
+      document.querySelectorAll('.infowrap.is-pinned')
+        .forEach((w) => w.classList.remove('is-pinned'));
+    }
   });
-  v2Bound = true;
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Escape') return;
+    document.querySelectorAll('.infowrap.is-pinned')
+      .forEach((w) => w.classList.remove('is-pinned'));
+  });
 }
+
 
 async function renderV2Tab() {
   // Gyms, headline numbers and the LOO table all come from the fits on disk,
@@ -4316,6 +4562,7 @@ async function renderV2Tab() {
         + 'scripts/build_v2_results.py.</p>';
     }
   }
+  bindInfoDots();
   renderV2FormsLoo();
   renderV2Replication();
   renderV2Stats();

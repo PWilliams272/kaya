@@ -330,6 +330,18 @@ transitions. Panel state persists in `localStorage` under
 
 - **Reusing the docked panel** (section 9) — the owner has asked for similar
   implementations elsewhere; the two traps above are the whole difficulty.
+- **Widen the gym network in the grading model** (owner request, 2026-08-04).
+  Every fit so far runs on the `net50` network — 29 gyms, of which 17 are
+  Touchstone, 6 Movement, 4 Bouldering Project and only 2 Stronghold. The
+  scrape already covers 89 gyms (`src/kaya/config/gyms_to_update.json`:
+  32 Movement, 18 Touchstone, 12 Bouldering Project, 11 Hangar, 6 Sender One,
+  6 Mesa Rim, 2 Rockreation, 2 Stronghold) and `networks.json` already
+  defines a looser `net20` with 68 of them. Wanted: more Stronghold, more
+  Movement, more Bouldering Project, plus other chains, so per-company
+  contrasts rest on more than two gyms in the thin cases. The cheap first
+  move is refitting on `net20`; the expensive one is adding gyms to the
+  scrape roster. Note both the shared-user linkage threshold and runtime
+  scale with gym count.
 - **Nothing urgent outstanding from the original plan** — precompute, S3
   publishing, production hardening, storage hardening, and the Lambda
   deployment are all done and verified live.

@@ -704,7 +704,7 @@
 .glossary .sym-row.sym-hit { background: color-mix(in srgb, var(--lg-gold) 11%, transparent); }
 .glossary .sym-row, .glossary .sym-group { transition: opacity 140ms ease, background 140ms ease; }
 
-/* Equations become hoverable targets. */
+/* Equations become hoverable targets, and clicking one opens the panel. */
 .eqn {
   border-radius: var(--lg-radius-md);
   border-left: 2px solid transparent;
@@ -712,6 +712,7 @@
   margin-left: -12px;
   transition: background 140ms ease, border-color 140ms ease;
   outline: none;
+  cursor: pointer;
 }
 .eqn:hover, .eqn:focus-visible, .eqn.eqn-active {
   background: color-mix(in srgb, var(--lg-gold) 7%, transparent);
@@ -949,3 +950,149 @@
 .read-guide td:first-child { width: 34%; }
 .read-guide .ok { color: var(--lg-success); font-weight: 640; }
 .read-guide .bad { color: var(--lg-danger); font-weight: 640; }
+
+/* ---- info dot: guidance that would otherwise eat a screenful of page ----
+   Opens on hover, on keyboard focus, and on click (which pins it, so touch
+   works and so you can scroll a long panel without it vanishing). */
+.infowrap { position: relative; display: inline-flex; }
+.infodot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--lg-text-2);
+  background: transparent;
+  color: var(--lg-text-2);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 0.68rem;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+.infodot:hover, .infodot:focus-visible, .infowrap.is-pinned .infodot {
+  color: var(--lg-info);
+  border-color: var(--lg-info);
+  background: color-mix(in srgb, var(--lg-info) 10%, transparent);
+  outline: none;
+}
+.infopop {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 8px);
+  right: -4px;
+  width: min(600px, 82vw);
+  max-height: min(62vh, 560px);
+  overflow-y: auto;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-md);
+  background: var(--lg-card);
+  box-shadow: 0 12px 34px rgb(0 0 0 / 0.22);
+  color: var(--lg-text);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: default;
+  /* No transition here on purpose. A transition that starts while the tab
+     pane is still display:none sticks in playState "running" and pins the
+     property forever -- see the .glossary.is-animated note above. A tooltip
+     does not need the fade badly enough to be worth that trap. */
+  visibility: hidden;
+  opacity: 0;
+}
+.infowrap:hover .infopop,
+.infowrap:focus-within .infopop,
+.infowrap.is-pinned .infopop { visibility: visible; opacity: 1; }
+.infopop h5 {
+  margin: 0 0 6px;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--lg-text-2);
+}
+.infopop .data-table { margin: 0 0 10px; font-size: 0.78rem; }
+.infopop p { margin: 0 0 8px; }
+.infopop p:last-child { margin-bottom: 0; }
+/* Popovers near the left edge of the pane flip their anchor. */
+.infopop.pop-left { right: auto; left: -4px; }
+
+/* ---- the everything-at-once corner plot bleeds past the prose column ---- */
+.chart-bleed-wide {
+  width: var(--fg-wide, var(--fg-w, 100%));
+  margin-left: calc((100% - var(--fg-wide, var(--fg-w, 100%))) / 2);
+}
+.corner-legend-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 6px 0 0;
+  font-size: 0.74rem;
+  color: var(--lg-text-2);
+}
+.corner-legend-note .swatch {
+  display: inline-block;
+  width: 22px;
+  height: 3px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+
+.chart-head-tools { display: flex; align-items: center; gap: 8px; }
+
+/* ---- categorical series palette ----
+   The status tokens (info / success / danger / warning) only give five usable
+   hues and two of them are near-identical blues, which is not enough once
+   every model version is overlaid on one plot. These eight are picked to stay
+   apart from each other on both grounds. */
+:root {
+  --lg-cat-1: #1565c0;   /* blue */
+  --lg-cat-2: #b8752e;   /* copper */
+  --lg-cat-3: #2e8b57;   /* green */
+  --lg-cat-4: #b8382e;   /* red */
+  --lg-cat-5: #7448a8;   /* violet */
+  --lg-cat-6: #0f8a94;   /* teal */
+  --lg-cat-7: #b83f7c;   /* magenta */
+  --lg-cat-8: #a9821b;   /* ochre */
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --lg-cat-1: #7ac2ff;
+    --lg-cat-2: #d99a52;
+    --lg-cat-3: #6cc794;
+    --lg-cat-4: #e0685f;
+    --lg-cat-5: #b18ce0;
+    --lg-cat-6: #4fc9d2;
+    --lg-cat-7: #ea86bb;
+    --lg-cat-8: #d9b54a;
+  }
+}
+:root[data-theme='dark'] {
+  --lg-cat-1: #7ac2ff;
+  --lg-cat-2: #d99a52;
+  --lg-cat-3: #6cc794;
+  --lg-cat-4: #e0685f;
+  --lg-cat-5: #b18ce0;
+  --lg-cat-6: #4fc9d2;
+  --lg-cat-7: #ea86bb;
+  --lg-cat-8: #d9b54a;
+}
+:root[data-theme='light'] {
+  --lg-cat-1: #1565c0;
+  --lg-cat-2: #b8752e;
+  --lg-cat-3: #2e8b57;
+  --lg-cat-4: #b8382e;
+  --lg-cat-5: #7448a8;
+  --lg-cat-6: #0f8a94;
+  --lg-cat-7: #b83f7c;
+  --lg-cat-8: #a9821b;
+}
