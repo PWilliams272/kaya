@@ -7,7 +7,7 @@
     <meta name="kaya-viewer-data-mode" content="static" />
     <link rel="stylesheet" href="/static/tokens.css" />
     <link rel="stylesheet" href="/static/app.css?v=6" />
-    <link rel="stylesheet" href="/static/research.css?v=11" />
+    <link rel="stylesheet" href="/static/research.css?v=12" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -1310,6 +1310,106 @@
                 Verified against numerical integration of the original formulation to
                 1&times;10<sup>&minus;8</sup>.
               </p>
+
+              <h3>See the gap for yourself</h3>
+              <p class="prose">
+                This is the least intuitive part of the model and the part worth
+                arguing with, so here it is as a picture. <b>Left:</b> for a
+                climber whose true ceiling is fixed, what we actually observe is
+                a smeared distribution sitting <i>below</i> it &mdash; that
+                offset is the whole problem, and it shrinks as they visit more.
+                <b>Right:</b> how fast it shrinks, as a function of visits.
+              </p>
+              <div class="explorer-grid">
+                <section class="form-card">
+                  <header class="form-card-head">
+                    <h4>What we observe vs the true ceiling</h4>
+                    <span class="form-badge">interactive</span>
+                  </header>
+                  <div id="v2-gap-chart" class="form-card-chart"></div>
+                  <div class="form-card-controls" id="v2-gap-controls"></div>
+                </section>
+                <section class="form-card">
+                  <header class="form-card-head">
+                    <h4>How the gap shrinks with visits</h4>
+                    <span class="form-badge fitted">fitted &middot; v3_conf</span>
+                  </header>
+                  <div id="v2-visits-chart" class="form-card-chart"></div>
+                  <div class="form-card-controls" id="v2-visits-controls"></div>
+                </section>
+              </div>
+              <p class="caption">
+                Left: the dashed line is the climber&rsquo;s true ceiling
+                \(C\); the filled curve is the distribution of the grade we
+                actually log. The distance between the ceiling and the bulk of
+                that curve is the bias the model has to undo. Turn
+                \(\sigma_{\text{link}}\) down and it becomes a hard edge with an
+                exponential tail; turn it up and the edge blurs, which is why
+                \(\sigma_{\text{link}}\) and the gap rate compete to explain the
+                same spread. Right: with \(\rho\) fitted at essentially zero,
+                the reliability slider does nothing &mdash; that flat line
+                <i>is</i> the finding.
+              </p>
+            </section>
+
+            <!-- ============ PRIORS / POSTERIORS / SAMPLER ============ -->
+            <section class="article-section" id="v2-inference">
+              <h2>Priors, Posteriors, and What the Sampler Did</h2>
+              <p class="prose">
+                Every number on this page is a posterior mean, which is only
+                worth anything if the posterior came from the data rather than
+                from the prior, and if the sampler that produced it actually
+                converged. Both claims are checkable, so here they are, for
+                every parameter, from the <code>v3_conf</code> fit
+                (net50/confident, 4 chains &times; 500 draws after 600 tuning).
+              </p>
+              <div id="v2-post-grid" class="post-grid"></div>
+              <p class="caption">
+                Prior in grey, posterior in blue, on a common horizontal scale
+                per parameter. <b>Where the blue is much narrower than the grey
+                and sits somewhere the grey did not concentrate, the data did
+                the work.</b> Where the two overlap closely, the parameter is
+                barely identified and the prior is carrying it. Click any
+                parameter for its chains and full statistics.
+              </p>
+
+              <div class="param-detail">
+                <div class="controls-inline">
+                  <label class="ctl">
+                    <span>Parameter</span>
+                    <select id="v2-param-pick"></select>
+                  </label>
+                  <label class="ctl ctl-check">
+                    <input type="checkbox" id="v2-param-wide" />
+                    <span>Zoom out to the full prior</span>
+                  </label>
+                  <span class="param-verdict" id="v2-param-verdict"></span>
+                </div>
+                <div class="param-detail-grid">
+                  <div>
+                    <h4 class="chart-label">Prior vs posterior</h4>
+                    <div id="v2-param-dens" class="chart-mid"></div>
+                  </div>
+                  <div>
+                    <h4 class="chart-label">Chains</h4>
+                    <div id="v2-param-trace" class="chart-mid"></div>
+                  </div>
+                </div>
+                <div class="data-table-wrap">
+                  <table class="data-table" id="v2-param-stats"></table>
+                </div>
+              </div>
+
+              <h3>What the sampler was doing</h3>
+              <p class="prose">
+                Convergence statistics describe where the chains ended up.
+                These describe how hard they had to work to get there, which is
+                where this model&rsquo;s real problem shows up.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-sampler-table"></table>
+              </div>
+              <p class="caption" id="v2-sampler-note"></p>
             </section>
 
             <!-- ============ DECISIONS ============ -->
@@ -1480,6 +1580,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=41"></script>
+    <script src="/static/app.js?v=46"></script>
   </body>
 </html>

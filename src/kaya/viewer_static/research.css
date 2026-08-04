@@ -841,3 +841,76 @@
   font-variant-numeric: tabular-nums;
 }
 .form-reset { padding: 3px 10px; font-size: 0.72rem; }
+
+/* ---- gap explorer: two wider cards side by side ---- */
+.explorer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: 14px;
+  margin: 16px 0 8px;
+  width: var(--fg-w, 100%);
+  margin-left: calc((100% - var(--fg-w, 100%)) / 2);
+}
+/* Gap sliders carry a plain-language label as well as the symbol. */
+.form-slider.wide { grid-template-columns: 2.6rem 1fr 3rem auto; }
+.form-slider-label {
+  font-size: 0.72rem;
+  color: var(--lg-text-2);
+  white-space: nowrap;
+}
+
+/* ---- posterior overview grid ---- */
+.post-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+  gap: 8px;
+  margin: 16px 0 6px;
+  width: var(--fg-w, 100%);
+  margin-left: calc((100% - var(--fg-w, 100%)) / 2);
+}
+.post-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 8px 4px;
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-md);
+  background: var(--lg-surface);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.post-tile:hover { border-color: var(--lg-info); background: var(--lg-active); }
+.post-tile-name { font-size: 0.82rem; }
+.post-tile-chart { display: block; width: 100%; height: 62px; }
+.post-tile-rhat {
+  font-size: 0.66rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--lg-text-2);
+}
+.post-tile-rhat.bad { color: var(--lg-danger); font-weight: 640; }
+
+/* ---- single-parameter detail ---- */
+.param-detail {
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-md);
+  background: var(--lg-surface);
+  padding: 14px;
+  margin: 14px 0 8px;
+  width: var(--fg-w, 100%);
+  margin-left: calc((100% - var(--fg-w, 100%)) / 2);
+}
+.param-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 14px;
+}
+.param-verdict { font-size: 0.8rem; color: var(--lg-text-2); }
+.param-verdict.warn { color: var(--lg-danger); }
+.chart-label {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--lg-text-2);
+}

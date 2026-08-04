@@ -3078,8 +3078,8 @@ const v2FormState = Object.fromEntries(V2_FORM_SPECS.map((f) => [
 
 // Where each group actually sits: median +/- 1 SD from the cleaned data.
 const V2_HEIGHT_BANDS = [
-  { label: 'male users', mid: 69.2, sd: 3.34, tok: '--lg-gold' },
-  { label: 'female users', mid: 64.2, sd: 2.83, tok: '--lg-highlight' },
+  { label: 'Male users', mid: 69.2, sd: 3.34, tok: '--lg-info', anchor: 'right' },
+  { label: 'Female users', mid: 64.2, sd: 2.83, tok: '--lg-highlight', anchor: 'left' },
 ];
 
 function renderV2Symbols() {
@@ -3096,6 +3096,305 @@ function renderV2Symbols() {
     }
   });
   el.innerHTML = html + '</tbody>';
+}
+
+// ---- priors, posteriors, and sampler diagnostics ----
+//
+// Draws come from v2_posterior.json: 4 chains x 200 thinned draws per
+// parameter, plus 200 prior draws, extracted from the v3_conf trace.
+
+let V2_POST = null;
+
+const V2_PARAM_TEX = {
+  beta0: '\\beta_0', beta_gender: '\\beta_{\\text{gender}}',
+  gamma1: '\\gamma_1', gamma2: '\\gamma_2',
+  gamma1_x: '\\gamma_1^{\\times}', gamma2_x: '\\gamma_2^{\\times}',
+  delta1: '\\delta_1', delta2: '\\delta_2',
+  sigma_user: '\\sigma_{\\text{user}}', sigma_gym: '\\sigma_{\\text{gym}}',
+  log_lambda0: '\\log\\lambda_0', kappa: '\\kappa', rho: '\\rho',
+  beta_h_missing: '\\beta_{h\\text{-miss}}', beta_a_missing: '\\beta_{a\\text{-miss}}',
+};
+const V2_PARAM_BLURB = {
+  beta0: 'baseline ability at an average gym',
+  beta_gender: 'female-user shift in ability',
+  gamma1: 'height slope, male users', gamma2: 'height curvature, male users',
+  gamma1_x: 'how the female height slope differs',
+  gamma2_x: 'how the female height curvature differs',
+  delta1: 'ape-index slope', delta2: 'ape-index curvature',
+  sigma_user: 'spread of ability between climbers',
+  sigma_gym: 'spread of grading style across gyms',
+  log_lambda0: 'baseline gap rate (log)', kappa: 'gap rate per extra visit',
+  rho: 'gap rate per unit logging completeness',
+  beta_h_missing: 'ability shift for users with no height on file',
+  beta_a_missing: 'ability shift for users with no ape index on file',
+};
+
+// Gaussian KDE on a fixed grid. Silverman bandwidth; these are unimodal
+// posteriors, so nothing fancier earns its keep.
+function v2Kde(samples, grid) {
+  const n = samples.length;
+  if (!n) return grid.map(() => 0);
+  const mean = samples.reduce((a, b) => a + b, 0) / n;
+  const sd = Math.sqrt(samples.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(1, n - 1)) || 1e-6;
+  const sorted = [...samples].sort((a, b) => a - b);
+  const q = (p) => sorted[Math.min(n - 1, Math.max(0, Math.floor(p * n)))];
+  const iqr = q(0.75) - q(0.25);
+  const bw = 0.9 * Math.min(sd, iqr / 1.349 || sd) * Math.pow(n, -0.2) || sd * 0.1;
+  return grid.map((x) => {
+    let acc = 0;
+    for (const v of samples) acc += Math.exp(-0.5 * ((x - v) / bw) ** 2);
+    return acc / (n * bw * Math.sqrt(2 * Math.PI));
+  });
+}
+
+function v2Grid(lo, hi, n = 120) {
+  const step = (hi - lo) / (n - 1), g = [];
+  for (let i = 0; i < n; i++) g.push(lo + i * step);
+  return g;
+}
+
+// Common x-range for prior and posterior. Priors are far wider than
+// posteriors here, so clip to a quantile range or the posterior vanishes.
+function v2SharedRange(post, prior) {
+  const all = prior ? post.concat(prior) : post;
+  const sorted = [...all].sort((a, b) => a - b);
+  const q = (p) => sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))];
+  let lo = q(0.005), hi = q(0.995);
+  const pMin = Math.min(...post), pMax = Math.max(...post);
+  lo = Math.min(lo, pMin); hi = Math.max(hi, pMax);
+  const pad = (hi - lo) * 0.06 || 0.1;
+  return [lo - pad, hi + pad];
+}
+
+function renderV2PostGrid() {
+  const host = document.getElementById('v2-post-grid');
+  if (!host || !V2_POST) return;
+  const names = Object.keys(V2_POST.params);
+  host.innerHTML = names.map((n) => `
+    <button type="button" class="post-tile" data-param="${n}">
+      <span class="post-tile-name">\\(${V2_PARAM_TEX[n] || n}\\)</span>
+      <span class="post-tile-chart" id="v2-pt-${n}"></span>
+      <span class="post-tile-rhat ${V2_POST.params[n].rhat > 1.01 ? 'bad' : 'ok'}">R&#770; ${V2_POST.params[n].rhat.toFixed(2)}</span>
+    </button>`).join('');
+
+  names.forEach((n) => {
+    const el = document.getElementById(`v2-pt-${n}`);
+    if (!el || typeof Plotly === 'undefined') return;
+    const p = V2_POST.params[n];
+    const post = p.chains.flat();
+    const [lo, hi] = v2SharedRange(post, p.prior);
+    const grid = v2Grid(lo, hi, 80);
+    const traces = [];
+    if (p.prior) {
+      traces.push({ type: 'scatter', mode: 'lines', x: grid, y: v2Kde(p.prior, grid),
+        line: { color: cssVar('--lg-text-2'), width: 1 }, fill: 'tozeroy',
+        fillcolor: `color-mix(in srgb, ${cssVar('--lg-text-2')} 16%, transparent)`,
+        hoverinfo: 'skip' });
+    }
+    traces.push({ type: 'scatter', mode: 'lines', x: grid, y: v2Kde(post, grid),
+      line: { color: cssVar('--lg-info'), width: 1.6 }, fill: 'tozeroy',
+      fillcolor: `color-mix(in srgb, ${cssVar('--lg-info')} 24%, transparent)`,
+      hoverinfo: 'skip' });
+    const layout = {
+      height: 62, margin: { l: 2, r: 2, t: 2, b: 2 }, showlegend: false,
+      paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+      xaxis: { visible: false, range: [lo, hi] }, yaxis: { visible: false },
+    };
+    Plotly.react(el, traces, layout, { displayModeBar: false, staticPlot: true, responsive: true });
+  });
+
+  host.querySelectorAll('.post-tile').forEach((b) => {
+    b.addEventListener('click', () => {
+      const sel = document.getElementById('v2-param-pick');
+      if (sel) { sel.value = b.dataset.param; }
+      renderV2ParamDetail(b.dataset.param);
+      document.querySelector('.param-detail')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  });
+  if (typeof window.renderMathInElement === 'function') {
+    window.renderMathInElement(host, {
+      delimiters: [{ left: '\\(', right: '\\)', display: false }], throwOnError: false });
+  }
+}
+
+function renderV2ParamDetail(name) {
+  if (!V2_POST || !V2_POST.params[name]) return;
+  const p = V2_POST.params[name];
+  const post = p.chains.flat();
+
+  const dens = document.getElementById('v2-param-dens');
+  if (dens && typeof Plotly !== 'undefined') {
+    const wide = document.getElementById('v2-param-wide')?.checked;
+    // The priors are deliberately far wider than the posteriors, so at full
+    // prior range most posteriors collapse to a spike. Default to a window
+    // around the posterior and let the reader zoom out on request.
+    const [lo, hi] = wide
+      ? v2SharedRange(post, p.prior)
+      : [p.mean - 6 * p.sd, p.mean + 6 * p.sd];
+    const grid = v2Grid(lo, hi, 160);
+    const traces = [];
+    if (p.prior) {
+      traces.push({ type: 'scatter', mode: 'lines', name: 'prior', x: grid, y: v2Kde(p.prior, grid),
+        line: { color: cssVar('--lg-text-2'), width: 1.5 }, fill: 'tozeroy',
+        fillcolor: `color-mix(in srgb, ${cssVar('--lg-text-2')} 14%, transparent)`,
+        hovertemplate: 'prior<br>%{x:.3f}<extra></extra>' });
+    }
+    traces.push({ type: 'scatter', mode: 'lines', name: 'posterior', x: grid, y: v2Kde(post, grid),
+      line: { color: cssVar('--lg-info'), width: 2.2 }, fill: 'tozeroy',
+      fillcolor: `color-mix(in srgb, ${cssVar('--lg-info')} 22%, transparent)`,
+      hovertemplate: 'posterior<br>%{x:.3f}<extra></extra>' });
+    const layout = chartLayout('value');
+    layout.height = 280;
+    layout.xaxis = { ...layout.xaxis, title: { text: 'value', standoff: 8 }, range: [lo, hi] };
+    layout.yaxis = { ...layout.yaxis, title: { text: 'density', standoff: 6 }, showticklabels: false };
+    layout.margin = { l: 48, r: 16, t: 10, b: 76 };
+    layout.legend = { ...layout.legend, orientation: 'h', y: -0.34, x: 0 };
+    layout.shapes = [
+      { type: 'line', x0: p.lo, x1: p.lo, y0: 0, y1: 1, yref: 'paper',
+        line: { color: cssVar('--lg-info'), width: 1, dash: 'dot' } },
+      { type: 'line', x0: p.hi, x1: p.hi, y0: 0, y1: 1, yref: 'paper',
+        line: { color: cssVar('--lg-info'), width: 1, dash: 'dot' } },
+    ];
+    Plotly.react(dens, traces, layout, { displayModeBar: false, responsive: true });
+  }
+
+  const tr = document.getElementById('v2-param-trace');
+  if (tr && typeof Plotly !== 'undefined') {
+    const hues = ['--lg-info', '--lg-highlight', '--lg-success', '--lg-danger'];
+    const traces = p.chains.map((ch, i) => ({
+      type: 'scatter', mode: 'lines', name: `chain ${i}`,
+      x: ch.map((_, j) => j), y: ch,
+      line: { color: cssVar(hues[i % hues.length]), width: 0.9 },
+      hovertemplate: `chain ${i}<br>%{y:.3f}<extra></extra>`,
+    }));
+    const layout = chartLayout('draw (thinned)');
+    layout.height = 280;
+    layout.xaxis = { ...layout.xaxis, title: { text: 'draw (thinned)', standoff: 8 } };
+    layout.yaxis = { ...layout.yaxis, title: { text: 'value', standoff: 6 } };
+    layout.margin = { l: 56, r: 16, t: 10, b: 76 };
+    layout.legend = { ...layout.legend, orientation: 'h', y: -0.34, x: 0 };
+    Plotly.react(tr, traces, layout, { displayModeBar: false, responsive: true });
+  }
+
+  const tbl = document.getElementById('v2-param-stats');
+  if (tbl) {
+    const converged = p.rhat <= 1.01;
+    tbl.innerHTML = '<thead><tr><th>statistic</th><th>value</th><th>reading</th></tr></thead><tbody>'
+      + [
+        ['posterior mean', p.mean.toFixed(3), 'the number quoted elsewhere on this page'],
+        ['posterior SD', p.sd.toFixed(3), 'how uncertain that number is'],
+        ['89% HDI', `[${p.lo.toFixed(3)}, ${p.hi.toFixed(3)}]`,
+          (p.lo <= 0 && p.hi >= 0) ? '<b>includes zero</b> — no credible effect'
+            : 'excludes zero — a credible effect'],
+        ['R&#770;', p.rhat.toFixed(3), converged
+          ? 'at or below 1.01 — chains agree'
+          : '<b>above 1.01 — chains disagree, do not report this as final</b>'],
+        ['ESS (bulk)', String(p.ess_bulk), p.ess_bulk < 400
+          ? '<b>below 400 — too few effective draws</b>' : 'adequate'],
+        ['ESS (tail)', String(p.ess_tail), p.ess_tail < 400
+          ? 'below 400 — interval edges are noisy' : 'adequate'],
+      ].map((r) => `<tr><td class="sym">${r[0]}</td><td class="unit">${r[1]}</td><td>${r[2]}</td></tr>`).join('')
+      + '</tbody>';
+    if (typeof window.renderMathInElement === 'function') {
+      window.renderMathInElement(tbl, {
+        delimiters: [{ left: '\\(', right: '\\)', display: false }], throwOnError: false });
+    }
+  }
+
+  const verdict = document.getElementById('v2-param-verdict');
+  if (verdict) {
+    const ok = p.rhat <= 1.01;
+    verdict.textContent = ok
+      ? `converged — R-hat ${p.rhat.toFixed(2)}, ESS ${p.ess_bulk}`
+      : `provisional — R-hat ${p.rhat.toFixed(2)}, ESS ${p.ess_bulk}: chains do not agree yet`;
+    verdict.className = `param-verdict ${ok ? '' : 'warn'}`;
+  }
+}
+
+function renderV2Sampler() {
+  const tbl = document.getElementById('v2-sampler-table');
+  const note = document.getElementById('v2-sampler-note');
+  if (!tbl || !V2_POST) return;
+  const st = V2_POST.sample_stats || {};
+  const rows = [];
+  if (st.divergences) {
+    rows.push(['divergences', String(st.divergences.total ?? 0),
+      (st.divergences.total ?? 0) === 0
+        ? 'None. The sampler never fell off the posterior — the geometry is hard, not broken.'
+        : 'Non-zero — parts of the posterior were not explored reliably.']);
+  }
+  if (st.tree_depth) {
+    rows.push(['mean tree depth', st.tree_depth.overall_mean.toFixed(2),
+      st.tree_depth.max >= 10
+        ? '<b>Pinned at the maximum of 10</b>, i.e. 1023 leapfrog steps per draw. '
+          + 'The sampler is paying full price on every single draw to cross a badly conditioned posterior.'
+        : 'Comfortably below the cap.']);
+  }
+  if (st.n_steps) {
+    rows.push(['mean leapfrog steps / draw', st.n_steps.overall_mean.toFixed(0),
+      'Directly proportional to run time. This is why one fit takes over an hour.']);
+  }
+  if (st.step_size) {
+    rows.push(['mean step size', st.step_size.overall_mean.toFixed(4),
+      'Small step size plus deep trees is the signature of a narrow, curved posterior.']);
+  }
+  if (st.accept) {
+    rows.push(['mean acceptance rate', st.accept.overall_mean.toFixed(3),
+      'Target was 0.90. Hitting it means the tuning worked; it says nothing about convergence.']);
+  }
+  tbl.innerHTML = '<thead><tr><th>statistic</th><th>value</th><th>what it means</th></tr></thead><tbody>'
+    + rows.map((r) => `<tr><td class="sym">${r[0]}</td><td class="unit">${r[1]}</td><td>${r[2]}</td></tr>`).join('')
+    + '</tbody>';
+
+  if (note) {
+    const bad = Object.values(V2_POST.params).filter((p) => p.rhat > 1.01).length;
+    const tot = Object.keys(V2_POST.params).length;
+    note.innerHTML = `Zero divergences with maximum tree depth is a specific diagnosis: `
+      + `the posterior has no pathological funnel the sampler falls into, but it is `
+      + `stretched and correlated enough that even 1023 steps per draw only buys `
+      + `<b>${bad} of ${tot} parameters still above the R&#770; 1.01 threshold</b>. `
+      + `More draws would help; a better parameterisation would help more. This is `
+      + `the honest reason the height result on this page is marked open.`;
+  }
+}
+
+function bindV2ParamPicker() {
+  const sel = document.getElementById('v2-param-pick');
+  if (!sel || !V2_POST || sel.options.length) return;
+  Object.keys(V2_POST.params).forEach((n) => {
+    const o = document.createElement('option');
+    o.value = n; o.textContent = `${n} — ${V2_PARAM_BLURB[n] || ''}`;
+    sel.appendChild(o);
+  });
+  sel.addEventListener('change', () => renderV2ParamDetail(sel.value));
+  document.getElementById('v2-param-wide')
+    ?.addEventListener('change', () => renderV2ParamDetail(sel.value));
+}
+
+async function loadV2Posterior() {
+  if (V2_POST) return V2_POST;
+  try {
+    const r = await fetch('/static/v2_posterior.json');
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    V2_POST = await r.json();
+  } catch (e) {
+    const host = document.getElementById('v2-post-grid');
+    if (host) {
+      host.innerHTML = '<p class="form-noparams">Posterior draws could not be loaded, '
+        + 'so this section is empty. The numbers quoted elsewhere on the page are unaffected.</p>';
+    }
+    return null;
+  }
+  return V2_POST;
+}
+
+async function renderV2Inference() {
+  if (!(await loadV2Posterior())) return;
+  bindV2ParamPicker();
+  renderV2PostGrid();
+  renderV2Sampler();
+  const sel = document.getElementById('v2-param-pick');
+  renderV2ParamDetail(sel?.value || Object.keys(V2_POST.params)[0]);
 }
 
 // ---- glossary panel: open/close + equation-to-symbol highlighting ----
@@ -3254,12 +3553,170 @@ function v2BandShapes(showLabels) {
       x0: b.mid - b.sd, x1: b.mid + b.sd, y0: 0, y1: 1,
       fillcolor: cssVar(b.tok), opacity: 0.07, line: { width: 0 } });
     if (showLabels) {
-      annotations.push({ x: b.mid, y: 1, yref: 'paper', yanchor: 'bottom',
-        showarrow: false, text: `${b.label} ±1 SD`,
-        font: { size: 10, color: cssVar(b.tok) } });
+      // The two bands overlap (65.9-67.0 in), so centring both labels would
+      // collide on a ~330px card. Anchor each to its band's *outer* edge and
+      // they grow away from each other instead.
+      annotations.push({
+        x: b.anchor === 'left' ? b.mid - b.sd : b.mid + b.sd,
+        xanchor: b.anchor === 'left' ? 'left' : 'right',
+        y: 1, yref: 'paper', yanchor: 'bottom', showarrow: false,
+        text: b.label, font: { size: 10, color: cssVar(b.tok) },
+      });
     }
   });
   return { shapes, annotations };
+}
+
+// ---- gap-likelihood explorer ----
+//
+// The model never sees a failed attempt, so the observed max is the ceiling
+// minus an Exponential gap, blurred by grade rounding. That composition is an
+// Exponentially Modified Gaussian; these two charts are it, drawn.
+
+const V2_GAP_STATE = { C: 6.0, visits: 8, sigma: 0.5, kappa: 0.277, rho: -0.018, rel: 0 };
+// Fitted on v3_conf: log lambda = log_lambda0 + kappa*n_tilde + rho*r_tilde.
+const V2_LOG_LAMBDA0 = 0.082, V2_MEDIAN_VISITS = 8;
+
+const v2NormPdf = (x, mu, sd) => Math.exp(-0.5 * ((x - mu) / sd) ** 2) / (sd * Math.sqrt(2 * Math.PI));
+
+// Rate for a climber with `visits` days logged and centred reliability `rel`.
+function v2GapRate(visits, kappa, rho, rel) {
+  const nTilde = visits / V2_MEDIAN_VISITS - 1;
+  return Math.exp(V2_LOG_LAMBDA0 + kappa * nTilde + rho * rel);
+}
+
+// Density of the observed max: (C - Exponential(rate)) + Normal(0, sigma).
+// Convolution done numerically -- clearer to read than the ExGaussian closed
+// form, and this is a picture, not the likelihood.
+function v2ObservedDensity(xs, C, rate, sigma) {
+  const gaps = [], step = 0.02;
+  for (let g = 0; g < 12; g += step) gaps.push(g);
+  return xs.map((x) => {
+    let acc = 0;
+    for (const g of gaps) acc += rate * Math.exp(-rate * g) * v2NormPdf(x, C - g, sigma) * step;
+    return acc;
+  });
+}
+
+function renderV2GapChart() {
+  const el = document.getElementById('v2-gap-chart');
+  if (!el || typeof Plotly === 'undefined') return;
+  const { C, visits, sigma, kappa, rho, rel } = V2_GAP_STATE;
+  const rate = v2GapRate(visits, kappa, rho, rel);
+  const xs = [];
+  for (let x = C - 7; x <= C + 2.5; x += 0.02) xs.push(x);
+  const ys = v2ObservedDensity(xs, C, rate, sigma);
+
+  const traces = [{
+    type: 'scatter', mode: 'lines', name: 'observed max', x: xs, y: ys,
+    fill: 'tozeroy', line: { color: cssVar('--lg-info'), width: 2 },
+    fillcolor: `color-mix(in srgb, ${cssVar('--lg-info')} 18%, transparent)`,
+    hovertemplate: 'grade %{x:.2f}<br>density %{y:.3f}<extra></extra>',
+  }];
+  const layout = chartLayout('logged max grade (V)');
+  layout.height = 260;
+  layout.yaxis = { ...layout.yaxis, title: { text: 'density', standoff: 6 }, showticklabels: false };
+  layout.xaxis = { ...layout.xaxis, title: { text: 'logged max grade (V)', standoff: 8 } };
+  layout.margin = { l: 46, r: 16, t: 26, b: 46 };
+  layout.showlegend = false;
+  layout.shapes = [{
+    type: 'line', x0: C, x1: C, y0: 0, y1: 1, yref: 'paper',
+    line: { color: cssVar('--lg-danger'), width: 2, dash: 'dash' },
+  }];
+  const mean = C - 1 / rate;
+  layout.annotations = [
+    { x: C, y: 1, yref: 'paper', yanchor: 'bottom', xanchor: 'left', showarrow: false,
+      text: ` true ceiling C = ${C.toFixed(1)}`, font: { size: 10, color: cssVar('--lg-danger') } },
+    { x: mean, y: 0.5, yref: 'paper', yanchor: 'bottom', xanchor: 'right', showarrow: false,
+      text: `mean logged ${mean.toFixed(2)} `, font: { size: 10, color: cssVar('--lg-text-2') } },
+  ];
+  Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
+
+  const note = document.getElementById('v2-gap-note');
+  if (note) {
+    note.textContent = `expected gap ${(1 / rate).toFixed(2)} grades `
+      + `— a climber at V${C.toFixed(1)} logs V${mean.toFixed(2)} on average`;
+  }
+}
+
+function renderV2VisitsChart() {
+  const el = document.getElementById('v2-visits-chart');
+  if (!el || typeof Plotly === 'undefined') return;
+  const { kappa, rho, rel } = V2_GAP_STATE;
+  const xs = [];
+  for (let n = 1; n <= 40; n += 1) xs.push(n);
+  const ys = xs.map((n) => 1 / v2GapRate(n, kappa, rho, rel));
+
+  const traces = [{
+    type: 'scatter', mode: 'lines', name: 'expected gap', x: xs, y: ys,
+    line: { color: cssVar('--lg-info'), width: 2.5 },
+    hovertemplate: '%{x} visits → %{y:.2f} grades below ceiling<extra></extra>',
+  }];
+  const layout = chartLayout('days logged at the gym');
+  layout.height = 260;
+  layout.yaxis = { ...layout.yaxis, title: { text: 'expected gap (grades)', standoff: 6 }, rangemode: 'tozero' };
+  layout.xaxis = { ...layout.xaxis, title: { text: 'days logged at the gym', standoff: 8 } };
+  layout.margin = { l: 58, r: 16, t: 26, b: 46 };
+  layout.showlegend = false;
+  layout.shapes = [{
+    type: 'line', x0: V2_MEDIAN_VISITS, x1: V2_MEDIAN_VISITS, y0: 0, y1: 1, yref: 'paper',
+    line: { color: cssVar('--lg-text-2'), width: 1, dash: 'dot' },
+  }];
+  layout.annotations = [{
+    x: V2_MEDIAN_VISITS, y: 1, yref: 'paper', yanchor: 'bottom', xanchor: 'left',
+    showarrow: false, text: ' median climber', font: { size: 10, color: cssVar('--lg-text-2') },
+  }];
+  Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
+
+  const note = document.getElementById('v2-visits-note');
+  if (note) {
+    const g1 = 1 / v2GapRate(1, kappa, rho, rel), g30 = 1 / v2GapRate(30, kappa, rho, rel);
+    note.textContent = `1 visit: ${g1.toFixed(2)} grades below — 30 visits: ${g30.toFixed(2)}`;
+  }
+}
+
+const V2_GAP_SLIDERS = [
+  { host: 'v2-gap-controls', id: 'C', tex: 'C', label: 'true ceiling', min: 3, max: 10, step: 0.1 },
+  { host: 'v2-gap-controls', id: 'visits', tex: 'n', label: 'visits', min: 1, max: 40, step: 1 },
+  { host: 'v2-gap-controls', id: 'sigma', tex: '\\sigma_{\\text{link}}', label: 'rounding noise', min: 0.05, max: 1.5, step: 0.05 },
+  { host: 'v2-visits-controls', id: 'kappa', tex: '\\kappa', label: 'visit effect', min: 0, max: 0.8, step: 0.01 },
+  { host: 'v2-visits-controls', id: 'rho', tex: '\\rho', label: 'reliability effect', min: -0.5, max: 0.5, step: 0.01 },
+  { host: 'v2-visits-controls', id: 'rel', tex: '\\tilde r', label: 'how completely they log', min: -1.5, max: 1.5, step: 0.05 },
+];
+
+function bindV2GapExplorer() {
+  const hosts = { 'v2-gap-controls': [], 'v2-visits-controls': [] };
+  V2_GAP_SLIDERS.forEach((sl) => hosts[sl.host]?.push(sl));
+  Object.entries(hosts).forEach(([hostId, sliders]) => {
+    const host = document.getElementById(hostId);
+    if (!host) return;
+    const noteId = hostId === 'v2-gap-controls' ? 'v2-gap-note' : 'v2-visits-note';
+    host.innerHTML = sliders.map((sl) => `
+      <label class="form-slider wide">
+        <span class="form-slider-tex">\\(${sl.tex}\\)</span>
+        <input type="range" id="v2-gs-${sl.id}" data-k="${sl.id}"
+               min="${sl.min}" max="${sl.max}" step="${sl.step}" value="${V2_GAP_STATE[sl.id]}" />
+        <output id="v2-gs-val-${sl.id}" class="form-slider-val"></output>
+        <span class="form-slider-label">${sl.label}</span>
+      </label>`).join('')
+      + `<div class="form-card-foot"><span class="form-card-note" id="${noteId}"></span></div>`;
+  });
+  document.querySelectorAll('[id^="v2-gs-"]').forEach((inp) => {
+    if (inp.tagName !== 'INPUT') return;
+    inp.addEventListener('input', () => {
+      V2_GAP_STATE[inp.dataset.k] = parseFloat(inp.value);
+      renderV2GapExplorer();
+    });
+  });
+}
+
+function renderV2GapExplorer() {
+  V2_GAP_SLIDERS.forEach((sl) => {
+    const out = document.getElementById(`v2-gs-val-${sl.id}`);
+    if (out) out.textContent = V2_GAP_STATE[sl.id].toFixed(sl.step < 0.1 ? 2 : 1);
+  });
+  renderV2GapChart();
+  renderV2VisitsChart();
 }
 
 // ---- one interactive card per functional form ----
@@ -3287,14 +3744,16 @@ function renderV2FormCard(spec) {
   layout.yaxis = { ...layout.yaxis, zeroline: true, range: [-span, span],
                    title: { text: 'Ability impact (grades)', standoff: 6 } };
   layout.xaxis = { ...layout.xaxis, title: { text: 'Height (in)', standoff: 8 } };
-  layout.margin = { l: 58, r: 14, t: 10, b: 48 };
+  layout.margin = { l: 58, r: 14, t: 26, b: 48 };
   layout.showlegend = spec.curves(vals).length > 1;
   // Keep the legend clear of the x tick labels -- at -0.22 its background sat
   // 2px under them and hid every tick but the last.
-  layout.legend = { ...layout.legend, orientation: 'h', y: -0.38, x: 0, font: { size: 10 } };
-  if (layout.showlegend) layout.margin.b = 84;
-  layout.shapes = v2BandShapes(false).shapes;
-  layout.annotations = [];
+  // Must clear the x-axis title, not just the tick labels.
+  layout.legend = { ...layout.legend, orientation: 'h', y: -0.52, x: 0, font: { size: 10 } };
+  if (layout.showlegend) layout.margin.b = 100;
+  const bands = v2BandShapes(true);
+  layout.shapes = bands.shapes;
+  layout.annotations = bands.annotations;
   Plotly.react(chart, traces, layout, { displayModeBar: false, responsive: true });
 
   // Readouts: current value beside each slider, plus the derived note.
@@ -3360,6 +3819,7 @@ function renderV2FormCards() {
     });
   });
 
+  setV2FormGridWidth();
   V2_FORM_SPECS.forEach(renderV2FormCard);
   sizeV2FormGrid();
   if (!renderV2FormCards.resizeBound) {
@@ -3375,7 +3835,7 @@ function renderV2FormCards() {
 // The grid bleeds wider than the prose column so three cards fit comfortably.
 // How much room there is depends on whether the symbols panel is reserving its
 // gutter, which CSS can't see -- so measure the pane and hand CSS the number.
-function sizeV2FormGrid() {
+function setV2FormGridWidth() {
   const host = document.getElementById('v2-form-cards');
   const pane = document.getElementById('tab-grading-v2');
   if (!host || !pane) return;
@@ -3385,10 +3845,22 @@ function sizeV2FormGrid() {
   const shell = host.parentElement.clientWidth;
   // Never narrower than the column it sits in, never wider than the pane.
   const w = Math.max(shell, Math.min(1240, usable));
-  host.style.setProperty('--fg-w', `${Math.round(w)}px`);
-  V2_FORM_SPECS.forEach((spec) => {
-    const el = document.getElementById(`v2-fc-chart-${spec.key}`);
-    if (el && typeof Plotly !== 'undefined') Plotly.Plots.resize(el);
+  // Set on the pane, not the grid: the gap explorer, posterior grid and
+  // parameter detail all bleed to the same width and inherit it from here.
+  pane.style.setProperty('--fg-w', `${Math.round(w)}px`);
+  void host.offsetWidth;   // force layout, so anything drawn next sees the new width
+}
+
+function sizeV2FormGrid() {
+  setV2FormGridWidth();
+  if (typeof Plotly === 'undefined') return;
+  const ids = V2_FORM_SPECS.map((spec) => `v2-fc-chart-${spec.key}`)
+    .concat(['v2-gap-chart', 'v2-visits-chart', 'v2-param-dens', 'v2-param-trace'])
+    .concat(V2_POST ? Object.keys(V2_POST.params).map((n) => `v2-pt-${n}`) : []);
+  ids.forEach((id) => {
+    const el = document.getElementById(id);
+    // _fullLayout is only set once Plotly has actually drawn into the node.
+    if (el && el._fullLayout) Plotly.Plots.resize(el);
   });
 }
 
@@ -3415,6 +3887,9 @@ function renderV2Tab() {
   renderV2Symbols();
   renderV2FormsTable();
   renderV2FormCards();
+  bindV2GapExplorer();
+  renderV2GapExplorer();
+  renderV2Inference();
   renderV2Table('v2-gg-table', V2_GG);
   renderV2Table('v2-diag-table', V2_DIAG);
   renderV2GymChart();
@@ -3426,7 +3901,7 @@ function renderV2Tab() {
   // auto-render already ran on DOMContentLoaded, so their \( ... \) spans
   // would otherwise stay as literal source. Typeset them explicitly.
   if (typeof window.renderMathInElement === 'function') {
-    ['v2-symbols', 'v2-forms-table', 'v2-form-cards'].forEach((id) => {
+    ['v2-symbols', 'v2-forms-table', 'v2-form-cards', 'v2-gap-controls', 'v2-visits-controls'].forEach((id) => {
       const el = document.getElementById(id);
       if (el) {
         window.renderMathInElement(el, {
