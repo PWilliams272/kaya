@@ -35,8 +35,12 @@ OUT = ROOT / 'src' / 'kaya' / 'viewer_static' / 'v2_time.json'
 WINDOW_D = 90        # days per activity window
 MIN_SENDS = 5        # sends needed before a window gets a level
 MAX_GAP_Y = 1.25     # ignore pairs further apart than this
-HORIZON_Y = 1.0      # headline measurement horizon
-HORIZON_TOL = 0.25   # how far off that horizon a window may land
+# Headline horizon. Short on purpose: the bin label comes from w0 and the
+# change is measured from w1, so a long second leg credits the starting bin
+# with climbing done after the climber has already moved past it. Measured
+# below -- V1 through V4 fall as the horizon grows, V5 and up do not.
+HORIZON_Y = 0.25
+LONG_Y = 1.0         # the diluted comparison curve
 ACCRUAL_H = [0.25, 0.5, 0.75, 1.0, 1.5, 2.0]
 ACCRUAL_TOL = {0.25: .12, 0.5: .12, 0.75: .15, 1.0: .25, 1.5: .25, 2.0: .35}
 
@@ -74,20 +78,37 @@ def windows(s):
     return win.reset_index(drop=True)
 
 
-def _bin_rows(d, rate_col='rate'):
-    """Collapse a per-triple frame into one row per grade bin."""
+def _bin_rows(d, ratio_of_means=False):
+    """Collapse a per-triple frame into one row per grade bin.
+
+    ratio_of_means divides once, at the end: mean(dl) / mean(dt) rather than
+    mean(dl/dt). Individual elapsed times are short and a window's level is an
+    integer, so a climber who gained a grade over 0.09 years would otherwise
+    enter the average at +11 grades/yr. The effect turns out to be modest --
+    the 0.08-year floor already excludes the worst of it -- but it is free to
+    get right, and the per-row quartiles are meaningless either way at a short
+    horizon, so `up`/`down` fractions replace them.
+    """
     rows = []
     for lvl in range(0, 13):
         b = d[d['level'] == lvl]
         if len(b) < 40:
             continue
+        if ratio_of_means:
+            dtm = float(b['dt'].mean())
+            mean = float(b['dl'].mean()) / dtm
+            sem = float(b['dl'].std() / np.sqrt(len(b))) / dtm
+        else:
+            mean = float(b['rate'].mean())
+            sem = float(b['rate'].std() / np.sqrt(len(b)))
         rows.append({
             'v': lvl, 'n': int(len(b)),
-            'mean': round(float(b[rate_col].mean()), 3),
-            'median': round(float(b[rate_col].median()), 3),
-            'p25': round(float(b[rate_col].quantile(.25)), 3),
-            'p75': round(float(b[rate_col].quantile(.75)), 3),
-            'sem': round(float(b[rate_col].std() / np.sqrt(len(b))), 3),
+            'mean': round(mean, 3), 'sem': round(sem, 3),
+            'median': round(float(b['rate'].median()), 3),
+            'p25': round(float(b['rate'].quantile(.25)), 3),
+            'p75': round(float(b['rate'].quantile(.75)), 3),
+            'up': round(float((b['dl'] > 0).mean()), 3),
+            'down': round(float((b['dl'] < 0).mean()), 3),
         })
     return rows
 
@@ -120,7 +141,8 @@ def rate_table(win, debias):
     d = d.dropna(subset=['la', 'lb']).copy()
     d['dy'] = (d['mb'] - d['ma']).dt.days / 365.25
     d = d[(d['dy'] > 0.08) & (d['dy'] <= MAX_GAP_Y)]
-    d['rate'] = (d['lb'] - d['la']) / d['dy']
+    d['dl'], d['dt'] = d['lb'] - d['la'], d['dy']
+    d['rate'] = d['dl'] / d['dt']
     return _bin_rows(d), int(d['user_id'].nunique()), int(len(d)), d
 
 
@@ -143,15 +165,47 @@ def triples(win, horizons):
                 j = int(np.argmin(np.abs(ts - (t1 + h))))
                 if j <= i + 1 or abs((ts[j] - t1) - h) > ACCRUAL_TOL[h]:
                     continue
-                out.append((uid, lvl, h, ls[j] - l1, ts[j] - t1))
-    return pd.DataFrame(out, columns=['user_id', 'level', 'h', 'dl', 'dt'])
+                out.append((uid, lvl, h, ls[j] - l1, ts[j] - t1, l1))
+    return pd.DataFrame(out,
+                        columns=['user_id', 'level', 'h', 'dl', 'dt', 'l1'])
 
 
-def horizon_table(tri):
-    """The headline curve: change measured over a fixed ~1-year horizon."""
-    d = tri[tri['h'] == HORIZON_Y].copy()
+def horizon_table(tri, h):
+    """The curve at one fixed horizon, dividing once at the end."""
+    d = tri[tri['h'] == h].copy()
     d['rate'] = d['dl'] / d['dt']
-    return _bin_rows(d), int(d['user_id'].nunique()), int(len(d)), d
+    return (_bin_rows(d, ratio_of_means=True),
+            int(d['user_id'].nunique()), int(len(d)))
+
+
+def by_horizon(tri):
+    """The same curve at every horizon -- the evidence for choosing a short one.
+
+    A long second leg credits the starting bin with climbing done after the
+    climber has already left it, so the rate is pulled toward the population
+    average. That only bites where people move fast enough to leave, which
+    makes it a testable prediction: the low bins should fall as the horizon
+    grows and the high bins should not.
+    """
+    out = {}
+    for h in ACCRUAL_H:
+        rows, _, n = horizon_table(tri, h)
+        if n >= 200:
+            out[str(h)] = rows
+    return out
+
+
+def start_levels(tri, h):
+    """Mean level when measurement starts, against the bin label.
+
+    Bin labels come from a noisy window, so each bin is stocked with climbers
+    whose real level sits closer to the population mean. That compresses the
+    x-axis and attenuates any slope fitted against it.
+    """
+    d = tri[tri['h'] == h]
+    g = d.groupby('level')
+    return [{'v': int(v), 'l1': round(float(s['l1'].mean()), 2), 'n': int(len(s))}
+            for v, s in g if len(s) >= 40]
 
 
 def accrual_table(tri):
@@ -235,18 +289,34 @@ def main():
     naive, n_u_naive, n_p_naive, _ = rate_table(win, debias=False)
     short, n_u_short, n_p_short, sd = rate_table(win, debias=True)
     tri = triples(win, ACCRUAL_H)
-    deb, n_u_deb, n_p_deb, _ = horizon_table(tri)
+    deb, n_u_deb, n_p_deb = horizon_table(tri, HORIZON_Y)
+    lng, _, n_p_long = horizon_table(tri, LONG_Y)
     acc = accrual_table(tri)
+    byh = by_horizon(tri)
+    starts = start_levels(tri, HORIZON_Y)
 
     for tag, rows in (('naive', naive), ('de-biased, next window', short),
-                      ('de-biased, 1-year horizon', deb)):
+                      (f'headline: {HORIZON_Y} yr horizon, ratio of means', deb),
+                      (f'diluted: {LONG_Y} yr horizon', lng)):
         print(f'\n=== {tag} ===')
-        print(f'{"grade":>7} {"n":>8} {"mean":>7} {"median":>7} {"p25":>7} {"p75":>7}')
+        print(f'{"grade":>7} {"n":>8} {"mean":>7} {"+/-":>6} {"up":>6} {"down":>6}')
         for r in rows:
             print(f'{"V"+str(r["v"]):>7} {r["n"]:>8,} {r["mean"]:>7.2f} '
-                  f'{r["median"]:>7.2f} {r["p25"]:>7.2f} {r["p75"]:>7.2f}')
+                  f'{r["sem"]:>6.2f} {r["up"]:>6.0%} {r["down"]:>6.0%}')
     fit = np.polyfit([r['v'] for r in deb], [r['mean'] for r in deb], 1)
     print(f'\nheadline mean rate vs grade: slope {fit[0]:+.3f}, intercept {fit[1]:+.3f}')
+
+    print('\nrate by bin and horizon (the dilution test)')
+    hs = sorted(byh, key=float)
+    print(f'{"bin":>5}' + ''.join(f'{h+"y":>9}' for h in hs))
+    for v in range(1, 10):
+        cells = []
+        for h in hs:
+            r = next((x for x in byh[h] if x['v'] == v), None)
+            cells.append(f'{r["mean"]:>+9.2f}' if r else f'{".":>9}')
+        print(f'{"V"+str(v):>5}' + ''.join(cells))
+    print('\nbin label vs actual level when measurement starts')
+    print('  ' + '  '.join(f'V{r["v"]}->{r["l1"]:.1f}' for r in starts))
 
     gaps = sd['dy'] * 12
     print(f'\nnext-window gap, months: median {gaps.median():.1f}  '
@@ -263,10 +333,11 @@ def main():
 
     payload = {
         'window_days': WINDOW_D, 'min_sends': MIN_SENDS, 'max_gap_y': MAX_GAP_Y,
-        'horizon_y': HORIZON_Y, 'horizon_tol': HORIZON_TOL,
+        'horizon_y': HORIZON_Y, 'long_y': LONG_Y,
         'advancement': {
-            'naive': naive, 'short': short, 'debiased': deb, 'accrual': acc,
-            'n_climbers': n_u_deb, 'n_pairs': n_p_deb,
+            'naive': naive, 'short': short, 'debiased': deb, 'long': lng,
+            'accrual': acc, 'by_horizon': byh, 'starts': starts,
+            'n_climbers': n_u_deb, 'n_pairs': n_p_deb, 'n_pairs_long': n_p_long,
             'n_climbers_short': n_u_short, 'n_pairs_short': n_p_short,
             'n_climbers_naive': n_u_naive, 'n_pairs_naive': n_p_naive,
             'gap_months': {k: round(float(gaps.quantile(q)), 1)

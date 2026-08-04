@@ -1261,73 +1261,107 @@
                 the claim being made is that advancement slows down.
               </p>
 
-              <h4 class="sub-head">A second bug: dividing by a small, wobbly number</h4>
+              <h4 class="sub-head">A small second bug: dividing by a wobbly number</h4>
               <p class="prose">
-                Cutting that wire fixes the shape but not the size. Look at
-                <span>\(\Delta t\)</span>. Nothing above pins it down &mdash;
+                Nothing above pins down <span>\(\Delta t\)</span>.
                 <span>\(w_2\)</span> is just &ldquo;the next window with enough
                 sends&rdquo;, so every climber contributes a change measured
-                over their own gap. Those gaps turn out to be short and
-                uneven: the median is <b id="v2-gap-median">3</b> months, and
-                the shortest are barely over one.
-              </p>
-              <p class="prose">
-                Now recall that <span>\(\ell\)</span> is a max over integer
-                grades, so nearly every gap produces a change of exactly
-                <span>\(0\)</span> or <span>\(\pm 1\)</span>. Divide a
-                <span>\(+1\)</span> by a gap of <span>\(0.09\)</span> years and
-                that one climber enters the average at <b>+11 grades a
-                year</b>. A handful of short gaps drags the mean far above
-                anything real:
+                over their own gap &mdash; median <b id="v2-gap-median">3</b>
+                months, but some barely over one. And
+                <span>\(\ell\)</span> is a max over integer grades, so nearly
+                every gap produces a change of exactly <span>\(0\)</span> or
+                <span>\(\pm 1\)</span>. Divide a <span>\(+1\)</span> by a gap of
+                <span>\(0.09\)</span> years and that climber enters the average
+                at <b>+11 grades a year</b>.
               </p>
               <div class="eqn-block">
                 $$\overline{\left(\frac{\Delta \ell}{\Delta t}\right)}
                   \;\neq\; \frac{\overline{\Delta \ell}}{\overline{\Delta t}}$$
               </div>
               <p class="prose">
-                The averages of ratios and the ratio of averages are different
-                numbers, and with a small noisy denominator they are
-                <i>very</i> different. So fix the denominator: instead of
-                taking whichever window comes next, take the qualifying window
-                that lands closest to <b>one year</b> after
-                <span>\(w_1\)</span>, and keep it only if it lands within three
-                months of that mark. Every climber is then measured over
-                roughly the same stretch of time, and the division stops
-                amplifying anything.
+                The fix is to divide once, at the end: average the changes,
+                average the elapsed times, then take the ratio. It is worth
+                doing and it is nearly free &mdash; but it is worth being clear
+                that <b>it barely moves the answer</b>. The floor at
+                <span>\(\Delta t > 0.08\)</span> years was already excluding the
+                worst offenders, and the correction turns out to be around
+                <b>0.05 grades a year</b>. Which raises the real question, since
+                the choice of measurement window moves the low grades by four
+                times that much.
+              </p>
+
+              <h4 class="sub-head">How long a window? The bin is not who you measure</h4>
+              <p class="prose">
+                Here is the thing the three-window scheme does not fix. The bin
+                label comes from <span>\(w_0\)</span>, but the change is
+                measured starting at <span>\(w_1\)</span> &mdash; and the
+                climber does not stop climbing in between. Stretch the second
+                leg out to a year and you are crediting the
+                &ldquo;V1&rdquo; bin with twelve months of climbing done by
+                someone who reached V3 in month two.
+              </p>
+              <p class="prose">
+                That has a signature. Dilution requires movement, so it should
+                pull the <b>low</b> bins down as the window grows and leave the
+                high bins alone &mdash; and that is exactly what happens.
+              </p>
+              <div id="v2-horizon-chart" class="chart-mid"></div>
+              <p class="caption" id="v2-horizon-note"></p>
+              <p class="prose">
+                So measure over a <b>short</b> window. A three-month second leg
+                keeps the measurement inside the grade band it is labelled with,
+                which is what &ldquo;how fast does a V4 climber improve&rdquo;
+                actually asks &mdash; and it is the quantity a grade-dependent
+                drift term needs, since the model applies it locally.
               </p>
               <div class="eqn-block">
-                $$\text{rate} = \frac{\ell_{w_2} - \ell_{w_1}}{\Delta t}\ ,\quad
-                  \text{binned by }\ \ell_{w_0}\ ,\quad
-                  |\Delta t - 1\,\text{yr}| \le 3\,\text{months}$$
+                $$f(v) = \frac{\overline{\Delta \ell}}{\overline{\Delta t}}
+                  \ \Big|\ \ell_{w_0} = v\ ,\qquad
+                  |\Delta t - 3\,\text{months}| \le 6\,\text{weeks}$$
+              </div>
+              <div class="callout warn">
+                <div>
+                  <b>The bin labels are lying, and always toward the middle.</b>
+                  <span>\(\ell_{w_0}\)</span> is itself a noisy max, so each bin
+                  is stocked with climbers whose real level sits closer to the
+                  population average. Measured at the start of the window, the
+                  &ldquo;V1&rdquo; bin averages
+                  <b id="v2-start-lo">V2.0</b> and the &ldquo;V9&rdquo; bin
+                  averages <b id="v2-start-hi">V8.6</b>. The x-axis is
+                  compressed by about a grade at each end, so <b>every slope
+                  below is an underestimate of the real grade dependence</b>
+                  &mdash; the safe direction to err when the claim is that
+                  advancement slows down.
+                </div>
               </div>
               <p class="prose">
-                This is not a plateau in disguise &mdash; improvement really is
-                steady. Measuring the same climbers over a ladder of horizons,
-                the change accumulates almost perfectly linearly, so the
-                implied annual rate is flat from three months out to two years.
-                The short-window estimator was not catching a burst that fades;
-                it was doing arithmetic wrong.
+                One thing the long windows do settle: in the bulk of the data,
+                where dilution is not in play, improvement is genuinely steady.
+                Pooling V3&ndash;V8 and measuring the same climbers over a
+                ladder of horizons, the change accumulates linearly and the
+                implied annual rate holds from three months out to two years.
+                Nobody is plateauing; the curve is about <i>where</i> you are,
+                not <i>how long</i> you look.
               </p>
               <div id="v2-accrual-chart" class="chart-small"></div>
               <p class="caption" id="v2-accrual-note"></p>
 
-              <h4 class="sub-head">What is left after both fixes</h4>
+              <h4 class="sub-head">The curve</h4>
               <div id="v2-adv-chart" class="chart-mid"></div>
               <p class="caption" id="v2-adv-note"></p>
               <div class="data-table-wrap">
                 <table class="data-table" id="v2-adv-table"></table>
               </div>
               <p class="caption">
-                Grades gained per year by current grade, at all three stages.
-                Dashed is naive, dotted is de-biased over the next available
-                window, solid is de-biased over a fixed one-year horizon. The
-                scale is pinned to keep the two corrected curves readable, so
-                the naive one leaves the frame in both directions &mdash; that
-                it does not fit is the point, and its values are in the table.
-                The <b>shape</b> survives every correction &mdash; improvement is
-                fastest at the bottom and flattens to nearly nothing by V6
-                &mdash; while the <b>magnitude</b> falls by roughly a factor of
-                twenty from the first estimator to the last.
+                Grades gained per year by current grade. Dashed is naive, dotted
+                is the one-year window shown for contrast, solid is the
+                three-month window that the model uses. The scale is pinned to
+                keep the useful curves readable, so the naive one leaves the
+                frame in both directions &mdash; that it does not fit is the
+                point, and its values are in the table. The <b>shape</b>
+                survives every correction; what the corrections change is the
+                <b>magnitude</b>, and the two that matter pull in opposite
+                directions at the bottom of the range.
               </p>
 
               <h3>Is the gym result contaminated?</h3>
@@ -1385,20 +1419,24 @@
                 essentially flat by V7 &mdash; so a single <span>\(\tau\)</span>
                 would over-correct strong climbers and under-correct weak ones.
                 The rate has to be a function of where the climber already is,
-                and the section above is exactly that function:
+                and the section above is exactly that function &mdash; used
+                directly, by interpolating between the measured bins rather than
+                fitting a line through them, because the measured curve is
+                <b>convex</b>: it drops steeply through V1&ndash;V4 and is flat
+                above V5. A straight line through it overshoots the middle by
+                more than the whole correction is worth.
               </p>
               <div class="eqn-block">
                 $$C_{u,g} = \text{ability}_u + \text{gym}_g
                   + f\!\left(\bar m_u\right)\tilde t_{u,g}\ ,\qquad
-                  f(m) = \tau_0 + \tau_1 m$$
+                  f = \text{interp}\big(\{(v,\ \hat f_v)\}\big)$$
               </div>
               <p class="prose">
-                The decisive choice is whether
-                <span>\(\tau_0, \tau_1\)</span> are <b>fitted</b> or
-                <b>supplied</b>. They are supplied &mdash; fixed at the measured
-                values, contributing a known offset with no free parameter. The
-                reason is that two different mechanisms produce the same
-                correlation, and nothing in this data separates them:
+                The decisive choice is whether <span>\(f\)</span> is
+                <b>fitted</b> or <b>supplied</b>. It is supplied &mdash; fixed
+                at the measured values, contributing a known offset with no free
+                parameter. The reason is that two different mechanisms produce
+                the same correlation, and nothing in this data separates them:
               </p>
               <ul class="prose">
                 <li><b>Climbers improved</b> between their two gyms. That is the
@@ -1440,13 +1478,16 @@
                 than evidence something had been repaired.
               </p>
               <p class="prose">
-                One property makes the fixed version safe to apply:
-                <span>\(f\)</span> is nearly flat in absolute terms, running from
-                <span id="v2-fix-lo">0.20</span> at V3 to
-                <span id="v2-fix-hi">0.08</span> at V9. Misfiling a climber by a
-                whole grade changes their offset by hundredths of a grade, so
-                the result does not depend on getting
-                <span>\(\bar m_u\)</span> exactly right.
+                The fixed version is also insensitive to binning <i>where the
+                model actually lives</i>. <span>\(f\)</span> runs from
+                <span id="v2-fix-lo">0.35</span> at V3 to
+                <span id="v2-fix-hi">0.00</span> at V9, and across V4&ndash;V8
+                &mdash; which is where the great majority of modelled climbers
+                sit &mdash; it varies by about a tenth of a grade per year.
+                Misfiling someone by a grade there changes their offset by
+                hundredths. The steep part of the curve, V1&ndash;V2, is both
+                the least certain and the least populated, so it carries almost
+                no weight in the result.
               </p>
               <div class="callout">
                 <div>
@@ -2203,6 +2244,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=74"></script>
+    <script src="/static/app.js?v=76"></script>
   </body>
 </html>

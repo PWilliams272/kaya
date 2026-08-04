@@ -3656,15 +3656,15 @@ function renderV2Advancement() {
     hovertemplate: 'V%{x}: %{y:+.2f} grades/yr<extra>naive</extra>',
   });
   traces.push({
-    type: 'scatter', mode: 'lines+markers', x: gx(a.short), y: a.short.map((r) => r.mean),
-    name: 'de-biased, next window (~3 months)',
+    type: 'scatter', mode: 'lines+markers', x: gx(a.long), y: a.long.map((r) => r.mean),
+    name: 'one-year window (diluted at low grades)',
     line: { color: cssVar('--lg-cat-3'), width: 2, dash: 'dot' },
     marker: { size: 6 },
-    hovertemplate: 'V%{x}: %{y:+.2f} grades/yr<extra>next window</extra>',
+    hovertemplate: 'V%{x}: %{y:+.2f} grades/yr<extra>one year</extra>',
   });
   traces.push({
     type: 'scatter', mode: 'lines+markers', x: gx(a.debiased), y: a.debiased.map((r) => r.mean),
-    name: 'de-biased, one-year horizon',
+    name: 'three-month window',
     line: { color: cssVar('--lg-cat-1'), width: 2.6 },
     marker: { size: 7 },
     error_y: { type: 'data', array: a.debiased.map((r) => r.sem),
@@ -3693,23 +3693,83 @@ function renderV2Advancement() {
     // The worst naive value, whichever bin it lands in -- that is the
     // impossible number the argument rests on.
     const n1 = a.naive.reduce((w, r) => (r.mean < w.mean ? r : w), a.naive[0]);
-    const d2 = at(a.debiased, 2), d5 = at(a.debiased, 5), d7 = at(a.debiased, 7);
-    const s2 = at(a.short, 2);
+    const d1 = at(a.debiased, 1), d3 = at(a.debiased, 3);
+    const d5 = at(a.debiased, 5), d7 = at(a.debiased, 7);
+    const l1 = at(a.long, 1);
     note.innerHTML = `${a.n_pairs.toLocaleString()} window triples from `
-      + `${a.n_climbers.toLocaleString()} climbers survive the one-year horizon, `
-      + `out of ${a.n_pairs_short.toLocaleString()} that clear the de-biasing `
-      + 'alone. On the headline curve, improvement runs '
-      + `<b>${d2.mean.toFixed(2)} grades/yr at V${d2.v}</b>, `
-      + `${d5.mean.toFixed(2)} at V${d5.v} and ${d7.mean.toFixed(2)} at V${d7.v} `
-      + `&mdash; a slope of <b>${a.fit.slope.toFixed(3)} grades/yr per V-grade</b>. `
-      + 'Each correction shrinks the curve without changing its shape: the naive '
-      + `estimator bottoms out at ${n1.mean.toFixed(1)} grades/yr at V${n1.v}, an `
-      + 'impossible number that gives it away, and the short-window estimator is '
-      + `still ${(s2.mean / d2.mean).toFixed(1)}&times; too large at V${d2.v}. `
-      + 'Error bars are the standard error of the mean. The middle-50% column '
-      + 'in the table spans a full grade either way, because individual '
-      + 'climbers differ far more than the averages do.';
+      + `${a.n_climbers.toLocaleString()} climbers. Improvement runs `
+      + `<b>${d1.mean.toFixed(2)} grades/yr at V${d1.v}</b> (&plusmn;`
+      + `${d1.sem.toFixed(2)}, from only ${d1.n} triples), `
+      + `${d3.mean.toFixed(2)} at V${d3.v}, ${d5.mean.toFixed(2)} at V${d5.v} `
+      + `and ${d7.mean.toFixed(2)} at V${d7.v}. The naive estimator bottoms out `
+      + `at ${n1.mean.toFixed(1)} grades/yr at V${n1.v}, an impossible number `
+      + 'that gives it away. The one-year curve agrees from V5 up and falls to '
+      + `${l1.mean.toFixed(2)} at V${d1.v}, where a year of climbing no longer `
+      + 'describes a V1 climber. Error bars are the standard error of the mean, '
+      + 'and they understate the uncertainty: one climber contributes a triple '
+      + 'at every position in their window sequence, so the rows within a bin '
+      + 'are not independent.';
   }
+}
+
+function renderV2Horizon() {
+  const el = document.getElementById('v2-horizon-chart');
+  if (!el || !V2_TIME || typeof Plotly === 'undefined') return;
+  const byh = V2_TIME.advancement.by_horizon;
+  if (!byh) return;
+  const hs = Object.keys(byh).sort((x, y) => parseFloat(x) - parseFloat(y));
+  // Short window = the darkest line, so the eye follows the one being argued
+  // for. The rest fade out as they lengthen.
+  const traces = hs.map((h, i) => {
+    const rows = byh[h].filter((r) => r.v >= 1 && r.v <= 9);
+    const t = i / Math.max(1, hs.length - 1);
+    const c = cssVar(i === 0 ? '--lg-cat-1' : '--lg-text-2');
+    return {
+      type: 'scatter', mode: 'lines+markers',
+      x: rows.map((r) => r.v), y: rows.map((r) => r.mean),
+      name: parseFloat(h) === 1 ? '1 year' : `${parseFloat(h) * 12} months`,
+      line: { color: hexToRgba(c, i === 0 ? 1 : 0.85 - 0.5 * t),
+        width: i === 0 ? 2.8 : 1.6, dash: i === 0 ? 'solid' : 'dot' },
+      marker: { size: i === 0 ? 8 : 5 },
+      hovertemplate: `V%{x}: %{y:+.2f} grades/yr<extra>${h} yr window</extra>`,
+    };
+  });
+
+  const layout = chartLayout('');
+  layout.height = 360;
+  layout.margin = { l: 62, r: 20, t: 12, b: 92 };
+  layout.xaxis = { ...layout.xaxis, automargin: false, tickprefix: 'V', dtick: 1,
+    title: { text: 'grade bin, assigned at w₀', standoff: 10 } };
+  layout.yaxis = { ...layout.yaxis, automargin: false, zeroline: true,
+    zerolinecolor: cssVar('--lg-text-2'),
+    title: { text: 'grades gained per year', standoff: 6 } };
+  layout.legend = { ...layout.legend, orientation: 'h', y: -0.28, yanchor: 'top',
+    x: 0, font: { size: 10 } };
+  Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
+
+  const note = document.getElementById('v2-horizon-note');
+  if (note) {
+    const g = (h, v) => (byh[h] || []).find((r) => r.v === v);
+    const a1 = g(hs[0], 1), b1 = g('1.0', 1);
+    const a6 = g(hs[0], 6), b6 = g('1.0', 6);
+    note.innerHTML = 'The same estimator at six measurement windows. At '
+      + `<b>V1</b> the rate falls from ${a1.mean.toFixed(2)} over three months `
+      + `to ${b1.mean.toFixed(2)} over a year; at <b>V6</b> it goes `
+      + `${a6.mean.toFixed(2)} to ${b6.mean.toFixed(2)} &mdash; no trend at all. `
+      + 'Dilution needs movement, and only the fast bins move, so the fan opens '
+      + 'at the bottom and stays shut at the top. Each individual gap is only '
+      + 'one to two standard errors, but all four low bins lean the same way. '
+      + 'Read this as a reason to keep the window short, not as a precise '
+      + 'measurement of the dilution.';
+  }
+  const starts = V2_TIME.advancement.starts || [];
+  const lo = starts.find((r) => r.v === 1), hi = starts.find((r) => r.v === 9);
+  const set = (id, r) => {
+    const n = document.getElementById(id);
+    if (n && r) n.textContent = `V${r.l1.toFixed(1)}`;
+  };
+  set('v2-start-lo', lo);
+  set('v2-start-hi', hi);
 }
 
 function renderV2Accrual() {
@@ -3838,7 +3898,9 @@ function renderV2TimeStats() {
   if (!host || !V2_TIME) return;
   const gt = V2_TIME.gym_time, a = V2_TIME.advancement;
   const d = a.debiased;
-  const near = d.filter((r) => r.v >= 5 && r.v <= 6);
+  // V4-V8 rather than the single median bin: the curve is flat across that
+  // span and each bin on its own carries a standard error near its own value.
+  const near = d.filter((r) => r.v >= 4 && r.v <= 8);
   const typical = near.reduce((s, r) => s + r.mean, 0) / (near.length || 1);
   const spread = gt.spread_t_c[1] - gt.spread_t_c[0];
   // What improvement can actually account for, against the observed spread.
@@ -3849,8 +3911,8 @@ function renderV2TimeStats() {
       s: 'gym correction vs within-climber date' },
     { v: `+${gt.within_brand.r.toFixed(2)}`, l: 'correlation, within company',
       s: 'so it is not just Movement being late and stiff' },
-    { v: `${typical >= 0 ? '+' : ''}${typical.toFixed(2)}`, l: 'grades/yr at V5–V6',
-      s: 'measured advancement where the median climber sits' },
+    { v: `${typical >= 0 ? '+' : ''}${typical.toFixed(2)}`, l: 'grades/yr at V4–V8',
+      s: 'measured advancement where the model’s climbers sit' },
     { v: `${Math.round((explained / observed) * 100)}%`, l: 'of the spread explained',
       s: `${explained.toFixed(2)} of ${observed.toFixed(2)} grades, from improvement` },
   ];
@@ -3884,7 +3946,9 @@ function renderV2TimeStats() {
 
   // The "how this goes into the model" numbers, so the argument for a fixed
   // offset quotes the same measurements the section just made.
-  const f = a.fit, at = (v) => f.intercept + f.slope * v;
+  // Read the measured bins, not the straight-line fit: the curve is convex,
+  // and the line overshoots the middle by more than the correction is worth.
+  const at = (v) => (d.find((r) => r.v === v) || {}).mean;
   const set = (id, s) => {
     const n = document.getElementById(id);
     if (n) n.textContent = s;
@@ -3895,8 +3959,8 @@ function renderV2TimeStats() {
   set('v2-fix-span', spread.toFixed(2));
   set('v2-fix-shift', explained.toFixed(2));
   set('v2-fix-spread', observed.toFixed(2));
-  // -0.00 reads as a typo in running prose; the line just hits zero at V9.
-  const f2 = (x) => (Math.abs(x) < 0.005 ? '0.00' : x.toFixed(2));
+  const f2 = (x) => (x === undefined ? '—'
+    : (Math.abs(x) < 0.005 ? '0.00' : x.toFixed(2)));
   set('v2-fix-lo', f2(at(3)));
   set('v2-fix-hi', f2(at(9)));
 }
@@ -3907,22 +3971,26 @@ function renderV2AdvTable() {
   const a = V2_TIME.advancement;
   const byV = {};
   a.naive.forEach((r) => { byV[r.v] = { v: r.v, naive: r.mean }; });
-  a.short.forEach((r) => { byV[r.v] = { ...(byV[r.v] || { v: r.v }), short: r.mean }; });
+  a.long.forEach((r) => { byV[r.v] = { ...(byV[r.v] || { v: r.v }), long: r.mean }; });
   a.debiased.forEach((r) => {
-    byV[r.v] = { ...(byV[r.v] || { v: r.v }), deb: r.mean, n: r.n,
-      p25: r.p25, p75: r.p75 };
+    byV[r.v] = { ...(byV[r.v] || { v: r.v }), deb: r.mean, sem: r.sem,
+      n: r.n, up: r.up, down: r.down };
   });
   const rows = Object.values(byV).filter((r) => r.deb !== undefined)
     .sort((x, y) => x.v - y.v);
   const sgn = (x) => (x === undefined ? '&mdash;'
     : `${x >= 0 ? '+' : ''}${x.toFixed(2)}`);
-  el.innerHTML = '<thead><tr><th>grade</th><th>naive</th><th>next window</th>'
-    + '<th>one-year horizon</th><th>middle 50%</th><th>triples</th></tr></thead><tbody>'
+  const pct = (x) => `${Math.round(x * 100)}%`;
+  el.innerHTML = '<thead><tr><th>grade</th><th>naive</th><th>1-year window</th>'
+    + '<th>3-month window</th><th>&plusmn;</th><th>moved up</th>'
+    + '<th>moved down</th><th>triples</th></tr></thead><tbody>'
     + rows.map((r) => `<tr><td class="label-cell">V${r.v}</td>`
       + `<td class="unit muted">${sgn(r.naive)}</td>`
-      + `<td class="unit muted">${sgn(r.short)}</td>`
+      + `<td class="unit muted">${sgn(r.long)}</td>`
       + `<td class="unit"><b>${sgn(r.deb)}</b></td>`
-      + `<td class="unit">${r.p25.toFixed(1)} to ${r.p75 >= 0 ? '+' : ''}${r.p75.toFixed(1)}</td>`
+      + `<td class="unit muted">${r.sem.toFixed(2)}</td>`
+      + `<td class="unit">${pct(r.up)}</td>`
+      + `<td class="unit">${pct(r.down)}</td>`
       + `<td class="unit">${r.n.toLocaleString()}</td></tr>`).join('')
     + '</tbody>';
 }
@@ -3930,6 +3998,7 @@ function renderV2AdvTable() {
 async function renderV2Time() {
   if (!(await loadV2Time())) return;
   renderV2Advancement();
+  renderV2Horizon();
   renderV2Accrual();
   renderV2AdvTable();
   renderV2TimeChart();
