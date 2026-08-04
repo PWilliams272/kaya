@@ -3269,21 +3269,40 @@ function renderV2ParamDetail(name) {
     let traces;
 
     if (mode === 'trace') {
-      traces = p.chains.map((ch, i) => ({
-        type: 'scatter', mode: 'lines', name: `chain ${i}`,
-        x: ch.map((_, j) => j), y: ch,
-        line: { color: cssVar(hues[i % hues.length]), width: 0.9 },
-        hovertemplate: `chain ${i}<br>%{y:.3f}<extra></extra>`,
-      }));
+      // If the fit retained its tuning draws, show them ahead of the sampling
+      // draws on a shared x-axis, shaded, so the reader can see the chains
+      // start dispersed and pull together. Fits run before this was enabled
+      // simply have no warmup to draw.
+      const nWarm = p.warmup ? p.warmup[0].length : 0;
+      traces = p.chains.map((ch, i) => {
+        const series = nWarm ? p.warmup[i].concat(ch) : ch;
+        return {
+          type: 'scatter', mode: 'lines', name: `chain ${i}`,
+          x: series.map((_, j) => j - nWarm), y: series,
+          line: { color: cssVar(hues[i % hues.length]), width: 0.9 },
+          hovertemplate: `chain ${i}<br>%{y:.3f}<extra></extra>`,
+        };
+      });
       // The thing R-hat is actually measuring is whether these four levels
       // agree. Drawn explicitly, because it is invisible in the raw squiggle.
       layout.shapes = p.chains.map((ch, i) => ({
-        type: 'line', xref: 'paper', x0: 0, x1: 1,
+        type: 'line', xref: 'paper', x0: 0, x1: 1,   // sampling draws only
         y0: ch.reduce((a, b) => a + b, 0) / ch.length,
         y1: ch.reduce((a, b) => a + b, 0) / ch.length,
         line: { color: cssVar(hues[i % hues.length]), width: 1.2, dash: 'dash' },
       }));
-      layout.xaxis = { ...layout.xaxis, title: { text: 'draw (thinned, post-warmup)', standoff: 8 } };
+      if (nWarm) {
+        layout.shapes.push({ type: 'rect', xref: 'x', yref: 'paper',
+          x0: -nWarm, x1: 0, y0: 0, y1: 1,
+          fillcolor: cssVar('--lg-text-2'), opacity: 0.08, line: { width: 0 } });
+        layout.annotations = [{ x: -nWarm / 2, y: 1, yref: 'paper', yanchor: 'bottom',
+          showarrow: false, text: 'warm-up (discarded)',
+          font: { size: 10, color: cssVar('--lg-text-2') } }];
+        layout.margin.t = 22;
+      }
+      layout.xaxis = { ...layout.xaxis, title: {
+        text: nWarm ? 'draw (thinned; 0 = end of warm-up)' : 'draw (thinned, post-warmup)',
+        standoff: 8 } };
       layout.yaxis = { ...layout.yaxis, title: { text: 'value', standoff: 6 } };
     } else {
       // Rank plot (Vehtari et al. 2021). Pool every draw, rank it, then
