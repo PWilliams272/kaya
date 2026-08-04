@@ -1107,3 +1107,17 @@
 
 /* A LOO gap inside one SE of the difference is noise; show it as such. */
 .data-table td.unit.muted { opacity: 0.45; }
+
+/* A heading with an info dot beside it. The dot's popover is flow content,
+   so it cannot live inside the <h3> itself. */
+.head-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 22px 0 8px;
+}
+.head-row > h3 {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  margin: 0;
+}

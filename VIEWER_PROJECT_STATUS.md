@@ -282,6 +282,19 @@ Reference implementation: `src/kaya/viewer_static/` — `index.html`
 
 ## What's next
 
+- **Time is not in the grading model at all** (found 2026-08-04). Gym
+  corrections correlate **+0.61** with when their climbers logged (+0.55
+  within-brand, so it is not just Movement being later and stiffer). Measured
+  climber advancement, de-biased for regression to the max, is only
+  +0.06 to +0.17 grades/yr around V5&ndash;V6 where the median climber sits
+  &mdash; an order of magnitude below the +0.68 grades/yr the correlation
+  implies. So improvement explains a slice of it and something else explains
+  the rest. Scripts: `scripts/gym_time_confound.py`,
+  `scripts/climber_advancement.py`. Any drift term must be
+  **grade-dependent**, not a constant. Prerequisite: `prepare_base_data`
+  drops the send date from the observation table and needs to carry it.
+- **A climber-advancement write-up** of its own is wanted eventually &mdash;
+  how fast people move up, and how that slows with grade.
 - **Reusing the docked panel** (section 9) — the owner has asked for similar
   implementations elsewhere; the two traps above are the whole difficulty.
 - **Widen the gym network in the grading model** (owner request, 2026-08-04).

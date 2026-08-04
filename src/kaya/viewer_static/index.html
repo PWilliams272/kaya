@@ -7,7 +7,7 @@
     <meta name="kaya-viewer-data-mode" content="static" />
     <link rel="stylesheet" href="/static/tokens.css" />
     <link rel="stylesheet" href="/static/app.css?v=6" />
-    <link rel="stylesheet" href="/static/research.css?v=21" />
+    <link rel="stylesheet" href="/static/research.css?v=22" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -1686,7 +1686,74 @@
                 a symmetric bump onto it, and no one had fitted that shape directly.
               </p>
 
-              <h3>Which shape does the data prefer?</h3>
+              <div class="head-row">
+                <h3>Which shape does the data prefer?</h3>
+                <div class="infowrap">
+                  <button type="button" class="infodot"
+                          aria-label="What elpd, SE of delta and Pareto k mean">i</button>
+                  <div class="infopop" role="tooltip">
+                    <h5>Reading this table</h5>
+                    <p>
+                      <b>elpd</b> &mdash; expected log pointwise predictive
+                      density. For each observation the fitted model gives a
+                      probability density at the value actually seen; take the
+                      log, and sum over all 20,014 of them. Higher means the
+                      model put more probability on what really happened.
+                      <b>Leave-one-out</b> (LOO) estimates it <i>out of
+                      sample</i>: for each row, what the model would have
+                      predicted had it not been trained on that row &mdash;
+                      approximated by reweighting the draws it already has,
+                      rather than refitting 20,014 times.
+                    </p>
+                    <p>
+                      The absolute number is meaningless. It scales with how
+                      many observations there are and how coarse the grade
+                      scale is. Only differences between models on the same
+                      data carry information.
+                    </p>
+                    <p>
+                      <b>SE of &Delta;</b> &mdash; the standard error of the
+                      <i>difference</i> between two models, not of either one
+                      alone. Both totals are wildly uncertain (&plusmn;133
+                      elpd each), but they are uncertain <i>in the same
+                      direction</i>: the two models agree on nearly every
+                      individual observation and disagree on a few. So the
+                      difference is far better determined than either total.
+                      It is computed per observation &mdash;
+                      d<sub>i</sub>&nbsp;=&nbsp;elpd<sub>A,i</sub>&nbsp;&minus;&nbsp;elpd<sub>B,i</sub>,
+                      then &radic;n&nbsp;&times;&nbsp;sd(d) &mdash; which gives
+                      about &plusmn;18 here. Treating the models as
+                      independent and adding their SEs in quadrature would give
+                      &plusmn;188, roughly ten times too pessimistic.
+                    </p>
+                    <p>
+                      A &Delta; smaller than about two of those SEs is not a
+                      ranking, it is noise, and is greyed out above.
+                    </p>
+                    <p>
+                      <b>Pareto k</b> &mdash; the health check on the LOO
+                      approximation, and <b>every row here fails it</b>.
+                      Rather than refit without each observation, LOO reweights
+                      the existing draws by how unlikely that observation was.
+                      When one observation dominates the weights, the weight
+                      distribution has a heavy tail, and <i>k</i> is the fitted
+                      shape of that tail. Above about 0.7 the estimate is
+                      unreliable for that observation.
+                    </p>
+                    <p>
+                      The cause here is structural, not a bug. Every climber
+                      has their own ability offset, and <b>59% of them appear
+                      exactly once</b> &mdash; so removing that one observation
+                      removes the only thing informing their parameter, which
+                      is precisely the case importance sampling handles worst.
+                      The same structure means a climber&rsquo;s personal
+                      offset absorbs whatever height would have explained, so
+                      this comparison is unusually blind to the very effect it
+                      is being asked about. Read the ranking as directional.
+                    </p>
+                  </div>
+                </div>
+              </div>
               <p class="prose">
                 Every form below is fitted on <b>identical data</b> &mdash; the same
                 29-gym network, the same confident-name filter, the same 20,014
