@@ -1147,3 +1147,22 @@
   font-size: var(--fs-md);
   font-weight: 700;
 }
+
+/* Segmented toggle: switching a figure between two model versions that are
+   both real results, not a draft and a final. Neither reads as the default. */
+.seg-btn {
+  font: inherit; font-size: 12px; line-height: 1;
+  padding: 7px 12px; margin-right: 6px;
+  color: var(--lg-text-2);
+  background: var(--lg-card);
+  border: 1px solid var(--lg-border);
+  border-radius: 6px; cursor: pointer;
+  transition: color 120ms, border-color 120ms, background 120ms;
+}
+.seg-btn:hover { color: var(--lg-text); border-color: var(--lg-text-2); }
+.seg-btn:focus-visible { outline: 2px solid var(--lg-cat-1); outline-offset: 2px; }
+.seg-btn.on {
+  color: var(--lg-card); background: var(--lg-cat-1);
+  border-color: var(--lg-cat-1); font-weight: 600;
+}
+.seg-note { font-size: 12px; margin-left: 10px; }

@@ -7,7 +7,7 @@
     <meta name="kaya-viewer-data-mode" content="static" />
     <link rel="stylesheet" href="/static/tokens.css" />
     <link rel="stylesheet" href="/static/app.css?v=6" />
-    <link rel="stylesheet" href="/static/research.css?v=29" />
+    <link rel="stylesheet" href="/static/research.css?v=30" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -2145,7 +2145,7 @@
                     </p>
                     <p>
                       <b>Pareto k</b> &mdash; the health check on the LOO
-                      approximation, and <b>every row here fails it</b>.
+                      approximation, which <b>17% of rows here fail</b>.
                       Rather than refit without each observation, LOO reweights
                       the existing draws by how unlikely that observation was.
                       When one observation dominates the weights, the weight
@@ -2154,15 +2154,14 @@
                       unreliable for that observation.
                     </p>
                     <p>
-                      The cause here is structural, not a bug. Every climber
-                      has their own ability offset, and <b>59% of them appear
+                      The cause is structural, not a bug. Every climber has
+                      their own ability offset, and <b>59% of them appear
                       exactly once</b> &mdash; so removing that one observation
                       removes the only thing informing their parameter, which
                       is precisely the case importance sampling handles worst.
-                      The same structure means a climber&rsquo;s personal
-                      offset absorbs whatever height would have explained, so
-                      this comparison is unusually blind to the very effect it
-                      is being asked about. Read the ranking as directional.
+                      Restricting the score to climbers with three or more
+                      observations drops the failure rate to 4%, and is what
+                      the section below does.
                     </p>
                   </div>
                 </div>
@@ -2179,15 +2178,173 @@
               <p class="caption" id="v2-loo-note"></p>
               <div class="callout warn">
                 <div>
-                  <b>Read this table as provisional.</b> Every arm still has at
-                  least one parameter above the R&#770; 1.01 threshold, so these
-                  are rankings between models that have not individually
-                  converged. The LOO gaps are also small next to the standard
-                  errors quoted per model &mdash; a paired comparison on
-                  pointwise log-likelihoods is the honest test, and it runs once
-                  all six forms are in. What can be said now is a negative:
-                  <b>nothing so far shows the four-parameter gender-interaction
-                  form earning its complexity.</b>
+                  <b>That table is not measuring what it looks like it is
+                  measuring.</b> The next section shows why, and what is left
+                  of the ranking afterwards.
+                </div>
+              </div>
+
+              <h3>Can this comparison tell the models apart at all?</h3>
+              <p class="prose">
+                Before believing any ranking, it is worth asking what the
+                measurement's own noise level is. There is a direct way to find
+                out that requires no theory: <b>fit the same model twice.</b>
+                Same model, same data, same settings &mdash; only the random
+                seed differs. Whatever separates the two runs is noise, and
+                every gap in the table above has to clear it to mean anything.
+              </p>
+              <div class="callout warn">
+                <div>
+                  <b>Two runs of the identical model scored 31.1 elpd apart.</b>
+                  That is larger than the gap between every pair of height
+                  forms except the most extreme. Refitting the winning model
+                  drops it to fourth place, below shapes it had supposedly
+                  beaten. <b>The ranking was reading noise.</b>
+                </div>
+              </div>
+              <p class="prose">
+                Two diagnostics point at the same cause, and it is structural
+                rather than a bug. <b>p<sub>loo</sub></b> &mdash;
+                cross-validation&rsquo;s own estimate of how many free
+                parameters the model is effectively using &mdash; comes out at
+                <b>8,400 on 20,014 observations</b>. And an observation here is
+                one (climber, gym) pair, while <b>59% of climbers contribute
+                exactly one</b>. Hide that observation and nothing at all is
+                left to estimate that climber&rsquo;s personal ability offset
+                from. The score for those rows is not a prediction; it is a
+                guess.
+              </p>
+              <p class="prose">
+                Which suggests a test that costs nothing. Cross-validation
+                already produces a <i>separate score for every observation</i>,
+                so the totals can be re-added over any subset without refitting
+                anything &mdash; the same subset for every model, so the
+                comparison stays fair. If the single-observation climbers are
+                the problem, dropping them should collapse the noise.
+              </p>
+              <div class="head-row">
+                <div id="v2-arm-picker" class="chart-head-tools"></div>
+              </div>
+              <div id="v2-noise-chart" class="chart-mid"></div>
+              <p class="caption" id="v2-noise-note"></p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-subset-table"></table>
+              </div>
+              <p class="caption">
+                Each model&rsquo;s score relative to the best model in the same
+                column. <b>0 is best; more negative predicts held-out climbers
+                worse.</b> Compare only <i>down</i> a column &mdash; a narrower
+                subset adds up fewer rows, so its totals are smaller for
+                reasons that have nothing to do with the models. The rows
+                labelled &ldquo;refit&rdquo; are the <i>same model</i> fitted
+                again; the spread among them is the noise floor, and any gap
+                smaller than it is not a result.
+              </p>
+              <p class="prose">
+                It collapses. Restricted to climbers with three or more
+                observations &mdash; still half the data &mdash; two runs of
+                the identical model agree to a fraction of a point, and a
+                ranking appears that is many times larger than the noise around
+                it. The share of rows flagged unreliable by the
+                <b>Pareto&nbsp;k</b> diagnostic falls the same way, from 17% to
+                4%.
+              </p>
+              <div class="callout">
+                <div>
+                  <b>What the comparison says once it can hear itself.</b>
+                  <br /><br />
+                  <b>Height genuinely matters.</b> Dropping the height term
+                  entirely costs about 25 points against a noise floor near
+                  half a point. This is the one conclusion that was never in
+                  doubt and is now properly supported.
+                  <br /><br />
+                  <b>The relationship is a straight line.</b> Every curved form
+                  &mdash; plain quadratic, saturating, quadratic split by
+                  gender &mdash; loses by 11 to 17 points.
+                  <br /><br />
+                  <b>No evidence that the height slope differs by gender.</b>
+                  Adding the interaction moves the score by about 2 points,
+                  which is inside the noise.
+                  <br /><br />
+                  <b>The model used elsewhere on this page uses the curved,
+                  gender-split form</b>, which scores 13.9 points <i>worse</i>
+                  than a straight line on the same data. That is worth acting
+                  on, and is the strongest argument yet for the simpler height
+                  term.
+                </div>
+              </div>
+
+              <h4 class="sub-head">The fix: stop estimating what cannot be estimated</h4>
+              <p class="prose">
+                Restricting the <i>score</i> to well-observed climbers is a
+                patch on the symptom. The cause is that the model carries
+                10,357 ability offsets on 20,014 observations, and 6,156 of
+                them are pinned by a single data point each.
+              </p>
+              <p class="prose">
+                Those offsets cannot simply be deleted &mdash; gym corrections
+                are identified precisely by the same climber appearing at two
+                gyms, so the climber term is the whole method. But for a
+                climber with one observation the offset can be
+                <b>integrated out exactly</b>. It enters the ceiling additively
+                and is Gaussian; the observation noise is Gaussian; two
+                Gaussians convolve into one wider Gaussian:
+              </p>
+              <div class="eqn-block">
+                $$-m \sim \mathrm{ExGaussian}\!\left(-c,\ \
+                  \sqrt{\sigma_{\text{link}}^{2} + \sigma_{\text{user}}^{2}},\ \
+                  \nu\right)$$
+              </div>
+              <p class="prose">
+                Same distribution family, one wider spread parameter,
+                <b>nothing approximated and nothing discarded</b>.
+                <span>\(\sigma_{\text{user}}\)</span> is still estimated &mdash;
+                from the climbers who have enough observations to say something
+                about it. The parameter count drops from
+                <b>10,397 to 4,241</b>, and the rows that were unscoreable
+                become scoreable, because their likelihood no longer depends on
+                any parameter unique to them.
+              </p>
+
+              <h4 class="sub-head">The two versions, side by side</h4>
+              <p class="prose">
+                Both models are kept and both are fitted, on identical data with
+                identical settings, differing in exactly one thing. The original
+                is not obsolete: it is the evidence that the change was needed,
+                and a claim that a fix worked is empty without the thing it
+                fixed. The toggle above the chart switches every figure in this
+                section between them.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-arm-compare"></table>
+              </div>
+              <div class="callout warn">
+                <div>
+                  <b>One comparison that is NOT valid: the two versions&rsquo;
+                  scores against each other.</b> They are answering different
+                  questions. The original predicts an observation
+                  <i>given</i> that climber&rsquo;s fitted ability &mdash; and
+                  for a climber with one observation, that ability was fitted
+                  using the very row being predicted, which flatters it. The
+                  marginalized version predicts the observation
+                  <i>averaging over</i> an unknown climber&rsquo;s ability,
+                  which is honest and therefore scores lower. A lower number
+                  here is the more trustworthy number, not a worse model.
+                  Compare within a version, never across.
+                </div>
+              </div>
+              <div class="callout">
+                <div>
+                  <b>Verified two ways before being believed.</b> The same
+                  likelihood was implemented twice &mdash; once in PyTensor for
+                  PyMC, once in plain NumPy as a reference &mdash; and the two
+                  agree to <b>1.3&nbsp;&times;&nbsp;10<sup>&minus;9</sup></b>
+                  relative at the same parameter values. The NumPy version also
+                  checks its closed form against brute-force numerical
+                  integration of the same integral, agreeing to
+                  10<sup>&minus;13</sup>. Two independent implementations
+                  agreeing is a much stronger statement than one implementation
+                  converging.
                 </div>
               </div>
 
@@ -2265,6 +2422,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=78"></script>
+    <script src="/static/app.js?v=80"></script>
   </body>
 </html>

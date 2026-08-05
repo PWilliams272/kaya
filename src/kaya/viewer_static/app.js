@@ -4003,6 +4003,191 @@ function renderV2AdvTable() {
     + '</tbody>';
 }
 
+// ---- can the model comparison hear itself? ----
+//
+// v2_reliability.json is written by scripts/build_v2_reliability.py: the same
+// seven height forms scored on progressively better-observed climbers, plus
+// refits of one model that give the noise floor. Nothing here is hand-typed.
+
+let V2_REL = null;
+
+async function loadV2Reliability() {
+  if (V2_REL) return true;
+  try {
+    const r = await fetch('/static/v2_reliability.json', { cache: 'no-cache' });
+    if (!r.ok) return false;
+    V2_REL = await r.json();
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Which model version the reliability figures are showing. Both are kept and
+// both are reachable: the old one is the evidence that the fix was needed.
+const V2_ARM_LABEL = {
+  unmarginalized: 'every climber keeps their own ability offset (10,397 parameters)',
+  marginalized: 'single-observation offsets integrated out (4,241 parameters)',
+};
+let V2_ARM = null;
+
+function v2Arm() {
+  if (!V2_REL) return null;
+  const key = V2_ARM && V2_REL.arms[V2_ARM] ? V2_ARM : V2_REL.primary;
+  return V2_REL.arms[key] ? { key, ...V2_REL.arms[key] } : null;
+}
+
+function renderV2ArmPicker() {
+  const host = document.getElementById('v2-arm-picker');
+  if (!host || !V2_REL) return;
+  const keys = Object.keys(V2_REL.arms);
+  const cur = v2Arm();
+  if (keys.length < 2) {
+    host.innerHTML = `<span class="muted">Showing: ${V2_ARM_LABEL[cur.key]}. `
+      + 'The other version is still fitting.</span>';
+    return;
+  }
+  host.innerHTML = keys.map((k) => `
+    <button type="button" class="seg-btn${k === cur.key ? ' on' : ''}"
+            data-arm="${k}">${k === 'marginalized' ? 'Offsets integrated out'
+                                                   : 'Original model'}</button>`).join('')
+    + `<span class="muted seg-note">${V2_ARM_LABEL[cur.key]}</span>`;
+  host.querySelectorAll('[data-arm]').forEach((b) => {
+    b.onclick = () => { V2_ARM = b.dataset.arm; renderV2Noise();
+      renderV2SubsetTable(); renderV2ArmPicker(); };
+  });
+}
+
+function renderV2Noise() {
+  const el = document.getElementById('v2-noise-chart');
+  const arm = v2Arm();
+  if (!el || !arm || typeof Plotly === 'undefined') return;
+  const subs = V2_REL.subsets, ks = subs.map((s) => String(s.k));
+  const xs = subs.map((s, i) => i);
+  const label = (s) => (s.k === 1 ? 'all rows'
+    : `climbers with ${s.k}+ rows`);
+
+  const traces = [];
+  // The noise band first, so the model lines draw over it. This is the whole
+  // point of the figure: a gap inside the band is not a result.
+  const nz = ks.map((k) => (arm.noise[k] || {}).range || 0);
+  traces.push({
+    type: 'scatter', mode: 'lines', x: xs, y: nz.map((v) => -v),
+    line: { width: 0 }, showlegend: false, hoverinfo: 'skip',
+  });
+  traces.push({
+    type: 'scatter', mode: 'lines', x: xs, y: nz.map(() => 0),
+    line: { width: 0 }, fill: 'tonexty',
+    fillcolor: hexToRgba(cssVar('--lg-text-2'), 0.16),
+    name: 'noise: spread across refits of one model',
+    hovertemplate: 'noise floor<extra></extra>',
+  });
+
+  const real = arm.models.filter((m) => !m.replicate_of);
+  real.forEach((m, i) => {
+    const c = cssVar(V2_FIT_HUES[i % V2_FIT_HUES.length]);
+    traces.push({
+      type: 'scatter', mode: 'lines+markers', name: m.label,
+      x: xs, y: ks.map((k) => m.by_subset[k].gap),
+      line: { color: c, width: 2.2 }, marker: { size: 8 },
+      hovertemplate: `%{y:+.1f} vs the best model<extra>${m.label}</extra>`,
+    });
+  });
+
+  const layout = chartLayout('');
+  layout.height = 420;
+  layout.margin = { l: 66, r: 20, t: 12, b: 118 };
+  layout.xaxis = { ...layout.xaxis, automargin: false,
+    tickmode: 'array', tickvals: xs, ticktext: subs.map(label),
+    title: { text: 'which observations are scored', standoff: 12 } };
+  layout.yaxis = { ...layout.yaxis, automargin: false, zeroline: true,
+    zerolinecolor: cssVar('--lg-text-2'),
+    title: { text: 'score gap from the best model (higher is better)',
+      standoff: 6 } };
+  layout.legend = { ...layout.legend, orientation: 'h', y: -0.26,
+    yanchor: 'top', x: 0, font: { size: 10 } };
+  Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
+
+  const note = document.getElementById('v2-noise-note');
+  if (note) {
+    const n1 = arm.noise['1'] || {}, n3 = arm.noise['3'] || {};
+    const s3 = subs.find((s) => s.k === 3) || {};
+    note.innerHTML = `<b>${V2_ARM_LABEL[arm.key]}.</b> Each line is one height `
+      + 'form, scored against the best model in the same column. The grey band '
+      + `is how far apart ${n1.n_runs || '?'} fits of the <b>identical</b> `
+      + 'model land &mdash; pure noise, since nothing about them differs but '
+      + 'the random seed. Scored on all rows that band is '
+      + `<b>${(n1.range || 0).toFixed(1)}</b> points wide; scored on climbers `
+      + `with three or more observations &mdash; still `
+      + `${Math.round((s3.share || 0) * 100)}% of the data &mdash; it is `
+      + `<b>${(n3.range || 0).toFixed(1)}</b>. Nothing was refitted between `
+      + 'these columns; the same per-observation scores are simply added up '
+      + 'over different rows.';
+  }
+}
+
+function renderV2SubsetTable() {
+  const el = document.getElementById('v2-subset-table');
+  const arm = v2Arm();
+  if (!el || !arm) return;
+  const subs = V2_REL.subsets;
+  const head = subs.map((s) => (s.k === 1 ? 'all rows' : `${s.k}+ rows`));
+  const sub = subs.map((s) => `${s.rows.toLocaleString()} rows`);
+  el.innerHTML = '<thead><tr><th>height model</th>'
+    + head.map((h, i) => `<th>${h}<br /><span class="muted">${sub[i]}</span></th>`).join('')
+    + '<th>unreliable rows<br /><span class="muted">at 3+ rows</span></th></tr></thead><tbody>'
+    + arm.models.map((m) => {
+      const rep = m.replicate_of ? ' muted' : '';
+      return `<tr><td class="label-cell${rep}">${m.label}</td>`
+        + subs.map((s) => {
+          const g = m.by_subset[String(s.k)].gap;
+          return `<td class="unit${rep}">${g >= 0 ? '+' : ''}${g.toFixed(1)}</td>`;
+        }).join('')
+        + `<td class="unit muted">${Math.round(m.by_subset['3'].bad_k * 100)}%</td></tr>`;
+    }).join('')
+    + '</tbody>';
+}
+
+function renderV2ArmCompare() {
+  const el = document.getElementById('v2-arm-compare');
+  if (!el || !V2_REL) return;
+  const a = V2_REL.arms.unmarginalized, b = V2_REL.arms.marginalized;
+  if (!a || !b) {
+    el.innerHTML = '<p class="caption">The side-by-side comparison appears '
+      + 'once both versions have finished fitting.</p>';
+    return;
+  }
+  const row = (name, get, fmt = (x) => x) => {
+    const va = get(a), vb = get(b);
+    return `<tr><td class="label-cell">${name}</td>`
+      + `<td class="unit">${va === undefined ? '&mdash;' : fmt(va)}</td>`
+      + `<td class="unit"><b>${vb === undefined ? '&mdash;' : fmt(vb)}</b></td></tr>`;
+  };
+  const noise = (arm, k) => (arm.noise[k] || {}).range;
+  const badk = (arm, k) => {
+    const m = arm.models.find((x) => !x.replicate_of);
+    return m ? m.by_subset[k].bad_k : undefined;
+  };
+  const f1 = (x) => x.toFixed(1);
+  const pc = (x) => `${Math.round(x * 100)}%`;
+  el.innerHTML = '<thead><tr><th>&nbsp;</th><th>original model</th>'
+    + '<th>offsets integrated out</th></tr></thead><tbody>'
+    + row('parameters', (x) => (x === a ? 10397 : 4241), (x) => x.toLocaleString())
+    + row('noise between refits, all rows', (x) => noise(x, '1'), f1)
+    + row('noise between refits, 3+ rows', (x) => noise(x, '3'), f1)
+    + row('unreliable rows, all rows', (x) => badk(x, '1'), pc)
+    + row('unreliable rows, 3+ rows', (x) => badk(x, '3'), pc)
+    + '</tbody>';
+}
+
+async function renderV2Reliability() {
+  if (!(await loadV2Reliability())) return;
+  renderV2ArmPicker();
+  renderV2Noise();
+  renderV2SubsetTable();
+  renderV2ArmCompare();
+}
+
 async function renderV2Time() {
   if (!(await loadV2Time())) return;
   renderV2Advancement();
@@ -5387,6 +5572,7 @@ async function renderV2Tab() {
   renderV2GenderValidation();
   renderV2HeightHist();
   renderV2Time();
+  renderV2Reliability();
   // The glossary and forms table are injected as innerHTML *after* KaTeX's
   // auto-render already ran on DOMContentLoaded, so their \( ... \) spans
   // would otherwise stay as literal source. Typeset them explicitly.

@@ -11,3 +11,6 @@ notebooks/
 
 # Sphinx build output
 docs/build/
+# Fit archive: traces are ~600MB each
+runs/traces/
+runs/*.nc
