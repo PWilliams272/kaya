@@ -1290,35 +1290,58 @@
                 times that much.
               </p>
 
-              <h4 class="sub-head">How long a window? The bin is not who you measure</h4>
+              <h4 class="sub-head">The real problem: how long do you watch?</h4>
               <p class="prose">
-                Here is the thing the three-window scheme does not fix. The bin
-                label comes from <span>\(w_0\)</span>, but the change is
-                measured starting at <span>\(w_1\)</span> &mdash; and the
-                climber does not stop climbing in between. Stretch the second
-                leg out to a year and you are crediting the
-                &ldquo;V1&rdquo; bin with twelve months of climbing done by
-                someone who reached V3 in month two.
-              </p>
-              <p class="prose">
-                That has a signature. Dilution requires movement, so it should
-                pull the <b>low</b> bins down as the window grows and leave the
-                high bins alone &mdash; and that is exactly what happens.
+                Nothing so far says how long <span>\(\Delta t\)</span>
+                <i>should</i> be, and that turns out to matter far more than
+                the arithmetic. Hold everything else fixed and change only the
+                watching period:
               </p>
               <div id="v2-horizon-chart" class="chart-mid"></div>
               <p class="caption" id="v2-horizon-note"></p>
               <p class="prose">
-                So measure over a <b>short</b> window. A three-month second leg
-                keeps the measurement inside the grade band it is labelled with,
-                which is what &ldquo;how fast does a V4 climber improve&rdquo;
-                actually asks &mdash; and it is the quantity a grade-dependent
-                drift term needs, since the model applies it locally.
+                At V1 the answer moves from <b>+0.88</b> grades a year to
+                <b>+0.22</b> depending on nothing but how long you look. The
+                high bins barely move at all. A number that swings by a factor
+                of four on an arbitrary choice is not a measurement of
+                anything, so the question is which one &mdash; if either
+                &mdash; is right.
+              </p>
+              <div class="callout warn">
+                <div>
+                  <b>Neither. A rate has to compound, and this one does not.</b>
+                  Saying V1 climbers improve at 0.88 grades a year is a
+                  prediction: watch for a year and they should gain 0.88
+                  grades. They gain <b>0.22</b>, which is 4.8 standard errors
+                  away. The V1 group gains about a fifth of a grade after three
+                  months &mdash; and still about a fifth of a grade after
+                  twelve. That is a <b>one-time step</b>, not a rate, and
+                  dividing a step by the window you happened to pick just
+                  reports your choice back to you. Divide it by 0.25 and it
+                  reads +0.88; divide the same step by 1.0 and it reads +0.22.
+                </div>
+              </div>
+              <p class="prose">
+                So stop picking a window. Use them all: a genuine rate means
+                the gain grows <b>in proportion</b> to elapsed time, so fit
+                that line through the origin across all six horizons at once,
+                and let the fit report whether the proportionality actually
+                holds.
               </p>
               <div class="eqn-block">
-                $$f(v) = \frac{\overline{\Delta \ell}}{\overline{\Delta t}}
-                  \ \Big|\ \ell_{w_0} = v\ ,\qquad
-                  |\Delta t - 3\,\text{months}| \le 6\,\text{weeks}$$
+                $$\overline{\Delta \ell}(h) = f(v)\cdot h \ ,\qquad
+                  \hat f(v) = \frac{\sum_h w_h\, h\, \overline{\Delta \ell}(h)}
+                                   {\sum_h w_h\, h^2}\ ,\qquad
+                  w_h = 1/\mathrm{SE}_h^2$$
               </div>
+              <p class="prose">
+                This is the one estimator that can be <i>wrong</i> in a way you
+                can see. If a bin were really a step rather than a rate, the
+                points would not lie on a line through the origin and the
+                <span>\(\chi^2\)</span> would say so. It comes out near one in
+                almost every bin &mdash; including V1, once the inflated
+                three-month point stops being taken on its own.
+              </p>
               <div class="callout warn">
                 <div>
                   <b>The bin labels are lying, and always toward the middle.</b>
@@ -1335,13 +1358,13 @@
                 </div>
               </div>
               <p class="prose">
-                One thing the long windows do settle: in the bulk of the data,
-                where dilution is not in play, improvement is genuinely steady.
-                Pooling V3&ndash;V8 and measuring the same climbers over a
-                ladder of horizons, the change accumulates linearly and the
-                implied annual rate holds from three months out to two years.
-                Nobody is plateauing; the curve is about <i>where</i> you are,
-                not <i>how long</i> you look.
+                Pooled across the bulk of the data, that line is about as
+                clean as this kind of measurement gets. V3&ndash;V8 together,
+                the gain accumulates in proportion to elapsed time from three
+                months out to two years &mdash; so for most climbers
+                improvement really is a steady rate, and the curve below is
+                about <i>where</i> you are rather than <i>how long</i> anyone
+                looked.
               </p>
               <div id="v2-accrual-chart" class="chart-small"></div>
               <p class="caption" id="v2-accrual-note"></p>
@@ -1419,12 +1442,12 @@
                 essentially flat by V7 &mdash; so a single <span>\(\tau\)</span>
                 would over-correct strong climbers and under-correct weak ones.
                 The rate has to be a function of where the climber already is,
-                and the section above is exactly that function &mdash; used
-                directly, by interpolating between the measured bins rather than
-                fitting a line through them, because the measured curve is
-                <b>convex</b>: it drops steeply through V1&ndash;V4 and is flat
-                above V5. A straight line through it overshoots the middle by
-                more than the whole correction is worth.
+                and the section above is exactly that function. It is used
+                directly, interpolating between the measured bins. A straight
+                line through them is a fair description &mdash; the fitted
+                curve runs close to
+                <span>\(0.34 - 0.035\,v\)</span> &mdash; but interpolation
+                costs nothing and does not have to be defended.
               </p>
               <div class="eqn-block">
                 $$C_{u,g} = \text{ability}_u + \text{gym}_g
@@ -1478,16 +1501,14 @@
                 than evidence something had been repaired.
               </p>
               <p class="prose">
-                The fixed version is also insensitive to binning <i>where the
-                model actually lives</i>. <span>\(f\)</span> runs from
-                <span id="v2-fix-lo">0.35</span> at V3 to
-                <span id="v2-fix-hi">0.00</span> at V9, and across V4&ndash;V8
-                &mdash; which is where the great majority of modelled climbers
-                sit &mdash; it varies by about a tenth of a grade per year.
-                Misfiling someone by a grade there changes their offset by
-                hundredths. The steep part of the curve, V1&ndash;V2, is both
-                the least certain and the least populated, so it carries almost
-                no weight in the result.
+                The fixed version is also insensitive to binning. <span>\(f\)</span>
+                runs from <span id="v2-fix-lo">0.25</span> at V3 to
+                <span id="v2-fix-hi">0.04</span> at V9 &mdash; the whole span
+                is a fifth of a grade per year, and across V4&ndash;V8, where
+                the great majority of modelled climbers sit, it varies by half
+                that. Misfiling someone by a grade changes their offset by
+                hundredths, which matters because the bin labels are known to
+                be off by about that much.
               </p>
               <div class="callout">
                 <div>
@@ -2244,6 +2265,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=76"></script>
+    <script src="/static/app.js?v=78"></script>
   </body>
 </html>

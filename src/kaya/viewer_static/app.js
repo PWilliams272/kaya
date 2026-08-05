@@ -3656,15 +3656,16 @@ function renderV2Advancement() {
     hovertemplate: 'V%{x}: %{y:+.2f} grades/yr<extra>naive</extra>',
   });
   traces.push({
-    type: 'scatter', mode: 'lines+markers', x: gx(a.long), y: a.long.map((r) => r.mean),
-    name: 'one-year window (diluted at low grades)',
+    type: 'scatter', mode: 'lines+markers', x: gx(a.short_win),
+    y: a.short_win.map((r) => r.mean),
+    name: 'three-month window alone',
     line: { color: cssVar('--lg-cat-3'), width: 2, dash: 'dot' },
     marker: { size: 6 },
-    hovertemplate: 'V%{x}: %{y:+.2f} grades/yr<extra>one year</extra>',
+    hovertemplate: 'V%{x}: %{y:+.2f} grades/yr<extra>3 months only</extra>',
   });
   traces.push({
     type: 'scatter', mode: 'lines+markers', x: gx(a.debiased), y: a.debiased.map((r) => r.mean),
-    name: 'three-month window',
+    name: 'steady rate, fitted across all windows',
     line: { color: cssVar('--lg-cat-1'), width: 2.6 },
     marker: { size: 7 },
     error_y: { type: 'data', array: a.debiased.map((r) => r.sem),
@@ -3694,21 +3695,28 @@ function renderV2Advancement() {
     // impossible number the argument rests on.
     const n1 = a.naive.reduce((w, r) => (r.mean < w.mean ? r : w), a.naive[0]);
     const d1 = at(a.debiased, 1), d3 = at(a.debiased, 3);
-    const d5 = at(a.debiased, 5), d7 = at(a.debiased, 7);
-    const l1 = at(a.long, 1);
-    note.innerHTML = `${a.n_pairs.toLocaleString()} window triples from `
-      + `${a.n_climbers.toLocaleString()} climbers. Improvement runs `
+    const d5 = at(a.debiased, 5), d8 = at(a.debiased, 8);
+    const s1 = at(a.short_win, 1);
+    const worst = a.debiased.reduce((w, r) => (r.chi2 > w.chi2 ? r : w), a.debiased[0]);
+    // Each bin's n counts measurements across all six watching periods, and
+    // the same climber contributes at several of them, so this is a count of
+    // measurements rather than of people.
+    const nMeas = a.debiased.reduce((s, r) => s + r.n, 0);
+    note.innerHTML = `${nMeas.toLocaleString()} measurements across six `
+      + `watching periods, from ${a.n_climbers.toLocaleString()} climbers. `
+      + 'Improvement runs '
       + `<b>${d1.mean.toFixed(2)} grades/yr at V${d1.v}</b> (&plusmn;`
-      + `${d1.sem.toFixed(2)}, from only ${d1.n} triples), `
-      + `${d3.mean.toFixed(2)} at V${d3.v}, ${d5.mean.toFixed(2)} at V${d5.v} `
-      + `and ${d7.mean.toFixed(2)} at V${d7.v}. The naive estimator bottoms out `
+      + `${d1.sem.toFixed(2)}), ${d3.mean.toFixed(2)} at V${d3.v}, `
+      + `${d5.mean.toFixed(2)} at V${d5.v} and ${d8.mean.toFixed(2)} at `
+      + `V${d8.v} &mdash; roughly ${(d1.mean / Math.max(d8.mean, 0.01)).toFixed(0)}&times; `
+      + 'faster at the bottom than at the top. The naive estimator bottoms out '
       + `at ${n1.mean.toFixed(1)} grades/yr at V${n1.v}, an impossible number `
-      + 'that gives it away. The one-year curve agrees from V5 up and falls to '
-      + `${l1.mean.toFixed(2)} at V${d1.v}, where a year of climbing no longer `
-      + 'describes a V1 climber. Error bars are the standard error of the mean, '
-      + 'and they understate the uncertainty: one climber contributes a triple '
-      + 'at every position in their window sequence, so the rows within a bin '
-      + 'are not independent.';
+      + `that gives it away; the three-month window alone reads ${s1.mean.toFixed(2)} `
+      + `at V${d1.v}, which a year of data does not bear out. A steady rate `
+      + `fits every bin (worst χ&sup2;/dof is ${worst.chi2.toFixed(1)} at `
+      + `V${worst.v}). Error bars understate the uncertainty: one climber `
+      + 'contributes a triple at every position in their window sequence, so '
+      + 'rows within a bin are not independent.';
   }
 }
 
@@ -3752,15 +3760,15 @@ function renderV2Horizon() {
     const g = (h, v) => (byh[h] || []).find((r) => r.v === v);
     const a1 = g(hs[0], 1), b1 = g('1.0', 1);
     const a6 = g(hs[0], 6), b6 = g('1.0', 6);
-    note.innerHTML = 'The same estimator at six measurement windows. At '
-      + `<b>V1</b> the rate falls from ${a1.mean.toFixed(2)} over three months `
-      + `to ${b1.mean.toFixed(2)} over a year; at <b>V6</b> it goes `
-      + `${a6.mean.toFixed(2)} to ${b6.mean.toFixed(2)} &mdash; no trend at all. `
-      + 'Dilution needs movement, and only the fast bins move, so the fan opens '
-      + 'at the bottom and stays shut at the top. Each individual gap is only '
-      + 'one to two standard errors, but all four low bins lean the same way. '
-      + 'Read this as a reason to keep the window short, not as a precise '
-      + 'measurement of the dilution.';
+    note.innerHTML = 'The same estimator at six watching periods. At <b>V1</b> '
+      + `it reads ${a1.mean.toFixed(2)} grades/yr over three months and `
+      + `${b1.mean.toFixed(2)} over a year; at <b>V6</b> it goes `
+      + `${a6.mean.toFixed(2)} to ${b6.mean.toFixed(2)}. The fan opens at the `
+      + 'bottom and stays shut at the top, which is the signature of a gain '
+      + 'that arrives once rather than accruing &mdash; and it only shows up '
+      + 'where there is enough movement for the distinction to matter. '
+      + 'Whichever period you pick you are reporting your own choice, so the '
+      + 'curve below picks none of them.';
   }
   const starts = V2_TIME.advancement.starts || [];
   const lo = starts.find((r) => r.v === 1), hi = starts.find((r) => r.v === 9);
@@ -3971,26 +3979,26 @@ function renderV2AdvTable() {
   const a = V2_TIME.advancement;
   const byV = {};
   a.naive.forEach((r) => { byV[r.v] = { v: r.v, naive: r.mean }; });
+  a.short_win.forEach((r) => { byV[r.v] = { ...(byV[r.v] || { v: r.v }), sw: r.mean }; });
   a.long.forEach((r) => { byV[r.v] = { ...(byV[r.v] || { v: r.v }), long: r.mean }; });
   a.debiased.forEach((r) => {
     byV[r.v] = { ...(byV[r.v] || { v: r.v }), deb: r.mean, sem: r.sem,
-      n: r.n, up: r.up, down: r.down };
+      n: r.n, chi2: r.chi2 };
   });
   const rows = Object.values(byV).filter((r) => r.deb !== undefined)
     .sort((x, y) => x.v - y.v);
   const sgn = (x) => (x === undefined ? '&mdash;'
     : `${x >= 0 ? '+' : ''}${x.toFixed(2)}`);
-  const pct = (x) => `${Math.round(x * 100)}%`;
-  el.innerHTML = '<thead><tr><th>grade</th><th>naive</th><th>1-year window</th>'
-    + '<th>3-month window</th><th>&plusmn;</th><th>moved up</th>'
-    + '<th>moved down</th><th>triples</th></tr></thead><tbody>'
+  el.innerHTML = '<thead><tr><th>grade</th><th>naive</th><th>3-month only</th>'
+    + '<th>1-year only</th><th>steady rate</th><th>&plusmn;</th>'
+    + '<th>χ²/dof</th><th>triples</th></tr></thead><tbody>'
     + rows.map((r) => `<tr><td class="label-cell">V${r.v}</td>`
       + `<td class="unit muted">${sgn(r.naive)}</td>`
+      + `<td class="unit muted">${sgn(r.sw)}</td>`
       + `<td class="unit muted">${sgn(r.long)}</td>`
       + `<td class="unit"><b>${sgn(r.deb)}</b></td>`
       + `<td class="unit muted">${r.sem.toFixed(2)}</td>`
-      + `<td class="unit">${pct(r.up)}</td>`
-      + `<td class="unit">${pct(r.down)}</td>`
+      + `<td class="unit${r.chi2 > 2 ? '' : ' muted'}">${r.chi2.toFixed(2)}</td>`
       + `<td class="unit">${r.n.toLocaleString()}</td></tr>`).join('')
     + '</tbody>';
 }

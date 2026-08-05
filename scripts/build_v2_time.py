@@ -35,12 +35,12 @@ OUT = ROOT / 'src' / 'kaya' / 'viewer_static' / 'v2_time.json'
 WINDOW_D = 90        # days per activity window
 MIN_SENDS = 5        # sends needed before a window gets a level
 MAX_GAP_Y = 1.25     # ignore pairs further apart than this
-# Headline horizon. Short on purpose: the bin label comes from w0 and the
-# change is measured from w1, so a long second leg credits the starting bin
-# with climbing done after the climber has already moved past it. Measured
-# below -- V1 through V4 fall as the horizon grows, V5 and up do not.
+# Two single-horizon curves, kept only for the comparison. Neither is the
+# headline: dividing a gain by one chosen elapsed time is valid only if the
+# answer does not depend on which time you chose, and at low grades it does.
+# steady_rate() fits across all of ACCRUAL_H instead and tests the premise.
 HORIZON_Y = 0.25
-LONG_Y = 1.0         # the diluted comparison curve
+LONG_Y = 1.0
 ACCRUAL_H = [0.25, 0.5, 0.75, 1.0, 1.5, 2.0]
 ACCRUAL_TOL = {0.25: .12, 0.5: .12, 0.75: .15, 1.0: .25, 1.5: .25, 2.0: .35}
 
@@ -178,6 +178,50 @@ def horizon_table(tri, h):
             int(d['user_id'].nunique()), int(len(d)))
 
 
+def steady_rate(tri):
+    """The headline curve: one rate per bin, fitted across every horizon.
+
+    A rate is a claim that the gain grows in proportion to elapsed time, so
+    fit gain = r * h through the origin using all six horizons at once and
+    report the chi2 that says whether that claim holds. This is what neither
+    single-horizon estimator can do. Picking one horizon and dividing is only
+    valid if the answer does not depend on which one you picked -- and at low
+    grades it badly does: the V1 gain is the same +0.22 grades after three
+    months as after a year, which is a step, not a rate. Dividing that step by
+    0.25 manufactures +0.88 grades/yr, and the one-year window would divide
+    the identical step by 1.0 and call it +0.22. The fit refuses both and
+    tests the premise instead.
+    """
+    rows = []
+    for lvl in range(0, 13):
+        xs, ys, es = [], [], []
+        for h in ACCRUAL_H:
+            c = tri[(tri['level'] == lvl) & (tri['h'] == h)]
+            if len(c) < 40:
+                continue
+            sd = float(c['dl'].std())
+            if not sd > 0:
+                continue
+            xs.append(float(c['dt'].mean()))
+            ys.append(float(c['dl'].mean()))
+            es.append(sd / np.sqrt(len(c)))
+        if len(xs) < 4:
+            continue
+        xs, ys, es = np.array(xs), np.array(ys), np.array(es)
+        w = 1.0 / es**2
+        denom = float((w * xs * xs).sum())
+        r = float((w * xs * ys).sum()) / denom
+        rows.append({
+            'v': lvl,
+            'mean': round(r, 3),
+            'sem': round(float(np.sqrt(1.0 / denom)), 3),
+            'chi2': round(float((w * (ys - r * xs)**2).sum()) / (len(xs) - 1), 2),
+            'n': int((tri['level'] == lvl).sum()),
+            'n_h': len(xs),
+        })
+    return rows
+
+
 def by_horizon(tri):
     """The same curve at every horizon -- the evidence for choosing a short one.
 
@@ -289,20 +333,27 @@ def main():
     naive, n_u_naive, n_p_naive, _ = rate_table(win, debias=False)
     short, n_u_short, n_p_short, sd = rate_table(win, debias=True)
     tri = triples(win, ACCRUAL_H)
-    deb, n_u_deb, n_p_deb = horizon_table(tri, HORIZON_Y)
+    shortw, n_u_deb, n_p_deb = horizon_table(tri, HORIZON_Y)
     lng, _, n_p_long = horizon_table(tri, LONG_Y)
+    deb = steady_rate(tri)
     acc = accrual_table(tri)
     byh = by_horizon(tri)
     starts = start_levels(tri, HORIZON_Y)
 
     for tag, rows in (('naive', naive), ('de-biased, next window', short),
-                      (f'headline: {HORIZON_Y} yr horizon, ratio of means', deb),
-                      (f'diluted: {LONG_Y} yr horizon', lng)):
+                      (f'{HORIZON_Y} yr window only', shortw),
+                      (f'{LONG_Y} yr window only', lng)):
         print(f'\n=== {tag} ===')
         print(f'{"grade":>7} {"n":>8} {"mean":>7} {"+/-":>6} {"up":>6} {"down":>6}')
         for r in rows:
             print(f'{"V"+str(r["v"]):>7} {r["n"]:>8,} {r["mean"]:>7.2f} '
                   f'{r["sem"]:>6.2f} {r["up"]:>6.0%} {r["down"]:>6.0%}')
+
+    print('\n=== HEADLINE: steady rate fitted across all horizons ===')
+    print(f'{"grade":>7} {"rate":>7} {"+/-":>6} {"chi2/dof":>9} {"horizons":>9} {"n":>8}')
+    for r in deb:
+        print(f'{"V"+str(r["v"]):>7} {r["mean"]:>+7.2f} {r["sem"]:>6.2f} '
+              f'{r["chi2"]:>9.2f} {r["n_h"]:>9} {r["n"]:>8,}')
     fit = np.polyfit([r['v'] for r in deb], [r['mean'] for r in deb], 1)
     print(f'\nheadline mean rate vs grade: slope {fit[0]:+.3f}, intercept {fit[1]:+.3f}')
 
@@ -335,7 +386,8 @@ def main():
         'window_days': WINDOW_D, 'min_sends': MIN_SENDS, 'max_gap_y': MAX_GAP_Y,
         'horizon_y': HORIZON_Y, 'long_y': LONG_Y,
         'advancement': {
-            'naive': naive, 'short': short, 'debiased': deb, 'long': lng,
+            'naive': naive, 'short': short, 'debiased': deb,
+            'short_win': shortw, 'long': lng,
             'accrual': acc, 'by_horizon': byh, 'starts': starts,
             'n_climbers': n_u_deb, 'n_pairs': n_p_deb, 'n_pairs_long': n_p_long,
             'n_climbers_short': n_u_short, 'n_pairs_short': n_p_short,
