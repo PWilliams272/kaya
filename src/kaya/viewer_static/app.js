@@ -2761,10 +2761,26 @@ function v2Colour(row) {
 function renderV2InlineFigures() {
   const R = V2_RESULTS;
   if (!R) return;
+  // v1 measured six Touchstone gyms spanning 0.25 grades. That figure belongs
+  // to the v1 model and is not recomputable from this JSON, so it stays a
+  // constant -- but the multiple derived from it must not.
+  const V1_TOUCHSTONE_SPAN = 0.25;
+  const brand = (b) => R.gyms.filter((g) => g.b === b).map((g) => g.m);
+  const mean = (a) => a.reduce((x, y) => x + y, 0) / (a.length || 1);
+  const signed = (x) => `${x < 0 ? '\u2212' : '+'}${Math.abs(x).toFixed(2)}`;
   const fmt = {
     spread: () => `${(+R.spread).toFixed(2)} grades`,
     n_gyms: () => String(R.n_gyms),
     n_sig: () => String(R.n_sig),
+    vs_v1: () => `${(R.spread / V1_TOUCHSTONE_SPAN).toFixed(1)}\u00d7`,
+    movement_gap: () => `${(mean(brand('Movement'))
+      - mean(brand('Touchstone'))).toFixed(2)} grades stiffer`,
+    touchstone_range: () => {
+      const t = brand('Touchstone');
+      return `${signed(Math.min(...t))} to ${signed(Math.max(...t))}`;
+    },
+    pct_single: () => (R.pct_single_obs != null
+      ? `${(100 * R.pct_single_obs).toFixed(0)}%` : '59%'),
   };
   document.querySelectorAll('[data-v2]').forEach((el) => {
     const f = fmt[el.dataset.v2];

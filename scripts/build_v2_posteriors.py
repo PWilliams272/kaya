@@ -14,7 +14,48 @@ warnings.filterwarnings('ignore')
 import numpy as np
 import arviz as az
 
-TMP = Path('/Users/peterwilliams/.claude/jobs/e4f1b508/tmp')
+ROOT = Path(__file__).resolve().parents[1]
+RUNS = ROOT / 'runs'
+# The job scratch directory is deleted when the job is; runs/ is the durable
+# archive. Each input resolves to runs/ when it is there and falls back to
+# scratch otherwise, so a batch still mid-copy keeps working.
+_SCRATCH = Path('/Users/peterwilliams/.claude/jobs/e4f1b508/tmp')
+
+
+def _pick(*candidates):
+    for p in candidates:
+        if p.exists():
+            return p
+    return candidates[0]
+
+
+def data_file(fname):
+    """base_bouldering.pkl, networks.json, csv inputs."""
+    return _pick(RUNS / fname, _SCRATCH / fname)
+
+
+def trace_file(name):
+    return _pick(RUNS / 'traces' / f'idata_{name}.nc',
+                 _SCRATCH / f'idata_{name}.nc')
+
+
+def result_file(name):
+    return _pick(RUNS / 'results' / f'result_{name}.json',
+                 _SCRATCH / f'result_{name}.json')
+
+
+def trace_names(*globs):
+    """Fit names that have BOTH a trace and a result, from either location."""
+    import fnmatch
+    names = set()
+    for d in (RUNS / 'traces', _SCRATCH):
+        if not d.is_dir():
+            continue
+        for p in d.glob('idata_*.nc'):
+            n = p.stem[len('idata_'):]
+            if any(fnmatch.fnmatch(n, g) for g in globs):
+                names.add(n)
+    return sorted(n for n in names if result_file(n).exists())
 OUT = Path('/Users/peterwilliams/projects/kaya/src/kaya/viewer_static/v2_posterior.json')
 THIN_TO = 150
 
@@ -41,8 +82,8 @@ def prior_draws(fit_args, n=1500):
     """
     import pymc as pm
     from kaya.grading_model_v2 import make_dataset, build_model_v2
-    base = pickle.load(open(TMP / 'base_bouldering.pkl', 'rb'))
-    nets = json.loads((TMP / 'networks.json').read_text())['networks']
+    base = pickle.load(open(data_file('base_bouldering.pkl'), 'rb'))
+    nets = json.loads(data_file('networks.json').read_text())['networks']
     ds = make_dataset(base, nets[fit_args['network']],
                       name_filter=fit_args['name_filter'],
                       label=f"{fit_args['network']}/{fit_args['name_filter']}")
@@ -70,8 +111,8 @@ def dataset_scales(fit_args):
     h_sd 3.92 in, and an earlier hard-coded 3.4 in the page was simply wrong.
     """
     from kaya.grading_model_v2 import make_dataset
-    base = pickle.load(open(TMP / 'base_bouldering.pkl', 'rb'))
-    nets = json.loads((TMP / 'networks.json').read_text())['networks']
+    base = pickle.load(open(data_file('base_bouldering.pkl'), 'rb'))
+    nets = json.loads(data_file('networks.json').read_text())['networks']
     ds = make_dataset(base, nets[fit_args['network']],
                       name_filter=fit_args['name_filter'],
                       label=f"{fit_args['network']}/{fit_args['name_filter']}")
@@ -124,18 +165,11 @@ def main():
     args = ap.parse_args()
 
     payload = {'thin_to': THIN_TO, 'fits': {}}
-    paths = sorted(set(glob.glob(str(TMP / 'idata_v3_*.nc')))
-                   | set(glob.glob(str(TMP / 'idata_v4_*.nc'))))
-    for path in paths:
-        name = Path(path).stem.replace('idata_', '')
+    for name in trace_names('v3_*', 'v4_*'):
         if name.startswith('smoke'):
             continue
-        res_path = TMP / f'result_{name}.json'
-        if not res_path.exists():
-            print(f'  {name}: no result json (still writing?), skipping')
-            continue
-        res = json.loads(res_path.read_text())
-        idata = az.from_netcdf(path)
+        res = json.loads(result_file(name).read_text())
+        idata = az.from_netcdf(trace_file(name))
         post = idata.posterior
         warm = idata.warmup_posterior if 'warmup_posterior' in idata.groups() else None
         present = [v for v in SCALARS if v in post]

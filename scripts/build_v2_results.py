@@ -9,7 +9,48 @@ from pathlib import Path
 
 import arviz as az
 
-TMP = Path('/Users/peterwilliams/.claude/jobs/e4f1b508/tmp')
+ROOT = Path(__file__).resolve().parents[1]
+RUNS = ROOT / 'runs'
+# The job scratch directory is deleted when the job is; runs/ is the durable
+# archive. Each input resolves to runs/ when it is there and falls back to
+# scratch otherwise, so a batch still mid-copy keeps working.
+_SCRATCH = Path('/Users/peterwilliams/.claude/jobs/e4f1b508/tmp')
+
+
+def _pick(*candidates):
+    for p in candidates:
+        if p.exists():
+            return p
+    return candidates[0]
+
+
+def data_file(fname):
+    """base_bouldering.pkl, networks.json, csv inputs."""
+    return _pick(RUNS / fname, _SCRATCH / fname)
+
+
+def trace_file(name):
+    return _pick(RUNS / 'traces' / f'idata_{name}.nc',
+                 _SCRATCH / f'idata_{name}.nc')
+
+
+def result_file(name):
+    return _pick(RUNS / 'results' / f'result_{name}.json',
+                 _SCRATCH / f'result_{name}.json')
+
+
+def trace_names(*globs):
+    """Fit names that have BOTH a trace and a result, from either location."""
+    import fnmatch
+    names = set()
+    for d in (RUNS / 'traces', _SCRATCH):
+        if not d.is_dir():
+            continue
+        for p in d.glob('idata_*.nc'):
+            n = p.stem[len('idata_'):]
+            if any(fnmatch.fnmatch(n, g) for g in globs):
+                names.add(n)
+    return sorted(n for n in names if result_file(n).exists())
 OUT = Path('/Users/peterwilliams/projects/kaya/src/kaya/viewer_static/v2_results.json')
 
 # What each height form claims, for the comparison table.
@@ -32,22 +73,48 @@ KEY = ['sigma_gym', 'beta_gender', 'kappa', 'rho', 'sigma_user', 'delta1',
 
 def gym_lookup():
     """gym_id -> (name, brand), from the annotated correction table."""
-    src = TMP / 'gymcorr_net50_conf.csv'
+    src = data_file('gymcorr_net50_conf.csv')
     if not src.exists():
         return {}
     with open(src) as f:
         return {r['gym_id']: (r['gym'], r['brand']) for r in csv.DictReader(f)}
 
 
+def pct_single_obs(prim):
+    """Fraction of climbers with exactly one observation, from the fit's own
+    dataset summary if present, else recomputed from the source data."""
+    d = prim.get('dataset') or {}
+    if 'pct_single_obs' in d:
+        return float(d['pct_single_obs'])
+    import pickle
+    from kaya.grading_model_v2 import make_dataset
+    base = pickle.load(open(data_file('base_bouldering.pkl'), 'rb'))
+    nets = json.loads(data_file('networks.json').read_text())['networks']
+    a = prim['args']
+    ds = make_dataset(base, nets[a['network']], name_filter=a['name_filter'],
+                      label='')
+    n = ds.observations.groupby('user_id').size()
+    return float((n == 1).mean())
+
+
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument('--arm', default='unmarginalized',
+                    choices=['unmarginalized', 'marginalized'],
+                    help='which model version the height-form table covers')
     ap.add_argument('--primary', default='v3_conf',
                     help='fit whose gym corrections the page reports')
     args = ap.parse_args()
 
     names = gym_lookup()
     fits = {}
-    for path in sorted(glob.glob(str(TMP / 'result_v3_*.json'))):
+    # One arm at a time. Broadening the search to runs/ made the marginalized
+    # fits visible here for the first time, and they must NOT be mixed into the
+    # height-form table: the two arms predict different things, so their scores
+    # are not comparable and a combined ranking would be meaningless.
+    arm_fits = [n for n in trace_names('v3_*')
+                if n.endswith('_marg') == (args.arm == 'marginalized')]
+    for path in [str(result_file(n)) for n in arm_fits]:
         d = json.loads(Path(path).read_text())
         fits[d['name']] = d
 
@@ -59,7 +126,7 @@ def main():
     # run_grading_fit.py only summarises KEY_PARAMS into its result JSON; the
     # 29 gym corrections are printed but not stored, so read them from the
     # netcdf instead of re-deriving them by hand.
-    trace = TMP / f'idata_{args.primary}.nc'
+    trace = trace_file(args.primary)
     if not trace.exists():
         raise SystemExit(f'trace not found: {trace}')
     idata = az.from_netcdf(str(trace))
@@ -101,7 +168,7 @@ def main():
         # observations. Without this column the ranking oversells itself:
         # every gap here turns out to be inside one dse.
         try:
-            idatas = {f['fit']: az.from_netcdf(TMP / f"idata_{f['fit']}.nc")
+            idatas = {f['fit']: az.from_netcdf(trace_file(f['fit']))
                       for f in forms}
             cmp = az.compare(idatas, ic='loo', scale='log')
             for f in forms:
@@ -126,6 +193,7 @@ def main():
     spread = (gyms[-1]['m'] - gyms[0]['m']) if gyms else 0
     payload = {
         'primary': args.primary,
+        'arm': args.arm,
         'dataset': prim['dataset'],
         'generated_from': sorted(fits),
         'pending': [n for n in ('v3_zero', 'v3_apex', 'v3_quad', 'v3_vtx', 'v3_zsu')
@@ -134,6 +202,10 @@ def main():
         'n_gyms': len(gyms),
         'n_sig': sum(1 for g in gyms if g['s']),
         'spread': round(spread, 3),
+        # Share of climbers contributing exactly one (climber, gym) row. The
+        # write-up quotes this in two places and they had drifted apart, so it
+        # is exported rather than retyped.
+        'pct_single_obs': round(pct_single_obs(prim), 4),
         'sigma_gym': prim['params']['sigma_gym'],
         'forms': forms,
         'replication': replication,

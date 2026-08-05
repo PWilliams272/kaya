@@ -29,7 +29,48 @@ from kaya.data_access import KayaDataAccessor
 from kaya.grading_model_v2 import BOULDER_GRADE_TO_NUM
 
 ROOT = Path(__file__).resolve().parents[1]
-TMP = Path('/Users/peterwilliams/.claude/jobs/e4f1b508/tmp')
+ROOT = Path(__file__).resolve().parents[1]
+RUNS = ROOT / 'runs'
+# The job scratch directory is deleted when the job is; runs/ is the durable
+# archive. Each input resolves to runs/ when it is there and falls back to
+# scratch otherwise, so a batch still mid-copy keeps working.
+_SCRATCH = Path('/Users/peterwilliams/.claude/jobs/e4f1b508/tmp')
+
+
+def _pick(*candidates):
+    for p in candidates:
+        if p.exists():
+            return p
+    return candidates[0]
+
+
+def data_file(fname):
+    """base_bouldering.pkl, networks.json, csv inputs."""
+    return _pick(RUNS / fname, _SCRATCH / fname)
+
+
+def trace_file(name):
+    return _pick(RUNS / 'traces' / f'idata_{name}.nc',
+                 _SCRATCH / f'idata_{name}.nc')
+
+
+def result_file(name):
+    return _pick(RUNS / 'results' / f'result_{name}.json',
+                 _SCRATCH / f'result_{name}.json')
+
+
+def trace_names(*globs):
+    """Fit names that have BOTH a trace and a result, from either location."""
+    import fnmatch
+    names = set()
+    for d in (RUNS / 'traces', _SCRATCH):
+        if not d.is_dir():
+            continue
+        for p in d.glob('idata_*.nc'):
+            n = p.stem[len('idata_'):]
+            if any(fnmatch.fnmatch(n, g) for g in globs):
+                names.add(n)
+    return sorted(n for n in names if result_file(n).exists())
 OUT = ROOT / 'src' / 'kaya' / 'viewer_static' / 'v2_time.json'
 
 WINDOW_D = 90        # days per activity window
@@ -283,7 +324,7 @@ def gym_time(s):
     late *for this person*, which is exactly the quantity an unmodelled
     improvement trend would smuggle into the gym correction.
     """
-    nets = json.loads((TMP / 'networks.json').read_text())['networks']
+    nets = json.loads(data_file('networks.json').read_text())['networks']
     s = s[s['gym_id'].isin(set(nets['net50']))]
     g = ['user_id', 'gym_id']
     hard = s.sort_values(g + ['m']).groupby(g, as_index=False).tail(1)

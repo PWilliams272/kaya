@@ -1091,7 +1091,7 @@
                 span only <b>0.25 grades</b> between them &mdash; they are a single
                 company with a shared setting culture, so what v1 really measured
                 was <i>within-brand consistency</i>, not gym-to-gym variation. The
-                full network spans <b>4.9&times;</b> wider.
+                full network spans <b data-v2="vs_v1">5.2&times;</b> wider.
               </div>
             </section>
 
@@ -1114,9 +1114,9 @@
 
               <h3>Does grading run in the family?</h3>
               <p class="prose">
-                Partly. Movement grades about <b>0.36 grades stiffer</b> than
+                Partly. Movement grades about <b data-v2="movement_gap">0.40 grades stiffer</b> than
                 Touchstone on average &mdash; but the spread <i>within</i> Touchstone
-                (&minus;0.79 to +0.34) is as wide as the gap between brands, so
+                (<span data-v2="touchstone_range">&minus;0.82 to +0.34</span>) is as wide as the gap between brands, so
                 house style is real but nowhere near the whole story.
               </p>
               <div id="v2-brand-chart" class="chart-mid"></div>
@@ -2737,7 +2737,7 @@
               <p class="prose">
                 The sampler hits maximum tree depth on essentially every iteration
                 (1,023 leapfrog steps per draw). The cause is structural rather than
-                fixable by reparameterisation: <b>65% of climbers appear at only one
+                fixable by reparameterisation: <b><span data-v2="pct_single">59%</span> of climbers appear at only one
                 gym</b>, so for those climbers the personal ability offset, the
                 observation noise, and the gap all compete to explain a single
                 residual. Four separate reparameterisations were tried; none moved it.
@@ -2779,6 +2779,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=87"></script>
+    <script src="/static/app.js?v=89"></script>
   </body>
 </html>
