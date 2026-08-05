@@ -41,6 +41,14 @@ def main():
     ap.add_argument('--threads', type=int, default=8)
     args = ap.parse_args()
 
+    # One BLAS thread per worker. Without this, every one of the N worker
+    # processes spawns its own thread pool and they contend for the same
+    # cores -- measured at 99 runnable threads on 10 cores, with no gain.
+    import os
+    for v in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS',
+              'VECLIB_MAXIMUM_THREADS', 'NUMEXPR_NUM_THREADS'):
+        os.environ.setdefault(v, '1')
+
     import emcee
     from kaya.grading_model_v2 import make_dataset
     from kaya.marginal_v2 import MarginalModel

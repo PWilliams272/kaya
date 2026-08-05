@@ -40,6 +40,21 @@ RUNS = ROOT / 'runs'
 # so a fit is 4 cores for its whole life regardless of machine size.
 CORES_PER_FIT = 4
 
+# NumPy's BLAS spawns a thread pool inside EVERY worker process, so a batch
+# that already runs one process per core silently ends up with cores x threads
+# runnable threads all fighting each other. Measured on the emcee run: 9
+# workers x 11 threads = 99 threads on 10 cores, a load average of 96, and
+# each worker still only managing one core's worth of actual work -- the extra
+# threads just contend. Scheduling here is per process, so each process gets
+# exactly one thread.
+SINGLE_THREAD_BLAS = {
+    'OMP_NUM_THREADS': '1',
+    'OPENBLAS_NUM_THREADS': '1',
+    'MKL_NUM_THREADS': '1',
+    'VECLIB_MAXIMUM_THREADS': '1',
+    'NUMEXPR_NUM_THREADS': '1',
+}
+
 HEIGHT_FORMS = {
     'v3_lin': 'linear',
     'v3_quad': 'quadratic',
@@ -105,7 +120,7 @@ def run_local(jobs, cores, log_dir):
     log_dir.mkdir(parents=True, exist_ok=True)
     print(f'running {len(jobs)} jobs, {slots} at a time '
           f'({cores} cores / {CORES_PER_FIT} per fit)\n')
-    env = {**os.environ, 'PYTHONPATH': str(ROOT / 'src')}
+    env = {**os.environ, 'PYTHONPATH': str(ROOT / 'src'), **SINGLE_THREAD_BLAS}
     done, failed = [], []
 
     def one(job):
