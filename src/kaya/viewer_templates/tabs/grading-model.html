@@ -1,0 +1,54 @@
+<section id="tab-grading-model" class="tab-pane">
+          <div class="article-shell embedded">
+            <div class="masthead">
+              <div class="eyebrow">Research &middot; Statistical Modeling</div>
+              <h1>A Bayesian Grading Model for Climbing Ability</h1>
+              <p class="dek">
+                Climbing grades are subjective — the same boulder problem might be
+                called V5 at one gym and V6 at another. This project builds a
+                hierarchical Bayesian model that separates a climber's underlying
+                ability from gym-specific grading style, using nothing but the
+                grades climbers already log in the Kaya app. It's an active
+                investigation, not a finished paper — several sections below end
+                with an open question rather than an answer, on purpose.
+              </p>
+              <div class="meta-row">
+                <span class="muted-copy">Last updated 2026-07-29</span>
+                <span class="muted-copy">&middot;</span>
+                <span class="muted-copy">PyMC / NUTS (No-U-Turn Sampler), hierarchical model, 6-gym LA Touchstone network</span>
+              </div>
+            </div>
+
+            <nav class="toc">
+              <span class="toc-label">Contents</span>
+              <a href="#overview">Overview</a>
+              <a href="#approach">Approach</a>
+              <a href="#math">Mathematical Framework</a>
+              <a href="#validation">Data &amp; Validation</a>
+              <a href="#covariates">Who Climbs Harder?</a>
+              <a href="#explorer">Try It: Ability Explorer</a>
+              <a href="#height">The Height Investigation</a>
+              <a href="#climb-correction">Why Climb-Level Grading Stays Out</a>
+              <a href="#send-counts">Are Low-Send Climbs Mis-Graded?</a>
+              <a href="#open-questions">Open Questions</a>
+            </nav>
+
+            {% include 'tabs/grading-model/overview.html' %}
+            {% include 'tabs/grading-model/approach.html' %}
+            {% include 'tabs/grading-model/math.html' %}
+            {% include 'tabs/grading-model/validation.html' %}
+            {% include 'tabs/grading-model/covariates.html' %}
+            {% include 'tabs/grading-model/explorer.html' %}
+            {% include 'tabs/grading-model/height.html' %}
+            {% include 'tabs/grading-model/climb-correction.html' %}
+            {% include 'tabs/grading-model/send-counts.html' %}
+            {% include 'tabs/grading-model/open-questions.html' %}
+            <footer class="article-footer">
+              Model built with PyMC (the NUTS &mdash; No-U-Turn Sampler), staged validation from a
+              single-covariate baseline up through the full hierarchical
+              specification. All estimates on this page come from real Kaya
+              send-log data restricted to the connected 6-gym LA Touchstone
+              network described above, unless noted otherwise.
+            </footer>
+          </div>
+        </section>

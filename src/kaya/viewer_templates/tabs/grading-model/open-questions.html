@@ -1,0 +1,25 @@
+<section id="open-questions" class="article-section prose">
+              <h2>Open Questions</h2>
+              <ul>
+                <li><b>Reconcile "real" with "not predictively useful."</b>
+                  The height effect is statistically real but doesn't improve
+                  held-out prediction accuracy (above). Worth deciding what
+                  role it should actually play in a deployed model — kept for
+                  interpretability/population-level analysis, or dropped in
+                  favor of the simpler linear term if prediction is the only
+                  goal.</li>
+                <li><b>EMG marginalization.</b> The gap-likelihood construction
+                  (Exponential latent + Normal soft link) has a known closed-form
+                  marginalization (an Exponentially Modified Gaussian), which
+                  would fix the LOO (leave-one-out cross-validation) reliability
+                  problem above. Scoped, not yet
+                  built.</li>
+                <li><b>Routes discipline.</b> Everything above is bouldering
+                  only. Routes climbing has its own grading scale and dynamics —
+                  on the radar, intentionally deferred.</li>
+                <li><b>A known data gap.</b> A past infrastructure outage left a
+                  multi-month gap in captured sends that won't self-heal through
+                  normal daily syncing. Not urgent, but will need a deliberate
+                  backfill at some point.</li>
+              </ul>
+            </section>

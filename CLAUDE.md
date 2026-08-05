@@ -20,7 +20,11 @@ viewer's structural conventions here has downstream consequences.
   JSON offline. The viewer reads these; it does not compute on request.
 - `src/kaya/build_viewer_cache_lambda.py` — the `kaya-viewer-cache` Lambda (container image, daily
   EventBridge) that materializes the viewer's SQLite mirror and syncs it to S3.
-- `src/kaya/viewer_app.py` — the FastAPI viewer. Serves `viewer_static/`.
+- `src/kaya/viewer_app.py` — the FastAPI viewer. Renders `viewer_templates/base.html` through
+  `Jinja2Templates` and serves `viewer_static/`. There is no `index.html` — the page is one
+  template per tab (`viewer_templates/tabs/`), with the two explainer tabs split again by
+  article section. Add a tab by adding a fragment and an `{% include %}`, not by growing a file.
+  The `/api/*` routes are development-only; production registers only `/` and the static mounts.
 - `src/kaya/viewer_static/tokens.css` — design tokens. **Source of truth for the whole workspace**;
   other repos sync from here. Do not edit a downstream copy. See `scripts/sync-design-tokens.sh`
   in `system-overview`.

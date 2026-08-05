@@ -1,0 +1,47 @@
+<section id="send-counts" class="article-section prose">
+              <h2>Are Low-Send Climbs Mis-Graded?</h2>
+              <p>
+                A related question worth checking directly: climbs with very
+                few logged sends could be low-sent because they're unattractive
+                to climb, because they haven't been on the wall long, or because
+                they're genuinely harder than their label suggests. Real
+                per-climb send counts (grouped directly from send logs — a
+                separate <code>ascent_count</code> field exists in the raw data
+                but is confirmed unpopulated, always zero across all 136,761
+                checked rows) make this directly testable.
+              </p>
+              <div class="kpi-grid">
+                <div class="card kpi-card"><div class="eyebrow">Unique climbs</div><div class="kpi-value">109,816</div></div>
+                <div class="card kpi-card"><div class="eyebrow">Median sends/climb</div><div class="kpi-value">7</div></div>
+                <div class="card kpi-card"><div class="eyebrow">Climbs with &le;2 sends</div><div class="kpi-value">29%</div></div>
+              </div>
+              <div class="finding open">
+                <div class="finding-head">
+                  <span class="finding-title">Neither simple hypothesis dominates</span>
+                  <span class="verdict-pill verdict-open">Inconclusive</span>
+                </div>
+                <p>
+                  <b>"Hasn't been up long enough":</b> not supported, and mildly
+                  contradicted — low-send climbs have actually been observable
+                  <em>longer</em> (549 days median) than well-sent climbs (453
+                  days), the opposite of what this hypothesis predicts.
+                </p>
+                <p>
+                  <b>"Genuinely harder than labeled"</b> (proxy: do low-send
+                  climbs attract disproportionately experienced senders?):
+                  mixed. The pooled ratio is close to 1 (no systematic effect),
+                  though individual grade levels are noisy in both directions.
+                </p>
+                <p>
+                  <b>"Unattractive to climb":</b> untestable with the data
+                  currently available — no route photos, ratings, or setter
+                  metadata exist to check against.
+                </p>
+              </div>
+              <p class="muted-copy">
+                This doesn't change the climb-correction conclusion above — that
+                failure mode is about sparsity itself, not about
+                <em>why</em> the sparsity happens — but it's a useful piece of
+                context for anyone extending this analysis later.
+              </p>
+            </section>

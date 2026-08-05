@@ -1,0 +1,86 @@
+<section id="tab-grading-v2" class="tab-pane">
+          <div class="article-shell embedded">
+            <header class="masthead">
+              <div class="eyebrow">Research &middot; Bayesian Hierarchical Modeling</div>
+              <h1>How Hard Is That Gym, Really?</h1>
+              <p class="dek">
+                A V5 at one gym is not a V5 at another. This model separates a
+                climber's ability from the gym's grading style, using nothing but
+                the grades climbers already log. Version&nbsp;2 rebuilds the
+                estimate on <b>29 gyms across four companies</b> &mdash; and finds
+                the gym-to-gym spread is far wider than a single-chain sample
+                suggested.
+              </p>
+              <div class="meta-row">
+                <span id="v2-updated">Updated 2026-08-04</span>
+                <span class="dot">&middot;</span>
+                <span>PyMC / NUTS (No-U-Turn Sampler) &middot; 20,014 observations &middot; 10,357 climbers</span>
+              </div>
+            </header>
+
+            <nav class="toc" aria-label="Contents">
+              <div class="toc-label">Contents</div>
+              <ol>
+                <li><a href="#v2-headline">The Headline</a></li>
+                <li><a href="#v2-gyms">Gym-by-Gym Grading</a></li>
+                <li><a href="#v2-time">How Climbers Improve Over Time</a></li>
+                <li><a href="#v2-model">The Model, Formally</a></li>
+                <li><a href="#v2-decisions">Decisions and Why</a></li>
+                <li><a href="#v2-quality">What the Data Actually Looks Like</a></li>
+                <li><a href="#v2-gender">The Gender Problem</a></li>
+                <li><a href="#v2-height">The Height Question</a></li>
+                <li><a href="#v2-diagnostics">Diagnostics</a></li>
+                <li><a href="#v2-provenance">Where the Numbers Come From</a></li>
+              </ol>
+            </nav>
+
+            <!-- ============ HEADLINE ============ -->
+            {% include 'tabs/grading-v2/headline.html' %}
+            <!-- ============ GYMS ============ -->
+            {% include 'tabs/grading-v2/gyms.html' %}            <!-- ============ TIME ============ -->
+            {% include 'tabs/grading-v2/time.html' %}
+            <!-- ============ MODEL ============ -->
+            {% include 'tabs/grading-v2/model.html' %}
+            <!-- ============ PRIORS / POSTERIORS / SAMPLER ============ -->
+            {% include 'tabs/grading-v2/inference.html' %}
+            <!-- ============ DECISIONS ============ -->
+            {% include 'tabs/grading-v2/decisions.html' %}
+            <!-- ============ DATA QUALITY ============ -->
+            {% include 'tabs/grading-v2/quality.html' %}
+            <!-- ============ GENDER ============ -->
+            {% include 'tabs/grading-v2/gender.html' %}
+            <!-- ============ HEIGHT ============ -->
+            {% include 'tabs/grading-v2/height.html' %}
+            <!-- ============ DIAGNOSTICS ============ -->
+            {% include 'tabs/grading-v2/diagnostics.html' %}
+            <!-- ============ PROVENANCE ============ -->
+            {% include 'tabs/grading-v2/provenance.html' %}
+            <footer class="article-footer">
+              All estimates from real Kaya send logs on the 29-gym connected network,
+              fitted with PyMC/NUTS (the No-U-Turn Sampler). Sections marked
+              in&nbsp;progress are exactly that. Every number is traceable to a
+              script &mdash; see <a href="#v2-provenance">Where every number on
+              this page comes from</a>.
+            </footer>
+          </div>
+
+          <!-- Docked symbol glossary. Sits in the right gutter on wide screens,
+               overlays as a drawer on narrow ones. Hovering an equation
+               highlights only the rows that equation actually uses. -->
+          <aside id="v2-glossary" class="glossary" data-open="false"
+                 aria-label="Parameter definitions">
+            <button type="button" class="glossary-handle" id="v2-gloss-toggle"
+                    aria-expanded="false" aria-controls="v2-glossary-body">
+              <span class="glossary-handle-text">Symbols</span>
+            </button>
+            <div class="glossary-body" id="v2-glossary-body">
+              <div class="glossary-head">
+                <h4>Parameter definitions</h4>
+                <p id="v2-gloss-hint">Hover an equation to highlight the symbols it uses.</p>
+              </div>
+              <div class="glossary-scroll">
+                <table class="sym-table" id="v2-symbols"></table>
+              </div>
+            </div>
+          </aside>
+        </section>

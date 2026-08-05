@@ -1,0 +1,38 @@
+<section class="article-section" id="v2-gender">
+              <h2>The Gender Problem</h2>
+              <p class="prose">
+                Kaya has no gender field, so v1 inferred it from first names with
+                <code>gender_guesser</code>, which returns a <i>label</i> and nothing
+                else. v2 uses <code>nomquamgender</code>, which aggregates 30+ name
+                sources into a calibrated probability with a sample size behind it
+                &mdash; 94.6% coverage against 83.6%.
+              </p>
+              <div class="callout warn">
+                <b>The trap.</b> Misclassification is not random with respect to
+                height. A tall person with a female-leaning name is probably male
+                &mdash; P(female) falls from 0.89 at 62in to <b>0.11 at 74in</b> for
+                the same name. Because gender carries a ~1.6-grade main effect, that
+                leaks straight into the height coefficient and can manufacture a
+                "height helps women" finding out of nothing.
+              </div>
+              <p class="prose">
+                Height is used to sharpen the name prior via Bayes &mdash; but
+                deliberately <i>never</i> the climbing data, which would let the model
+                reassign someone's gender to explain their ability and make the two
+                effects mutually reinforcing.
+              </p>
+              <div class="eqn" data-syms="G p_name musd h" tabindex="0">$$P(F \mid \text{name},h) \;=\;
+                \frac{p_{\text{name}}\,\mathcal{N}(h;\mu_F,\sigma_F)}
+                     {p_{\text{name}}\,\mathcal{N}(h;\mu_F,\sigma_F) + (1-p_{\text{name}})\,\mathcal{N}(h;\mu_M,\sigma_M)}$$</div>
+              <h3>Does the probability actually mean anything?</h3>
+              <p class="prose">
+                Height is an independent check, and it tracks the name probability
+                monotonically across every bin &mdash; strong evidence the numbers are
+                calibrated rather than decorative.
+              </p>
+              <div id="v2-gender-validation" class="chart-mid"></div>
+              <p class="caption">Mean reported height by name-based P(female). Independent validation.</p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-gg-table"></table>
+              </div>
+            </section>

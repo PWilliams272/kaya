@@ -1,0 +1,26 @@
+<section class="article-section" id="v2-diagnostics">
+              <h2>Diagnostics</h2>
+              <p class="prose">
+                Reported honestly, per parameter block &mdash; some of this model mixes
+                well and some does not, and the difference matters for which numbers
+                on this page can be trusted.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-diag-table"></table>
+              </div>
+              <p class="prose">
+                The sampler hits maximum tree depth on essentially every iteration
+                (1,023 leapfrog steps per draw). The cause is structural rather than
+                fixable by reparameterisation: <b><span data-v2="pct_single">59%</span> of climbers appear at only one
+                gym</b>, so for those climbers the personal ability offset, the
+                observation noise, and the gap all compete to explain a single
+                residual. Four separate reparameterisations were tried; none moved it.
+              </p>
+              <div class="methodology-note">
+                <b>Reproducibility.</b> Model in <code>src/kaya/grading_model_v2.py</code>.
+                Network selected as the largest set of gyms connected by &ge;50 shared
+                climbers &mdash; connectivity is what makes gym corrections identifiable
+                at all. Body measurements outside 4&prime;0&Prime;&ndash;7&prime;0&Prime;
+                and |ape| &gt; 12in are treated as missing, not believed.
+              </div>
+            </section>

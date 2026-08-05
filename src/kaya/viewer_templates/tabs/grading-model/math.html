@@ -1,0 +1,122 @@
+<section id="math" class="article-section prose">
+              <h2>Mathematical Framework</h2>
+              <p>
+                The full generative model, for a user <span>\(u\)</span> and
+                gym <span>\(g\)</span>. Heights and ape index are centered at
+                their population medians (written with a tilde); user- and
+                gym-level offsets use a non-centered parameterization
+                throughout (each is a fixed-scale standard normal times a
+                learned standard deviation) — this is what makes the sampler
+                behave, not just a notational choice.
+              </p>
+
+              <h3>Ability</h3>
+              <div class="eqn-block">
+                $$\text{ability}_u = \beta_0 + \beta_{\text{gender}} \cdot \text{gender}_u + f_{\text{height}}(h_u, \text{gender}_u) + \delta_1 \tilde{a}_u + \delta_2 \tilde{a}_u^2 + \epsilon_u$$
+              </div>
+              <div class="eqn-block">
+                $$\epsilon_u = \sigma_{\text{user}} \cdot \tilde\epsilon_u, \qquad \tilde\epsilon_u \sim \mathcal{N}(0, 1)$$
+              </div>
+              <p class="muted-copy">
+                <span>\(\tilde a_u = a_u - \bar a\)</span> is ape index
+                (wingspan &minus; height) centered at the population median
+                <span>\(\bar a\)</span>.
+              </p>
+
+              <h3>Height term — the final, settled form</h3>
+              <p>
+                A plain quadratic with a gender interaction, chosen after
+                rejecting a more flexible bump function on visual/domain
+                grounds (see <a href="#height">The Height Investigation</a>):
+              </p>
+              <div class="eqn-block">
+                $$f_{\text{height}}(h, \text{gender}) = \gamma_1 \tilde h + \gamma_2 \tilde h^2 + \text{gender}\cdot\left(\gamma_1^{\times} \tilde h + \gamma_2^{\times} \tilde h^2\right)$$
+              </div>
+              <p class="muted-copy">
+                <span>\(\tilde h = h - \bar h\)</span>, height centered at the
+                population median. <span>\(\text{gender}\)</span> is a
+                continuous indicator (0 = male, 1 = female, 0.5 =
+                ambiguous), so the interaction term scales smoothly rather
+                than switching discretely.
+              </p>
+
+              <h3>Gym correction</h3>
+              <div class="eqn-block">
+                $$\text{gym}_g = \sigma_{\text{gym}} \cdot \tilde\delta_g, \qquad \tilde\delta_g \sim \mathcal{N}(0, 1)$$
+              </div>
+
+              <h3>Structural ceiling</h3>
+              <p>
+                A user's true best-possible grade at a given gym — ability
+                shifted by that gym's grading style:
+              </p>
+              <div class="eqn-block">
+                $$C_{u,g} = \text{ability}_u + \text{gym}_g$$
+              </div>
+
+              <h3>Reliability-weighted rate</h3>
+              <p>
+                How far below their ceiling a climber's <em>logged</em> max
+                grade is likely to sit depends on how many chances they've
+                had to find it — visit count, plus a per-climber activity
+                signal:
+              </p>
+              <div class="eqn-block">
+                $$r_u = \frac{s_u}{\bar s} - 1$$
+              </div>
+              <div class="eqn-block">
+                $$\lambda_{u,g} = \lambda_0 \left(1 + \kappa \cdot n_{u,g}\right)\left(1 + \rho \cdot r_u\right)$$
+              </div>
+              <p class="muted-copy">
+                <span>\(s_u\)</span> = user's sends-per-session,
+                <span>\(\bar s\)</span> = population median (so
+                <span>\(r_u\)</span> is recentered at 0 rather than 1 — an
+                earlier version centered at 1 and it collided with
+                <span>\(\lambda_0\)</span>'s own scale, badly).
+                <span>\(n_{u,g}\)</span> = number of visits by user
+                <span>\(u\)</span> to gym <span>\(g\)</span>.
+              </p>
+
+              <h3>The gap — not an equality</h3>
+              <div class="eqn-block">
+                $$\text{gap}_{u,g} \sim \text{Exponential}(\lambda_{u,g})$$
+              </div>
+              <p>
+                Instead of forcing the logged grade to equal the ceiling
+                exactly (which made the sampler fail outright — an
+                intractable geometry at this scale), the two are linked
+                softly:
+              </p>
+              <div class="eqn-block">
+                $$m_{u,g} + \text{gap}_{u,g} \;\sim\; \mathcal{N}\!\left(C_{u,g},\ \sigma_{\text{link}}\right)$$
+              </div>
+              <p class="muted-copy">
+                <span>\(m_{u,g}\)</span> is the observed logged max grade.
+                <span>\(\sigma_{\text{link}}\)</span> is fixed at 0.5, not
+                estimated — found via a sweep; letting it float freely caused
+                severe convergence failure despite deceptively low divergence
+                counts.
+              </p>
+
+              <h3>Priors</h3>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr><th>Parameter</th><th>Prior</th><th>Role</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td class="label-cell">\(\beta_0\)</td><td>\(\mathcal{N}(\text{median}(m),\, 5)\)</td><td>baseline ability</td></tr>
+                    <tr><td class="label-cell">\(\sigma_{\text{user}}\)</td><td>\(\text{HalfNormal}(2)\)</td><td>per-user ability spread</td></tr>
+                    <tr><td class="label-cell">\(\beta_{\text{gender}}\)</td><td>\(\mathcal{N}(0,\, 2)\)</td><td>gender effect</td></tr>
+                    <tr><td class="label-cell">\(\gamma_1,\ \gamma_2\)</td><td>\(\mathcal{N}(0,\,1),\ \mathcal{N}(0,\,0.3)\)</td><td>height, male-user baseline</td></tr>
+                    <tr><td class="label-cell">\(\gamma_1^{\times},\ \gamma_2^{\times}\)</td><td>\(\mathcal{N}(0,\,0.5),\ \mathcal{N}(0,\,0.15)\)</td><td>height, female-user shift</td></tr>
+                    <tr><td class="label-cell">\(\delta_1,\ \delta_2\)</td><td>\(\mathcal{N}(0,\,1),\ \mathcal{N}(0,\,0.3)\)</td><td>ape index (linear, quadratic)</td></tr>
+                    <tr><td class="label-cell">\(\sigma_{\text{gym}}\)</td><td>\(\text{HalfNormal}(1.5)\)</td><td>per-gym correction spread</td></tr>
+                    <tr><td class="label-cell">\(\lambda_0\)</td><td>\(\text{HalfNormal}(2)\)</td><td>baseline gap rate</td></tr>
+                    <tr><td class="label-cell">\(\kappa\)</td><td>\(\text{HalfNormal}(1)\)</td><td>visit-count effect on gap</td></tr>
+                    <tr><td class="label-cell">\(\rho\)</td><td>\(\text{HalfNormal}(1)\)</td><td>reliability effect on gap</td></tr>
+                    <tr><td class="label-cell">\(\sigma_{\text{link}}\)</td><td>fixed at 0.5</td><td>ceiling&ndash;gap soft-link noise</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>

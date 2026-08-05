@@ -1,0 +1,26 @@
+<section id="covariates" class="article-section prose">
+              <h2>Who Climbs Harder?</h2>
+              <p>
+                With gym effects accounted for, the model estimates how much
+                each personal covariate shifts a climber's ability. Ape index
+                (wingspan minus height — a proxy for reach relative to body
+                size) shows a clear, well-behaved positive relationship: more
+                reach for your height helps, roughly quadratically over the
+                observed range.
+              </p>
+              <div class="figure">
+                <img src="/static/img/grading-model/ape_effect.png" alt="Ape index effect on climbing ability, quadratic fit" />
+                <figcaption>Ape index effect on ability (grade units), quadratic fit, shaded band = 89% credible interval.</figcaption>
+              </div>
+              <p>
+                Gym grading style also comes out clearly once there's enough of a
+                connected network to compare against — some gyms grade
+                noticeably softer or stiffer than others, and the model
+                recovers this as a per-gym correction with real statistical
+                confidence.
+              </p>
+              <div class="figure">
+                <img src="/static/img/grading-model/gym_comparison.png" alt="Gym-to-gym grading comparison bar chart" />
+                <figcaption>Per-gym grading correction, 6-gym LA network. Negative = softer grading, positive = stiffer.</figcaption>
+              </div>
+            </section>

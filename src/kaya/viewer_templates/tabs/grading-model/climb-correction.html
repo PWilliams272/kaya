@@ -1,0 +1,37 @@
+<section id="climb-correction" class="article-section prose">
+              <h2>Why Climb-Level Grading Correction Stays Out</h2>
+              <p>
+                The most natural extension of this model would add a per-climb
+                correction — letting individual boulder problems be
+                systematically harder or easier than their labeled grade,
+                separate from the gym-level correction. Every reasonable version
+                of this was tried, and every version failed the same way.
+              </p>
+              <div class="finding null-result">
+                <div class="finding-head">
+                  <span class="finding-title">Three prior families, one consistent failure mode</span>
+                  <span class="verdict-pill verdict-null">Settled — parked</span>
+                </div>
+                <p>
+                  Normal, StudentT, and a regularized horseshoe prior were all
+                  tried for the per-climb correction term. StudentT and
+                  horseshoe both looked genuinely promising on synthetic data —
+                  but once applied to real data with covariates included, all
+                  three collapsed the same way: the per-climb correction ate
+                  almost all the per-user ability signal instead of
+                  coexisting with it.
+                </p>
+                <p>
+                  The first hypothesis was that covariates were confounding the
+                  climb correction. A control run with covariates removed
+                  entirely still failed the same way, which disproved that
+                  theory and pointed to something more basic: with roughly
+                  1,625&ndash;18,499 climbs at a median of only 2&ndash;3 logged
+                  observations per climb, there usually isn't enough signal to
+                  separate "this climb is mis-graded" from ordinary per-user
+                  noise, regardless of prior family. Scaling from 2 gyms to the
+                  6-gym network — more data, the one untested lever — didn't
+                  change this conclusion either.
+                </p>
+              </div>
+            </section>

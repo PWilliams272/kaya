@@ -1,0 +1,230 @@
+<section id="height" class="article-section prose">
+              <h2>The Height Investigation</h2>
+              <p>
+                Height turned out to be the hardest covariate to get right —
+                worth walking through in full, including a mistake caught along
+                the way, because the process is as informative as the result.
+              </p>
+
+              <div class="finding confirmed">
+                <div class="finding-head">
+                  <span class="finding-title">Final answer: zero for male users, real polynomial for female users</span>
+                  <span class="verdict-pill verdict-confirmed">Settled</span>
+                </div>
+                <p>
+                  The bump-function shapes below (kept for the record) didn't
+                  hold up to a plain visual sanity check — the gender-split
+                  version had left/right widths differing 8&times;
+                  (<code>1.59in</code> vs. <code>12.87in</code>), which isn't
+                  an "optimal height," it's a cliff into a plateau. So the
+                  investigation was constrained to three options only:
+                  polynomial, linear, or zero — tested with the standard,
+                  unconstrained quadratic (<code>&gamma;1&middot;h +
+                  &gamma;2&middot;h&sup2;</code>) plus a gender interaction,
+                  no vertex reparameterization, no bump.
+                </p>
+                <p>
+                  Result: <b>male users show no credible height
+                  effect at all</b> — both <code>&gamma;1</code> and
+                  <code>&gamma;2</code> include zero. <b>Female users
+                  show a real quadratic effect</b> — both terms credibly
+                  exclude zero (<code>&gamma;1=0.065 [0.033, 0.098]</code>,
+                  <code>&gamma;2=0.0033 [0.0007, 0.0057]</code>). The parabola's
+                  vertex falls at ~58in — right at the bottom edge of the
+                  observed height range — so across almost the entire
+                  practical range this isn't a peak-in-the-middle bell at all,
+                  it's an essentially monotonic, mildly accelerating
+                  "taller is better" relationship for female users,
+                  with no effect detected for male users.
+                </p>
+              </div>
+              <div class="figure">
+                <img src="/static/img/grading-model/height_quad_gender_final.png" alt="Final height effect, quadratic with gender interaction" />
+                <figcaption>Final height-effect model: plain quadratic + gender interaction. Shaded bands = 89% credible interval.</figcaption>
+              </div>
+              <p class="muted-copy">
+                This closes out the functional-form question — no further
+                iteration planned. What follows is the investigation's history
+                (coarse/fine splines, the vertex-quadratic, the bump function,
+                its null-check, the gender-reconciliation test), kept for the
+                methodological record since the process — including a shape
+                that looked confident right up until a visual gut-check
+                rejected it — is as informative as the final answer.
+              </p>
+
+              <h3>How we got here (superseded by the final answer above): five functional forms, one at a time</h3>
+              <p>
+                A plain quadratic (the obvious first choice) found essentially no
+                curvature — flat, symmetric uncertainty around zero. That could
+                mean "no real effect," or it could mean a quadratic simply can't
+                represent a bounded optimal-height effect without either being
+                too rigid or exploding at the extremes. Four more targeted tests
+                followed.
+              </p>
+
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr><th>Method</th><th>Peak location</th><th>Statistical confidence</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td class="label-cell">Plain quadratic</td><td>&mdash;</td><td>Null</td></tr>
+                    <tr><td class="label-cell">Fixed-knot spline (coarse)</td><td>~71in</td><td>Real, but knot-artifact caveat</td></tr>
+                    <tr><td class="label-cell">Fixed-knot spline (fine)</td><td>71.9in</td><td>Consistent, underpowered</td></tr>
+                    <tr><td class="label-cell">Vertex-parameterized quadratic</td><td>73.0in [64.3, 81.4]</td><td>Null / inconclusive</td></tr>
+                    <tr><td class="label-cell">Free P-spline (RW2 smoothness)</td><td>70.0in</td><td>Borderline</td></tr>
+                    <tr><td class="label-cell">Asymmetric Gaussian bump</td><td>69.0in [66.6, 72.6]</td><td><b>Confirmed</b></td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="finding confirmed">
+                <div class="finding-head">
+                  <span class="finding-title">The bump function found a real, non-collapsing peak</span>
+                  <span class="verdict-pill verdict-confirmed">Confirmed</span>
+                </div>
+                <p>
+                  <code>f(h) = A &middot; exp(&minus;((h&minus;peak)/width)&sup2;)</code>,
+                  with separate left/right widths so the falloff doesn't have to
+                  be symmetric. Amplitude came out at 0.437 [0.230, 0.658] —
+                  cleanly excluding zero — with the falloff itself asymmetric:
+                  being shorter than the peak costs ability noticeably faster
+                  than being taller does.
+                </p>
+              </div>
+              <div class="figure">
+                <img src="/static/img/grading-model/height_bump_pooled.png" alt="Height effect on ability, bump function fit" />
+                <figcaption>Height effect on ability, asymmetric-Gaussian-bump fit, pooled across gender. Dotted line marks the fitted peak.</figcaption>
+              </div>
+
+              <div class="callout">
+                <div>
+                  <b>A methodological catch worth keeping in the record</b>
+                  A piecewise-linear spline can only bend exactly at a
+                  pre-chosen knot — so its "peak at 71in" partly reflects where
+                  the knots were placed, not something the data discovered on
+                  its own. This was flagged before it got reported as a clean
+                  result, and is the reason the investigation moved to
+                  knot-free, structurally-bounded forms instead of trusting the
+                  spline's peak location at face value.
+                </div>
+              </div>
+
+              <h3>Stress-testing the peak: could this be an artifact?</h3>
+              <p>
+                A fair concern: everything above was "hunt for the shape
+                assuming an effect exists." None of it tested whether these
+                methods would report a fake peak on data with <em>no</em> real
+                height effect at all — and the confidence level tracked how
+                tightly each method constrained the shape (bump: confident,
+                splines: borderline, vertex-quadratic: null), which is exactly
+                the kind of pattern that can indicate a prior-driven artifact
+                rather than a real effect.
+              </p>
+              <div class="finding confirmed">
+                <div class="finding-head">
+                  <span class="finding-title">Synthetic null check</span>
+                  <span class="verdict-pill verdict-confirmed">Passes</span>
+                </div>
+                <p>
+                  Simulated data through the model's own full generative
+                  pipeline — real users' actual heights, gym structure, and gap
+                  likelihood — with the true height effect set to exactly zero.
+                  Fit the identical bump model to it. Result: fitted amplitude
+                  &minus;0.012 [&minus;0.352, 0.479], correctly recovering the
+                  null, with <code>peak</code> becoming essentially unidentified
+                  — exactly the behavior you'd want when there's nothing for it
+                  to lock onto. The bump function does not have a structural
+                  bias toward manufacturing a fake peak.
+                </p>
+              </div>
+
+              <h3>Does the peak differ by gender?</h3>
+              <p>
+                An early spline-based test suggested yes — quite dramatically
+                (66in for male users, 76in for female users) — but that
+                result rested on a 4-parameter interaction term fit against a
+                thin female-tall tail, the same overfitting shape as a rejected
+                ape-index spline elsewhere in this investigation. It needed
+                re-testing with a method less prone to that failure mode.
+              </p>
+              <div class="finding confirmed">
+                <div class="finding-head">
+                  <span class="finding-title">Gender-shift bump function, reconciliation test</span>
+                  <span class="verdict-pill verdict-confirmed">Corroborated</span>
+                </div>
+                <p>
+                  Instead of a 4-parameter spline interaction, the bump's
+                  <code>peak</code> gets a single gender-scaled shift term — one
+                  extra parameter instead of four correlated ones, and much less
+                  prone to overfitting a small subgroup. Result:
+                  <code>peak_shift = 8.71in [5.98, 11.48]</code>, credibly
+                  excluding zero. Male-user peak: 64.0in. Female-user peak:
+                  72.7in. Different exact numbers from the spline (66/76in), but
+                  the same direction and a similar magnitude, now from an
+                  independent, lower-dimensional method.
+                </p>
+              </div>
+              <div class="figure">
+                <img src="/static/img/grading-model/height_bump_gender.png" alt="Height effect on ability by gender, bump function fit" />
+                <figcaption>Height effect on ability, gender-split bump fit. Peaks differ by roughly 8-9 inches.</figcaption>
+              </div>
+              <p class="muted-copy">
+                Worth being honest that this cuts against intuition — a
+                10-inch-taller optimal height for female users isn't
+                the obvious prior to hold, and gender is inferred from first
+                names via a probabilistic package, not self-reported, which adds
+                its own noise. It's now corroborated by two independent methods
+                rather than one, which is meaningfully more convincing than
+                either alone, but it's not treated as closed.
+              </p>
+
+              <div class="finding borderline">
+                <div class="finding-head">
+                  <span class="finding-title">Held-out predictive comparison</span>
+                  <span class="verdict-pill verdict-borderline">Essentially tied</span>
+                </div>
+                <p>
+                  Split users 80/20 (not observations — held-out users get zero
+                  personalized signal from either fit, testing whether the
+                  height <em>shape</em> itself generalizes). Fit linear-height
+                  and bump-height models identically otherwise on the same
+                  train split, forward-simulated predicted grades for the 745
+                  held-out users' 1,248 observations, compared to real logged
+                  grades.
+                </p>
+                <p>
+                  <code>linear MAE = 1.5011</code> vs.
+                  <code>bump MAE = 1.4997</code> — bump wins on just 50.2% of
+                  observations, mean paired difference 0.0014 &plusmn; 0.0015
+                  (smaller than 1 standard error). No detectable predictive
+                  improvement.
+                </p>
+                <p>
+                  This doesn't contradict the credible-interval evidence above
+                  — it answers a different question. For a brand-new climber,
+                  most predictive error comes from not knowing their personal
+                  ability offset at all (&sigma; &asymp; 1.6 grade units,
+                  freshly drawn), which swamps a height effect of magnitude
+                  &asymp; 0.4&ndash;0.9.
+                </p>
+              </div>
+
+              <div class="callout warn">
+                <b>Why this history is superseded</b>
+                Everything above (peak locations, the bump function, its null
+                check, the gender-shift reconciliation, the held-out MAE
+                numbers) was built on the bump function's asymmetric-Gaussian
+                shape — which turned out, on a plain visual check, to look
+                nothing like a believable "optimal height" curve. The
+                <b>final answer section at the top of this page</b> supersedes
+                all of it: zero effect for male users, a real
+                quadratic (practically monotonic in range) effect for
+                female users. One honest gap: the held-out predictive
+                comparison above was run against the bump model, not this
+                final quadratic — re-running it wasn't worth the added time
+                given how small the quadratic effect is, but that means the
+                "does this actually improve prediction" question is
+                technically still open for the final model specifically.
+              </div>
+            </section>

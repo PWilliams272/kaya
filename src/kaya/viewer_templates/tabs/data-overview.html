@@ -1,0 +1,69 @@
+<section id="tab-data-overview" class="tab-pane">
+          <div class="section-title-row">
+            <div>
+              <h2>Data Coverage</h2>
+              <!-- TODO: add a section-description paragraph here about data capture (author: Peter) -->
+            </div>
+          </div>
+
+          <div class="kpi-grid">
+            <div class="card kpi-card"><div class="eyebrow">Total Logged Sends</div><div class="kpi-value" id="total-sends">-</div></div>
+            <div class="card kpi-card"><div class="eyebrow">Unique Users</div><div class="kpi-value" id="unique-users">-</div></div>
+            <div class="card kpi-card"><div class="eyebrow">Tracked Gyms</div><div class="kpi-value" id="unique-gyms">-</div></div>
+            <div class="card kpi-card"><div class="eyebrow">Date Range</div><div class="kpi-value kpi-value-small" id="date-range">-</div></div>
+          </div>
+
+          <div class="card chart-card compare-toolbar">
+            <div class="control-grid control-grid-compact">
+              <label class="inline-select-control">
+                <span>Gym-specific coverage</span>
+                <select id="time-gym-select">
+                  <option value="">All gyms</option>
+                </select>
+              </label>
+              <label class="inline-select-control">
+                <span>Time grain</span>
+                <select id="freq-select">
+                  <option value="D">Daily</option>
+                  <option value="W">Weekly</option>
+                  <option value="M">Monthly</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="chart-grid two-up-grid">
+            <div class="card chart-card chart-card-wide">
+              <div class="section-heading">Sends Over Time</div>
+              <div id="time-series-chart" class="chart-host"></div>
+            </div>
+            <div class="card chart-card compare-toolbar chart-card-wide">
+              <div class="control-grid control-grid-stack">
+                <div>
+                  <div class="control-label">Grade Distribution Overlays</div>
+                  <div id="grade-overlay-picker" class="combo-select">
+                    <div class="combo-control">
+                      <input class="combo-input" type="text" placeholder="Add gym to overlay..." autocomplete="off" />
+                    </div>
+                    <div class="combo-pills"></div>
+                    <div class="combo-panel" hidden>
+                      <div class="combo-options"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="card chart-card">
+              <div class="section-heading">Bouldering Grade Distribution</div>
+              <div id="boulder-grade-chart" class="chart-host"></div>
+            </div>
+            <div class="card chart-card">
+              <div class="section-heading">Routes Grade Distribution</div>
+              <div id="route-grade-chart" class="chart-host"></div>
+            </div>
+            <div class="card chart-card chart-card-wide">
+              <div class="section-heading">Sends by Gym</div>
+              <div id="gym-counts-chart" class="chart-host chart-host-tall"></div>
+            </div>
+          </div>
+        </section>

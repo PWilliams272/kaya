@@ -1,0 +1,679 @@
+<section class="article-section" id="v2-height">
+              <h2>The Height Question</h2>
+              <div class="finding open">
+                <div class="finding-head">
+                  <span class="finding-title">Open &mdash; three competing explanations, being tested now</span>
+                  <span class="verdict-pill verdict-open">In progress</span>
+                </div>
+                <p>
+                  Version&nbsp;1 concluded that height has no effect for male users
+                  and a real positive effect for female users. That
+                  conclusion now has three possible sources, and they have not yet been
+                  separated:
+                </p>
+                <ol class="reasons">
+                  <li><b>Outlier leverage.</b> A handful of impossible heights dominating a quadratic.</li>
+                  <li><b>Gender misclassification.</b> Tall female-labelled climbers who are mostly male, and male climbers are stronger on average.</li>
+                  <li><b>A genuine saturating effect.</b> Reach helps up to a point, then stops &mdash; which would look exactly like "no effect for tall men, real effect for shorter women," because 61.5% of men sit above the knee and only 10.9% of women do.</li>
+                </ol>
+                <p>
+                  All three predict the same pattern. Distinguishing them is what the
+                  current fits are for; results land here as they arrive rather than
+                  being guessed at.
+                </p>
+              </div>
+              <p class="prose">
+                One thing already settled: the earlier investigation rejected an
+                asymmetric bump function because its shape looked wrong &mdash; left
+                width 1.59in against right width 12.87in. That is not a failed bell
+                curve. That is what a <i>saturating</i> curve looks like when you force
+                a symmetric bump onto it, and no one had fitted that shape directly.
+              </p>
+
+              <div class="head-row">
+                <h3>Which shape does the data prefer?</h3>
+                <div class="infowrap">
+                  <button type="button" class="infodot"
+                          aria-label="What elpd, SE of delta and Pareto k mean">i</button>
+                  <div class="infopop" role="tooltip">
+                    <h5>Reading this table</h5>
+                    <p>
+                      <b>elpd</b> &mdash; expected log pointwise predictive
+                      density. For each observation the fitted model gives a
+                      probability density at the value actually seen; take the
+                      log, and sum over all 20,014 of them. Higher means the
+                      model put more probability on what really happened.
+                      <b>Leave-one-out</b> (LOO) estimates it <i>out of
+                      sample</i>: for each row, what the model would have
+                      predicted had it not been trained on that row &mdash;
+                      approximated by reweighting the draws it already has,
+                      rather than refitting 20,014 times.
+                    </p>
+                    <p>
+                      The absolute number is meaningless. It scales with how
+                      many observations there are and how coarse the grade
+                      scale is. Only differences between models on the same
+                      data carry information.
+                    </p>
+                    <p>
+                      <b>SE of &Delta;</b> &mdash; the standard error of the
+                      <i>difference</i> between two models, not of either one
+                      alone. Both totals are wildly uncertain (&plusmn;133
+                      elpd each), but they are uncertain <i>in the same
+                      direction</i>: the two models agree on nearly every
+                      individual observation and disagree on a few. So the
+                      difference is far better determined than either total.
+                      It is computed per observation &mdash;
+                      d<sub>i</sub>&nbsp;=&nbsp;elpd<sub>A,i</sub>&nbsp;&minus;&nbsp;elpd<sub>B,i</sub>,
+                      then &radic;n&nbsp;&times;&nbsp;sd(d) &mdash; which gives
+                      about &plusmn;18 here. Treating the models as
+                      independent and adding their SEs in quadrature would give
+                      &plusmn;188, roughly ten times too pessimistic.
+                    </p>
+                    <p>
+                      A &Delta; smaller than about two of those SEs is not a
+                      ranking, it is noise, and is greyed out above.
+                    </p>
+                    <p>
+                      <b>Pareto k</b> &mdash; the health check on the LOO
+                      approximation, which <b>17% of rows here fail</b>.
+                      Rather than refit without each observation, LOO reweights
+                      the existing draws by how unlikely that observation was.
+                      When one observation dominates the weights, the weight
+                      distribution has a heavy tail, and <i>k</i> is the fitted
+                      shape of that tail. Above about 0.7 the estimate is
+                      unreliable for that observation.
+                    </p>
+                    <p>
+                      The cause is structural, not a bug. Every climber has
+                      their own ability offset, and <b>59% of them appear
+                      exactly once</b> &mdash; so removing that one observation
+                      removes the only thing informing their parameter, which
+                      is precisely the case importance sampling handles worst.
+                      Restricting the score to climbers with three or more
+                      observations drops the failure rate to 4%, and is what
+                      the section below does.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <p class="prose">
+                Every form below is fitted on <b>identical data</b> &mdash; the same
+                29-gym network, the same confident-name filter, the same 20,014
+                observations &mdash; so leave-one-out cross-validation can rank them.
+                Only the gaps between models mean anything; the absolute elpd
+                &mdash; expected log pointwise predictive density &mdash; does not.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-loo-table"></table>
+              </div>
+              <p class="caption" id="v2-loo-note"></p>
+              <div class="callout warn">
+                <div>
+                  <b>That table is not measuring what it looks like it is
+                  measuring.</b> The next section shows why, and what is left
+                  of the ranking afterwards.
+                </div>
+              </div>
+
+              <h3>Can this comparison tell the models apart at all?</h3>
+              <p class="prose">
+                Before believing any ranking, it is worth asking what the
+                measurement's own noise level is. There is a direct way to find
+                out that requires no theory: <b>fit the same model twice.</b>
+                Same model, same data, same settings &mdash; only the random
+                seed differs. Whatever separates the two runs is noise, and
+                every gap in the table above has to clear it to mean anything.
+              </p>
+              <div class="callout warn">
+                <div>
+                  <b>Two runs of the identical model scored 31.1 elpd
+                  (expected log pointwise predictive density) apart.</b>
+                  That is larger than the gap between every pair of height
+                  forms except the most extreme. Refitting the winning model
+                  drops it to fourth place, below shapes it had supposedly
+                  beaten. <b>The ranking was reading noise.</b>
+                </div>
+              </div>
+              <p class="prose">
+                Two diagnostics point at the same cause, and it is structural
+                rather than a bug. <b>p<sub>loo</sub></b> &mdash;
+                cross-validation&rsquo;s own estimate of how many free
+                parameters the model is effectively using &mdash; comes out at
+                <b>8,400 on 20,014 observations</b>. And an observation here is
+                one (climber, gym) pair, while <b>59% of climbers contribute
+                exactly one</b>. Hide that observation and nothing at all is
+                left to estimate that climber&rsquo;s personal ability offset
+                from. The score for those rows is not a prediction; it is a
+                guess.
+              </p>
+              <p class="prose">
+                Which suggests a test that costs nothing. Cross-validation
+                already produces a <i>separate score for every observation</i>,
+                so the totals can be re-added over any subset without refitting
+                anything &mdash; the same subset for every model, so the
+                comparison stays fair. If the single-observation climbers are
+                the problem, dropping them should collapse the noise.
+              </p>
+              <div class="head-row">
+                <div id="v2-arm-picker" class="chart-head-tools"></div>
+              </div>
+              <div id="v2-noise-chart" class="chart-mid"></div>
+              <p class="caption" id="v2-noise-note"></p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-subset-table"></table>
+              </div>
+              <p class="caption">
+                Each model&rsquo;s score relative to the best model in the same
+                column. <b>0 is best; more negative predicts held-out climbers
+                worse.</b> Compare only <i>down</i> a column &mdash; a narrower
+                subset adds up fewer rows, so its totals are smaller for
+                reasons that have nothing to do with the models. The rows
+                labelled &ldquo;refit&rdquo; are the <i>same model</i> fitted
+                again; the spread among them is the noise floor, and any gap
+                smaller than it is not a result.
+              </p>
+              <p class="prose">
+                It collapses. Restricted to climbers with three or more
+                observations &mdash; still half the data &mdash; two runs of
+                the identical model agree to a fraction of a point, and a
+                ranking appears that clears the run-to-run noise instead of
+                drowning in it. The share of rows flagged unreliable by the
+                <b>Pareto&nbsp;k</b> diagnostic falls the same way, from 17% to
+                4%.
+              </p>
+              <p class="prose">
+                &ldquo;Clears the noise&rdquo; is as far as it goes, though, and
+                the next two sections are about why. Beating the refit spread is
+                only the <i>first</i> of two hurdles: a gap also has to be large
+                next to the uncertainty in the gap itself, and measured against
+                something that does not move. On both counts the margins turn
+                out to be a few standard errors rather than the comfortable
+                landslide this paragraph would suggest on its own.
+              </p>
+
+              <h4 class="sub-head">Measuring against a fixed yardstick</h4>
+              <p class="prose">
+                The table above scores every model against
+                <i>whichever model won that column</i>, and that is a poor
+                yardstick for two reasons. The winner is picked using the same
+                data it is then scored on, so its score is flattered and every
+                other model is measured against an inflated benchmark. And the
+                winner changes from column to column, so the zero point quietly
+                moves and a row cannot be read across the table.
+              </p>
+              <p class="prose">
+                Scoring against a <b>fixed</b> reference fixes both. The natural
+                choice is the model with <b>no height term at all</b>: it is the
+                same model in every column and in both versions, and the
+                distance from it is the question the whole comparison exists to
+                ask &mdash; <i>does knowing a climber&rsquo;s height buy any
+                predictive power?</i>
+              </p>
+              <div class="callout">
+                <div>
+                  <b>And a gap needs an error bar, which these never had.</b>
+                  The two models being compared score the <i>same rows</i>, and
+                  their per-row scores are strongly correlated &mdash; both find
+                  the same climbers hard to predict. Subtracting row by row
+                  <i>before</i> adding up cancels that shared difficulty, and
+                  the uncertainty collapses: <b>from about &plusmn;145 on either
+                  model&rsquo;s total to &plusmn;8&ndash;19 on the difference
+                  between them</b>. That smaller number is the one that says
+                  whether a gap is real.
+                </div>
+              </div>
+              <div class="head-row">
+                <div id="v2-vsnull-picker" class="chart-head-tools"></div>
+              </div>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-vsnull-table"></table>
+              </div>
+              <p class="caption" id="v2-vsnull-note"></p>
+              <div class="callout">
+                <div>
+                  <b>What survives, stated no more strongly than it should be.</b>
+                  <br /><br />
+                  <b>Height matters &mdash; at two to three standard errors.</b>
+                  Among climbers with three or more sends, adding a height term
+                  is worth about <b>+25 &plusmn; 9</b> points in the original
+                  version and <b>+17 to +22 &plusmn; 8</b> once the offsets are
+                  integrated out. That is a real effect, and it is the column
+                  where the two <i>identical</i> refits agree almost exactly
+                  (+25.4 and +25.0), which is what makes the column trustworthy.
+                  It is not, however, the overwhelming result an unlabelled
+                  &ldquo;25 points&rdquo; made it sound like.
+                  <br /><br />
+                  <b>Which shape height takes is not settled.</b> The saturating
+                  curve sits near the bottom in the original version and at the
+                  top once the offsets are integrated out. That swing is about
+                  1.5&times; the error on it, so the two are not in
+                  contradiction &mdash; they simply do not pin the shape down.
+                  Any claim of a specific functional form is reading past what
+                  the data supports.
+                  <br /><br />
+                  <b>The model used elsewhere on this page is the weakest of the
+                  height forms.</b> The curved, gender-split form fails to beat
+                  <i>no height term at all</i> in three of the four columns once
+                  the offsets are integrated out, and its best column is well
+                  inside the error. Both versions agree it belongs near the
+                  bottom, so this is not an artefact of the change. The header
+                  model should most likely be a straight line.
+                  <br /><br />
+                  <b>The all-climbers column remains unusable.</b> Two fits of
+                  the identical model score <b>+45.0</b> and <b>+14.0</b> there.
+                  That 31-point spread is larger than most of the effects in the
+                  column. Read the three-or-more column; ignore the first one.
+                </div>
+              </div>
+
+              <h4 class="sub-head">The fix: stop estimating what cannot be estimated</h4>
+              <p class="prose">
+                Restricting the <i>score</i> to well-observed climbers is a
+                patch on the symptom. The cause is that the model carries
+                10,357 ability offsets on 20,014 observations, and 6,156 of
+                them are pinned by a single data point each.
+              </p>
+              <p class="prose">
+                Those offsets cannot simply be deleted &mdash; gym corrections
+                are identified precisely by the same climber appearing at two
+                gyms, so the climber term is the whole method. But for a
+                climber with one observation the offset can be
+                <b>integrated out exactly</b>. It enters the ceiling additively
+                and is Gaussian; the observation noise is Gaussian; two
+                Gaussians convolve into one wider Gaussian:
+              </p>
+              <div class="eqn-block">
+                $$-m \sim \mathrm{ExGaussian}\!\left(-c,\ \
+                  \sqrt{\sigma_{\text{link}}^{2} + \sigma_{\text{user}}^{2}},\ \
+                  \nu\right)$$
+              </div>
+              <p class="prose">
+                Same distribution family, one wider spread parameter,
+                <b>nothing approximated and nothing discarded</b>.
+                <span>\(\sigma_{\text{user}}\)</span> is still estimated &mdash;
+                from the climbers who have enough observations to say something
+                about it. The parameter count drops from
+                <b>10,397 to 4,241</b>, and the rows that were unscoreable
+                become scoreable, because their likelihood no longer depends on
+                any parameter unique to them.
+              </p>
+
+              <h4 class="sub-head">What &ldquo;integrating out&rdquo; actually means</h4>
+              <p class="prose">
+                The phrase deserves unpacking, because it sounds like a
+                simplification and is the opposite of one. Fitting an offset
+                means asking <i>what is this climber&rsquo;s ability?</i> and
+                committing to a single answer. Integrating it out means
+                declining to answer, and instead asking a question that does not
+                require one: <b>averaged over every ability this climber could
+                plausibly have, weighted by how plausible each is, how likely was
+                what we actually saw?</b> Formally, for a climber with
+                observations <span>\(m_1 \ldots m_k\)</span>:
+              </p>
+              <div class="eqn-block">
+                $$p(m_1 \ldots m_k) \;=\; \int_{-\infty}^{\infty}
+                  \left[\prod_{j=1}^{k} p\!\left(m_j \mid \epsilon\right)\right]\,
+                  \mathcal{N}\!\left(\epsilon;\, 0,\, \sigma_{\text{user}}\right)
+                  \, d\epsilon$$
+              </div>
+              <p class="prose">
+                The offset <span>\(\epsilon\)</span> goes in on the right and
+                does not come out on the left. That is the whole trick: the
+                climber&rsquo;s ability is still fully part of the model, still
+                shaping the answer, but it is no longer a <i>number the fit has
+                to pin down</i>. Nothing is thrown away and no information is
+                lost &mdash; the uncertainty that used to be parked in 10,357
+                separate parameters is instead accounted for honestly in every
+                observation&rsquo;s likelihood.
+              </p>
+              <p class="prose">
+                For a climber with one observation, the product has one term and
+                the integral has the closed form above &mdash; exact, instant,
+                nothing to approximate. For a climber with several, it does not,
+                and has to be computed numerically. That is a one-dimensional
+                integral, however many observations the climber has, because they
+                all share the same single <span>\(\epsilon\)</span>. One
+                dimension is cheap; this is the reason the whole approach is
+                affordable.
+              </p>
+
+              <h4 class="sub-head">Where the obvious method fails</h4>
+              <p class="prose">
+                The textbook tool for exactly this integral &mdash; a smooth
+                function against a Gaussian weight &mdash; is
+                <b>Gauss&ndash;Hermite quadrature</b>: evaluate the integrand at
+                a handful of cleverly chosen points, take a weighted sum, done.
+                Those points are chosen to suit the <i>Gaussian weight</i>, which
+                here is the prior, spread across every ability a climber might
+                have.
+              </p>
+              <p class="prose">
+                But the thing being integrated is not spread out at all. A
+                climber with 21 logged sends has already told us almost exactly
+                what their ability is; their integrand is a narrow spike roughly
+                <span>\(1/\sqrt{k}\)</span> as wide as the prior, sitting
+                wherever their data puts it. Points placed to cover the prior
+                mostly land where the integrand is indistinguishable from zero,
+                and contribute nothing but runtime.
+              </p>
+              <figure class="figure diagram">
+                <svg viewBox="0 0 760 320" role="img" width="760"
+                     aria-label="Two rows. In the top row, evaluation points are
+                     spread evenly across a wide prior curve while the function
+                     being integrated is a narrow spike, so only two or three
+                     points land on it. In the bottom row the points are
+                     repositioned to straddle the spike, and all of them land on
+                     it.">
+                  <g fill="none" stroke="currentColor" stroke-linejoin="round">
+                    <!-- top: nodes placed by the prior -->
+                    <polyline stroke-width="1" stroke-dasharray="4 3"
+                      opacity="0.45" points="70,120 80,120 91,120 101,120 111,120 122,120 132,120 142,119 153,119 163,119 173,118 184,117 194,116 204,115 215,113 225,111 235,108 246,104 256,101 266,96 277,91 287,86 297,80 308,75 318,69 328,64 339,59 349,55 359,52 370,51 380,50 390,51 401,52 411,55 421,59 432,64 442,69 452,75 463,80 473,86 483,91 494,96 504,101 514,104 525,108 535,111 545,113 556,115 566,116 576,117 587,118 597,119 607,119 618,119 628,120 638,120 649,120 659,120 669,120 680,120 690,120" />
+                    <polyline stroke-width="2" points="70,120 173,120 235,120 297,120 359,120 380,119 390,117 396,115 401,112 406,108 411,103 416,95 421,87 426,78 432,68 437,60 442,54 447,50 452,50 458,54 463,60 468,68 473,78 478,87 483,95 488,103 494,108 499,112 504,115 509,117 514,119 525,120 597,120 690,120" />
+                    <line x1="70" y1="120" x2="690" y2="120" stroke-width="1" opacity="0.55" />
+                    <!-- bottom: nodes placed at the climber's own mode -->
+                    <polyline stroke-width="2" points="70,268 173,268 235,268 297,268 359,268 380,267 390,265 396,263 401,260 406,256 411,251 416,243 421,235 426,226 432,216 437,208 442,202 447,198 452,198 458,202 463,208 468,216 473,226 478,235 483,243 488,251 494,256 499,260 504,263 509,265 514,267 525,268 597,268 690,268" />
+                    <line x1="70" y1="268" x2="690" y2="268" stroke-width="1" opacity="0.55" />
+                  </g>
+                  <g stroke="currentColor" stroke-width="2" opacity="0.75">
+                    <line x1="75" y1="113" x2="75" y2="127" />
+                    <line x1="158" y1="113" x2="158" y2="127" />
+                    <line x1="235" y1="113" x2="235" y2="127" />
+                    <line x1="308" y1="113" x2="308" y2="127" />
+                    <line x1="380" y1="113" x2="380" y2="127" />
+                    <line x1="452" y1="113" x2="452" y2="127" />
+                    <line x1="525" y1="113" x2="525" y2="127" />
+                    <line x1="602" y1="113" x2="602" y2="127" />
+                    <line x1="685" y1="113" x2="685" y2="127" />
+                  </g>
+                  <g stroke="var(--lg-cat-1, currentColor)" stroke-width="2">
+                    <line x1="329" y1="261" x2="329" y2="275" />
+                    <line x1="358" y1="261" x2="358" y2="275" />
+                    <line x1="383" y1="261" x2="383" y2="275" />
+                    <line x1="406" y1="261" x2="406" y2="275" />
+                    <line x1="428" y1="261" x2="428" y2="275" />
+                    <line x1="450" y1="261" x2="450" y2="275" />
+                    <line x1="471" y1="261" x2="471" y2="275" />
+                    <line x1="493" y1="261" x2="493" y2="275" />
+                    <line x1="516" y1="261" x2="516" y2="275" />
+                    <line x1="541" y1="261" x2="541" y2="275" />
+                    <line x1="570" y1="261" x2="570" y2="275" />
+                  </g>
+                  <g fill="currentColor" font-size="12">
+                    <text x="70" y="26" font-weight="600">Points placed to suit the prior</text>
+                    <text x="70" y="42" opacity="0.7">almost none land on the spike &mdash; needed 161 points, 466&nbsp;ms</text>
+                    <text x="70" y="174" font-weight="600">Points placed at this climber&rsquo;s own mode</text>
+                    <text x="70" y="190" opacity="0.7">every one lands on it &mdash; converges at 21&ndash;31 points, 88&ndash;134&nbsp;ms</text>
+                    <text x="530" y="66" opacity="0.7">prior on ability</text>
+                    <text x="530" y="96" font-style="italic">what is being integrated</text>
+                    <text x="70" y="300" opacity="0.7">climber&rsquo;s ability offset →</text>
+                  </g>
+                </svg>
+                <figcaption>
+                  Both rows integrate the same function. Only the placement of
+                  the evaluation points differs, and it is the difference
+                  between 161 points and 21.
+                </figcaption>
+              </figure>
+              <p class="prose">
+                The fix is <b>adaptive</b> quadrature: before placing any points,
+                find where that climber&rsquo;s spike actually is and how wide it
+                is, then put the points there. Finding it is a few steps of
+                Newton&rsquo;s method on the log-integrand, which is cheap
+                because both derivatives are available in closed form. This is
+                standard practice rather than an invention &mdash; it is what
+                <code>lme4</code>&rsquo;s <code>nAGQ</code> option does &mdash;
+                but it is the difference between the method being usable and not:
+                <b>466&nbsp;ms per evaluation down to 88&ndash;134&nbsp;ms</b>,
+                with a more accurate answer.
+              </p>
+              <div class="callout warn">
+                <div>
+                  <b>One trap worth recording.</b> The ExGaussian log-density is
+                  written as three terms that are each infinite when the effort
+                  parameter <span>\(\nu\)</span> gets very small, and cancel
+                  exactly &mdash; in exact arithmetic. In floating point that is
+                  <code>inf&nbsp;&minus;&nbsp;inf</code>, which is
+                  <code>NaN</code>. NUTS (the No-U-Turn Sampler) never wandered far enough to hit it, so
+                  it sat undetected in the original model for the whole project.
+                  Nested sampling starts from the entire prior and hit it
+                  immediately, in 2 of 5 random draws. Both implementations now
+                  switch to the Normal limit below
+                  <span>\(\nu = 0.05\,\sigma\)</span>.
+                </div>
+              </div>
+
+              <h4 class="sub-head">Checked three ways before being believed</h4>
+              <p class="prose">
+                A quadrature nested inside an ExGaussian, implemented twice, is
+                exactly the kind of code that returns a plausible wrong number in
+                silence. None of these checks would catch a wrong <i>model</i>;
+                all of them catch a wrong <i>implementation</i>, which is the
+                failure actually at risk here.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr><th>check</th><th>against</th>
+                      <th>disagreement<br /><span class="muted">smaller is better</span></th></tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="label-cell">the closed form for one-send climbers</td>
+                      <td>brute-force numerical integration</td>
+                      <td class="unit">1.2 &times; 10<sup>&minus;13</sup></td>
+                    </tr>
+                    <tr>
+                      <td class="label-cell">the adaptive quadrature, on the 25
+                        climbers with the most sends</td>
+                      <td>brute-force numerical integration</td>
+                      <td class="unit">8.9 &times; 10<sup>&minus;13</sup></td>
+                    </tr>
+                    <tr>
+                      <td class="label-cell">the PyTensor version PyMC samples</td>
+                      <td>an independent NumPy implementation</td>
+                      <td class="unit">1.3 &times; 10<sup>&minus;9</sup> <span class="muted">relative</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="caption">
+                The third check is the one that nearly went wrong. It first
+                reported a 4,535-unit disagreement, which turned out to be the
+                test&rsquo;s fault rather than the model&rsquo;s: asking PyMC for
+                a parameter by name returns the <i>random variable</i>, and
+                evaluating that draws a fresh value from the prior instead of
+                reading the point being tested. A test that fails loudly for its
+                own reasons is a good outcome; the same mistake in a script that
+                produced a number would not have announced itself.
+              </p>
+
+              <h4 class="sub-head">The two versions, side by side</h4>
+              <p class="prose">
+                Both models are kept and both are fitted, on identical data with
+                identical settings, differing in exactly one thing. The original
+                is not obsolete: it is the evidence that the change was needed,
+                and a claim that a fix worked is empty without the thing it
+                fixed. The toggle above the chart switches every figure in this
+                section between them.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-arm-compare"></table>
+              </div>
+              <div class="callout warn">
+                <div>
+                  <b>One comparison that is NOT valid: the two versions&rsquo;
+                  scores against each other.</b> They are answering different
+                  questions. The original predicts an observation
+                  <i>given</i> that climber&rsquo;s fitted ability &mdash; and
+                  for a climber with one observation, that ability was fitted
+                  using the very row being predicted, which flatters it. The
+                  marginalized version predicts the observation
+                  <i>averaging over</i> an unknown climber&rsquo;s ability,
+                  which is honest and therefore scores lower. A lower number
+                  here is the more trustworthy number, not a worse model.
+                  Compare scores within a version, never across.
+                </div>
+              </div>
+              <div class="callout">
+                <div>
+                  <b>Did it work? Partly, and less tidily than hoped.</b>
+                  <br /><br />
+                  Scored on <b>all</b> climbers &mdash; the case the fix was
+                  aimed at &mdash; run-to-run noise falls from <b>31.1 points to
+                  2.9</b>. That is the result, and it is a large one: the column
+                  that was unusable is now usable.
+                  <br /><br />
+                  Scored on <b>well-observed</b> climbers only, the two versions
+                  are both in the low single digits (0.5 and 3.3 points) and
+                  cannot be separated. There are only <b>two converged refits
+                  per version</b>, which is far too few to rank two small
+                  numbers against each other. Restricting the score and
+                  integrating out the offsets turn out to fix the same problem;
+                  doing both is not measurably better than doing either.
+                  <br /><br />
+                  <b>And one refit in three did not converge at all</b> (R-hat
+                  1.44, effective sample size 8). It is excluded from the noise
+                  band above, because a broken chain is not a measure of
+                  sampling noise &mdash; but the failure itself is a finding.
+                  This model does not fit dependably on every seed, and any
+                  single fit needs its diagnostics checked before its numbers
+                  are quoted.
+                </div>
+              </div>
+              <h4 class="sub-head">Predicting a climber the model has never seen</h4>
+              <p class="prose">
+                Every score above comes from <b>leave-one-out cross-validation
+                (LOO)</b>: hold back one observation, predict it from the rest.
+                But the held-back send belongs to a climber the model has
+                already fitted an ability offset for, so LOO asks
+                &ldquo;<i>one more send from someone we know</i>&rdquo; &mdash;
+                a much easier question than the one the model exists to answer.
+              </p>
+              <p class="prose">
+                <b>Grouped k-fold cross-validation</b> asks the harder one. Split
+                the <i>climbers</i> into k groups; refit the model k times, each
+                time holding out one whole group; score each held-out climber
+                using only what the model learned from the others. A climber in
+                the held-out group contributes no ability offset of their own,
+                so the score measures what the <i>height and gym terms</i>
+                generalize &mdash; and the gap between this and LOO is exactly
+                what the per-climber offsets were buying.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-kfold-table"></table>
+              </div>
+              <p class="caption" id="v2-kfold-note"></p>
+
+              <p class="prose">
+                Their <b>parameters</b>, though, are the same parameters. A gym
+                correction means &ldquo;how much stiffer this gym grades than
+                the network average&rdquo; in both, measured in grades, on the
+                same 29 gyms. So the question that actually matters can be
+                asked directly, and it is not a question about scores at all:
+                <b>does the answer change, or was this only a repair to the way
+                models were being compared?</b>
+              </p>
+              <div id="v2-armparam-picker" class="seg-picker"></div>
+              <div id="v2-armparam-chart" class="chart-mid"></div>
+              <p class="caption" id="v2-armparam-note"></p>
+              <p class="prose">
+                The same question for everything else the model estimates. Going
+                in, the parameter to watch was
+                <span>\(\sigma_{\text{user}}\)</span>, the spread of natural
+                ability between climbers: with 10,357 free offsets, the original
+                could let per-climber parameters soak up variation that really
+                belongs to the population spread. It did not. It is the
+                <i>least</i>-moved number in the table. The rightmost column
+                gives each shift as a multiple of the uncertainty the original
+                already had on that parameter, which is the only scale on which
+                &ldquo;did it move&rdquo; has an answer &mdash; below 1 means the
+                shift is smaller than the noise it was already quoted with, and
+                nothing here reaches 0.5.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-armparam-table"></table>
+              </div>
+              <div class="callout">
+                <div>
+                  <b>Verified two ways before being believed.</b> The same
+                  likelihood was implemented twice &mdash; once in PyTensor for
+                  PyMC, once in plain NumPy as a reference &mdash; and the two
+                  agree to <b>1.3&nbsp;&times;&nbsp;10<sup>&minus;9</sup></b>
+                  relative at the same parameter values. The NumPy version also
+                  checks its closed form against brute-force numerical
+                  integration of the same integral, agreeing to
+                  10<sup>&minus;13</sup>. Two independent implementations
+                  agreeing is a much stronger statement than one implementation
+                  converging.
+                </div>
+              </div>
+
+              <h3>Four samplers, one posterior</h3>
+              <p class="prose">
+                Removing 6,156 parameters did something else besides fixing the
+                cross-validation: it put the model within reach of algorithms
+                that could not touch it before. That is worth using, because a
+                sampler agreeing with itself proves very little.
+              </p>
+              <p class="prose">
+                The concern is concrete. The marginalized likelihood is a
+                numerical integral nested inside a distribution that is itself
+                a sum of two others, and it is written twice &mdash; once as a
+                PyTensor graph so PyMC can differentiate it, once in plain
+                NumPy. Code like that does not usually fail loudly. It computes
+                a plausible wrong number. <b>One implementation converging says
+                nothing about whether it converged to the right thing; two
+                implementations and three algorithms landing on the same
+                posterior does.</b>
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-crosssampler-table"></table>
+              </div>
+              <p class="caption" id="v2-crosssampler-note"></p>
+              <div class="callout">
+                <div>
+                  <b>Why each one, and why none of them on the original model.</b>
+                  <br /><br />
+                  <b>PyMC / NUTS</b> (the No-U-Turn Sampler) uses the gradient of the likelihood to
+                  take long, well-aimed steps. It is the only one of the four
+                  that can handle thousands of parameters at all, which is why
+                  it was the only option before.
+                  <br /><br />
+                  <b>emcee</b> runs a population of walkers that propose moves
+                  by looking at each other, using no gradients &mdash; so it
+                  exercises the NumPy implementation, entirely independent of
+                  the PyTensor graph. It needs more walkers than parameters and
+                  degrades badly past a few tens of dimensions, so on 10,397
+                  parameters it was not merely slow but unusable.
+                  <br /><br />
+                  <b>Nested sampling</b> answers a different question: it
+                  computes the <i>evidence</i>, which gives Bayes factors
+                  directly and touches none of the importance-sampling
+                  machinery where every problem above lives. Also unusable
+                  above a few tens of parameters.
+                  <br /><br />
+                  <b>Bridge sampling</b> estimates the same evidence from draws
+                  already in hand, by a different estimator, in minutes.
+                  Agreement with nested sampling is evidence for both.
+                </div>
+              </div>
+              <div id="v2-evidence-block"></div>
+
+              <h3>What has held steady across every fit</h3>
+              <p class="prose">
+                Different height forms are different models. A number that barely
+                moves as the height block is swapped out underneath it is not an
+                artefact of one specification &mdash; and a number that swings is a
+                warning about how much it depended on modelling choices.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-repl-table"></table>
+              </div>
+              <p class="caption">
+                Posterior means per fit, on the like-for-like arms only
+                (<code>v3_all</code> is excluded: it uses a different dataset and
+                did not converge). &ldquo;Stable&rdquo; means the spread across
+                every fit is under 0.05 grades.
+              </p>
+            </section>

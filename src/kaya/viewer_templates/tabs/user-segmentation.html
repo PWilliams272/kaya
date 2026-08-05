@@ -1,0 +1,72 @@
+<section id="tab-user-segmentation" class="tab-pane">
+          <div class="section-title-row">
+            <div class="section-title-block">
+              <h2>User Base</h2>
+              <p class="section-description">
+                Data quality depends on the accuracy of user input. Some users misrepresent their height
+                (note the break in the expected bell curve shape for Men at the 5'11"-to-6'0" threshold), or
+                might choose not to record pieces of information.
+              </p>
+              <p class="section-description">
+                Obvious outliers (e.g. |ape index| &gt; 10 inches, where ape index is wingspan minus height)
+                are removed from analyses involving those metrics. Genders are inferred using the Python
+                gender guesser package with reported first
+                names, which, while imperfect, enables incorporation of gender into analyses at a statistical
+                level.
+              </p>
+            </div>
+          </div>
+
+          <div class="chart-grid two-up-grid">
+            <div class="card chart-card">
+              <div class="section-heading">Height Distribution</div>
+              <div id="segment-height-chart" class="chart-host chart-host-short"></div>
+            </div>
+            <div class="card chart-card">
+              <div class="section-heading">Ape Index Distribution</div>
+              <div id="segment-ape-chart" class="chart-host chart-host-short"></div>
+            </div>
+          </div>
+
+          <div class="section-title-row">
+            <div class="section-title-block">
+              <h2>User Segmentation</h2>
+              <p class="section-description">
+                Data are limited to successfully completed climbs, or "sends," that users actually log. Some users use the
+                app to fully log all their climbing sessions, some only log sends they're proud of, and others
+                try it once or twice and never come back. In all cases, we are blind to all failed climbing
+                attempts.
+              </p>
+              <p class="section-description">
+                Since the different logging characteristics have different downstream effects on our analysis,
+                we first segment the user base. For now, we'll simply categorize them as "Active" or
+                "Inactive" based on the total number of sends they've logged, total number of distinct climbing
+                sessions they've logged, and their average number of sends per session.
+              </p>
+            </div>
+          </div>
+
+          <div class="card chart-card segment-stat-card">
+            <div class="segment-stat-row">
+              <div class="segment-stat">
+                <span class="kpi-value" id="segment-active-count">-</span>
+                <span class="segment-stat-label">Active</span>
+              </div>
+              <div class="segment-stat-sep">/</div>
+              <div class="segment-stat">
+                <span class="kpi-value" id="segment-inactive-count">-</span>
+                <span class="segment-stat-label">Inactive</span>
+              </div>
+            </div>
+            <div class="segment-stat-divider"></div>
+            <p id="segment-note" class="muted-copy">Loading segment rule...</p>
+          </div>
+
+          <div class="chart-grid two-up-grid">
+            <div class="card chart-card chart-card-wide">
+              <div class="section-heading">Corner Plot</div>
+              <p class="muted-copy chart-caption">Shown on a log scale, with dashed lines marking the active/inactive thresholds.</p>
+              <div id="segment-corner-chart" class="chart-host chart-host-corner"></div>
+            </div>
+          </div>
+        </section>

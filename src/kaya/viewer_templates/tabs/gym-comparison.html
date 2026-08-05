@@ -1,0 +1,86 @@
+<section id="tab-gym-comparison" class="tab-pane active">
+          <div class="section-title-row">
+            <div class="section-title-block">
+              <h2>Gym-to-Gym Grading Comparison</h2>
+              <p class="section-description">
+                Climbing grades are subjective, and different gyms are known for "stiff" or "soft" grading.
+                This tool finds users who have logged sends at multiple gyms and compares their highest sent
+                grade at each gym. Since it's unlikely someone will send their hardest grade in only one or two
+                visits, it is useful to increase the minimum logged days at each gym — but this comes at the
+                expense of the total number of users available for analysis.
+              </p>
+            </div>
+          </div>
+
+          <div class="card chart-card compare-toolbar">
+            <div class="control-grid control-grid-compact">
+              <label class="inline-select-control">
+                <span>Reference gym</span>
+                <div id="compare-ref-gym-select" class="combo-select">
+                  <div class="combo-control">
+                    <input class="combo-input" type="text" placeholder="Select a gym" autocomplete="off" />
+                  </div>
+                  <div class="combo-panel" hidden>
+                    <div class="combo-options"></div>
+                  </div>
+                </div>
+              </label>
+              <label class="inline-select-control">
+                <span>Compare against</span>
+                <div id="compare-focus-gym-select" class="combo-select">
+                  <div class="combo-control">
+                    <input class="combo-input" type="text" placeholder="Select a gym" autocomplete="off" />
+                  </div>
+                  <div class="combo-panel" hidden>
+                    <div class="combo-options"></div>
+                  </div>
+                </div>
+              </label>
+              <label class="inline-select-control">
+                <span>Discipline</span>
+                <select id="compare-discipline-select">
+                  <option value="bouldering">Bouldering</option>
+                  <option value="routes">Routes</option>
+                </select>
+              </label>
+              <label class="inline-select-control">
+                <span>Minimum days at each gym</span>
+                <select id="compare-min-days-select">
+                  <option value="1">1 day</option>
+                  <option value="2" selected>2 days</option>
+                  <option value="3">3 days</option>
+                  <option value="4">4 days</option>
+                  <option value="5">5 days</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="card compact-card note-card">
+            <div id="gym-comparison-note" class="muted-copy">Loading comparison note...</div>
+          </div>
+
+          <div id="gym-comparison-focus-row" class="comparison-grid"></div>
+
+          <div class="card chart-card compare-toolbar">
+            <div class="control-grid control-grid-stack">
+              <div>
+                <div class="control-label">Multi-gym comparison</div>
+                <div id="compare-gyms-picker" class="combo-select">
+                  <div class="combo-control">
+                    <input class="combo-input" type="text" placeholder="Add gym to comparison..." autocomplete="off" />
+                  </div>
+                  <div class="combo-pills"></div>
+                  <div class="combo-panel" hidden>
+                    <div class="combo-options"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card chart-card">
+            <div class="section-heading">Grade Difference Distribution</div>
+            <div id="gym-comparison-delta-chart" class="chart-host chart-host-short"></div>
+          </div>
+        </section>

@@ -1,0 +1,59 @@
+<section id="validation" class="article-section prose">
+              <h2>Data &amp; Validation</h2>
+              <p>
+                Current validation runs on a connected 6-gym network of LA-area
+                Touchstone gyms (Cliffs of Id, Hollywood Boulders, Verdigo
+                Boulders, Class 5, The Post, LA Boulders) — chosen because a
+                meaningful fraction of climbers visit more than one of them,
+                which is what actually lets the model separate gym effects from
+                climber ability.
+              </p>
+              <div class="kpi-grid">
+                <div class="card kpi-card"><div class="eyebrow">Observations</div><div class="kpi-value">6,405</div></div>
+                <div class="card kpi-card"><div class="eyebrow">Users</div><div class="kpi-value">3,726</div></div>
+                <div class="card kpi-card"><div class="eyebrow">Gyms</div><div class="kpi-value">6</div></div>
+                <div class="card kpi-card"><div class="eyebrow">Climbs</div><div class="kpi-value">18,499</div></div>
+                <div class="card kpi-card"><div class="eyebrow">Multi-gym users</div><div class="kpi-value">34%</div></div>
+                <div class="card kpi-card"><div class="eyebrow">Median visits/user</div><div class="kpi-value">7</div></div>
+              </div>
+
+              <h3>Scaling from 2 gyms to 6 improved everything</h3>
+              <p>
+                Going from a minimal 2-gym validation set to the full 6-gym
+                connected network didn't just add data — it visibly tightened
+                every estimate, especially the gym-level correction, which is
+                hard to pin down with only two gyms to compare.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr><th>Metric</th><th>2-gym</th><th>6-gym network</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td class="label-cell">Divergences</td><td>32 / 1,000 (3.2%)</td><td>0 / 1,000 (0%)</td></tr>
+                    <tr><td class="label-cell">R-hat range</td><td>1.00 – 1.02</td><td>1.00 – 1.02</td></tr>
+                    <tr><td class="label-cell">Gender effect</td><td>&minus;0.943 &plusmn; 0.081</td><td>&minus;1.055 &plusmn; 0.075</td></tr>
+                    <tr><td class="label-cell">&sigma; (per-user ability)</td><td>1.720 &plusmn; 0.026</td><td>1.633 &plusmn; 0.022</td></tr>
+                    <tr><td class="label-cell">&sigma; (per-gym correction)</td><td>0.378 &plusmn; 0.357</td><td>0.128 &plusmn; 0.067</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="muted-copy">
+                The per-gym correction's uncertainty shrinks roughly 5&times; —
+                with only two gyms there's almost no way to tell "these two
+                happen to differ by X" apart from "typical gym-to-gym spread is
+                X." Six gyms actually constrains the population-level spread.
+              </p>
+
+              <h3>Does the model's own output look like the real data?</h3>
+              <p>
+                A posterior predictive check — simulate grades from the fitted
+                model and compare to what climbers actually logged — matched
+                closely: mean grade 5.257 (real) vs. 5.258 (simulated), per-gym
+                means within 0.01&ndash;0.03 of each other. One minor, understood
+                artifact: the simulation has a thin, rare low tail the real data
+                doesn't, from two independent noise sources occasionally
+                compounding — invisible at the bulk-of-distribution scale, not a
+                structural problem.
+              </p>
+            </section>

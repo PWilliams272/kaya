@@ -1,0 +1,29 @@
+<section id="overview" class="article-section prose">
+              <h2>Overview</h2>
+              <p>
+                The model treats each climb attempt the way item-response theory
+                treats a test question: a climber has some latent
+                <em>ability</em>, a gym's grading has some latent
+                <em>softness or stiffness</em>, and whether someone sends a given
+                grade is a function of the gap between the two. Fit correctly,
+                this lets you compare climbers and gyms on a common scale, purely
+                from send logs — no route setter input, no manual calibration.
+              </p>
+              <p>
+                Three findings so far, in order of confidence:
+              </p>
+              <ul>
+                <li><b>Gym grading really does differ</b>, and the model recovers a
+                  believable, tightly-estimated correction per gym once enough
+                  connected gyms are in the network (below).</li>
+                <li><b>Height has a real, non-linear effect</b> on bouldering
+                  ability — not "taller is always better," but an optimal-height
+                  effect that peaks and falls off on both sides. This took five
+                  separate functional-form tests, including one that was flat
+                  wrong, to pin down with any confidence (full story below).</li>
+                <li><b>Climb-level grading correction doesn't work</b> with this
+                  dataset — not from lack of trying, but because there usually
+                  aren't enough logged sends per climb to separate "this climb is
+                  mis-graded" from "this climber is having an off day."</li>
+              </ul>
+            </section>

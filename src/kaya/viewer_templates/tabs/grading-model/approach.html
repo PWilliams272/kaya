@@ -1,0 +1,36 @@
+<section id="approach" class="article-section prose">
+              <h2>Approach</h2>
+              <p>
+                Rather than fit the full model in one shot, it was built up in
+                stages — start with the simplest possible version (per-user
+                ability only), confirm it recovers sane estimates, then add one
+                structural piece at a time (gym correction, covariates,
+                reliability weighting), re-validating at each step. This staged
+                approach caught several problems early that would have been
+                much harder to diagnose in a single large model.
+              </p>
+              <p>
+                Two structural decisions worth calling out:
+              </p>
+              <h3>A "gap," not an equality</h3>
+              <p>
+                The naive version of this model says a climber's logged max grade
+                <em>is</em> their ceiling. But nobody sends their absolute limit
+                every session — the true ceiling is somewhere at or above the
+                logged grade. The model represents this as a latent
+                <code>gap</code> (how much harder the climber could plausibly go,
+                drawn from an Exponential distribution scaled by how many times
+                they've visited and how active a climber they are) linked softly
+                to the structural ceiling, rather than forcing an exact equality.
+                A hard equality constraint made the sampler fail outright — the
+                geometry was intractable at this scale; the soft link fixed it.
+              </p>
+              <h3>Reliability-weighted visits</h3>
+              <p>
+                A climber who's visited a gym 20 times has had more chances to
+                find their real ceiling than someone who's visited twice. The
+                model accounts for this directly in the rate governing the
+                <code>gap</code> latent, scaled by visit count and by a
+                per-climber "sends per session" reliability signal.
+              </p>
+            </section>

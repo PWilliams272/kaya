@@ -16,20 +16,32 @@ A local-only interactive dashboard for exploring Kaya climbing gym data (send hi
 ## File Layout
 
 ```
-src/kaya/viewer_app.py          FastAPI app: routes, static mounts, middleware  (~130 lines)
-src/kaya/viewer_payloads.py     Builds chart-ready JSON payloads from the data layer (~460 lines)
+src/kaya/viewer_app.py          FastAPI app: routes, static mounts, middleware, Jinja2Templates
+src/kaya/viewer_payloads.py     Builds chart-ready JSON payloads from the data layer (~660 lines)
+src/kaya/viewer_templates/
+  base.html                     Shell only: head, topbar, tab bar, includes, docked glossary (~53 lines)
+  tabs/<tab>.html               One fragment per tab — the unit of navigation and of the payload
+  tabs/grading-v2/<section>.html    The two explainer tabs split again by article section,
+  tabs/grading-model/<section>.html since one tab's article is longer than all four dashboards
 src/kaya/viewer_static/
-  index.html                    Single HTML shell — all "pages" are <section>s toggled via JS
-  app.js                        All client logic: fetching, rendering, custom UI widgets (~2100 lines)
-  app.css                       Component styles (~480 lines)
-  tokens.css                    Design tokens (CSS custom properties) + light/dark theme (~90 lines)
+  app.js                        All client logic: fetching, rendering, custom UI widgets (~6000 lines)
+  app.css                       Component styles (~530 lines)
+  research.css                  Article components for the explainer tabs (~1180 lines)
+  tokens.css                    Design tokens (CSS custom properties) + light/dark theme
+  v2_*.json                     Precomputed evidence for the Grading Model v2 article
 ```
+
+There is no `index.html`. The page is rendered from `base.html` through
+`Jinja2Templates`; a static copy alongside it would be a second thing to hand-edit.
+`app.js` is still one file — splitting it into per-tab modules is the remaining
+half of this work, and it carries real regression risk because the whole file
+shares one flat scope.
 
 `viewer_payloads.py` is framework-agnostic — it's a plain Python class that takes no FastAPI dependency, so it can be reused as-is behind a Flask view if you go that route.
 
 ## UX Patterns Worth Carrying Over
 
-1. **Single-page app via tab toggling, not real routing.** Four tabs (Gym Comparison, Body Morphology, User Segmentation, Data Overview), each a `<section class="tab-pane">`. Switching tabs toggles a CSS class (`display:none` ↔ `flex`) and fetches/renders that tab's data — no page reload, feels instant. Tradeoff: no URL sync today (see Limits below).
+1. **Single-page app via tab toggling, not real routing.** Six tabs — four dashboards (Gym Comparison, Height and Wingspan, User Analysis, Data Overview) and two explainers (Grading Model, Grading Model v2) — each a `<section class="tab-pane">` assembled from its own template fragment. Switching tabs toggles a CSS class (`display:none` ↔ `flex`) and fetches/renders that tab's data — no page reload, feels instant. Tradeoff: no URL sync today (see Limits below).
 
 2. **Design tokens for theming.** `tokens.css` defines `--lg-bg`, `--lg-text`, `--lg-card`, etc. on `:root`, overridden under `:root[data-theme='light']`. Switching theme is just flipping that attribute — every component restyles for free. Toggle is a compact 32px icon button (🌙/☀️) in the topbar, persisted to `localStorage`.
 
@@ -57,7 +69,7 @@ The Kaya viewer runs as its own FastAPI process today, fully separate from the F
 - **(b) Port the routes into Flask views.** `viewer_payloads.py` has no FastAPI dependency — it's just a plain class returning dicts/DataFrames-as-records — so the actual route handlers in `viewer_app.py` are the only FastAPI-specific code to reimplement (a handful of thin `@app.get(...)` functions). Static frontend files need no changes.
 - **(c) Mount as an ASGI sub-app inside Flask.** More involved WSGI/ASGI bridging; probably not worth it unless there's a strong reason to keep one process.
 
-The frontend (`app.js`/`app.css`/`tokens.css`/`index.html`) has no framework lock-in — it only depends on relative `/viewer-data/...` fetch endpoints (and, in development only, `/api/...`), not on FastAPI-specific templating, so it can be dropped into any backend's static folder largely unmodified. Note the `/api/...` router is registered only when `KAYA_VIEWER_ENV` is not `production`: those endpoints query SQLite per request and fit GAMs on the fly, which is exactly what the deployed viewer must not do. In production the page runs in `static` data mode and reads `/viewer-data/*.json`. `tokens.css` in particular is a good candidate to extract as a shared design-token file across the whole site if consistent theming across components is a goal.
+The frontend (`app.js`/`app.css`/`tokens.css` plus the templates) has no framework lock-in — it only depends on relative `/viewer-data/...` fetch endpoints (and, in development only, `/api/...`). The Jinja templates are plain `{% include %}` composition with no FastAPI-specific tags, so they port to any Jinja-capable backend, and the static assets need no changes at all. Note the `/api/...` router is registered only when `KAYA_VIEWER_ENV` is not `production`: those endpoints query SQLite per request and fit GAMs on the fly, which is exactly what the deployed viewer must not do. In production the page runs in `static` data mode and reads `/viewer-data/*.json`. `tokens.css` in particular is a good candidate to extract as a shared design-token file across the whole site if consistent theming across components is a goal.
 
 ## Current Limits To Know About
 

@@ -5,12 +5,20 @@ from typing import Any, Dict, List, Optional
 import uvicorn
 from fastapi import APIRouter, FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 from kaya.viewer_payloads import VIEWER_ARTIFACTS_DIR, ViewerPayloadBuilder
 
 STATIC_DIR = Path(__file__).with_name('viewer_static')
+
+# Server-side templating, not one 2,800-line HTML file. `base.html` is the shell
+# (head, topbar, tab bar, docked glossary); each tab is a fragment under
+# `tabs/`, and the two explainer tabs split again by article section, so no
+# file is the whole page. `tests/test_viewer_templates.py` asserts the rendered
+# output still carries every tab.
+TEMPLATE_DIR = Path(__file__).with_name('viewer_templates')
 
 # kaya's assigned loopback port in the workspace registry; the systemd unit
 # binds the same one.
@@ -71,7 +79,7 @@ payload_builder = ViewerPayloadBuilder()
 # viewer is not allowed to do in production: routes read precomputed payloads,
 # they never fit a model or query a database on demand.
 #
-# The deployed page never calls these — index.html sets the viewer's data mode to
+# The deployed page never calls these — base.html sets the viewer's data mode to
 # 'static', so the frontend reads /viewer-data/*.json instead (see
 # fetchViewerData in app.js). They exist for the local dev loop, where hitting
 # live SQLite beats rebuilding artifacts after every data pull, so the router is
@@ -79,9 +87,12 @@ payload_builder = ViewerPayloadBuilder()
 dev_api = APIRouter(prefix='/api', tags=['development-only'])
 
 
-@app.get('/')
-def serve_index() -> FileResponse:
-    return FileResponse(STATIC_DIR / 'index.html')
+templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
+
+
+@app.get('/', response_class=HTMLResponse)
+def serve_index(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(request, 'base.html')
 
 
 @dev_api.get('/summary')
