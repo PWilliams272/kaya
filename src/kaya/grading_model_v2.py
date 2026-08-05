@@ -209,6 +209,17 @@ def gym_network(base: Dict[str, pd.DataFrame], min_shared_users: int = 50) -> Li
     return sorted(max(comps, key=len)) if comps else []
 
 
+# Prior standard deviations for the covariate coefficients, on the centred and
+# scaled design. Module level because marginal_v2 imports it: the two
+# implementations are cross-checked against each other, so a second copy that
+# drifted would surface as an implementation disagreement and send someone
+# hunting a bug that was really an edit in one file.
+PRIOR_SD = {'beta_gender': 2.0, 'gamma1': 1.0, 'gamma2': 0.3,
+            'gamma1_x': 0.5, 'gamma2_x': 0.15, 'delta1': 1.0,
+            'delta2': 0.3, 'delta1_x': 0.5, 'delta2_x': 0.15,
+            'beta_h_missing': 1.0, 'beta_a_missing': 1.0}
+
+
 @dataclass
 class DatasetV2:
     observations: pd.DataFrame
@@ -505,10 +516,6 @@ def build_model_v2(
         X_mean = Xcols.mean(axis=0)
         Xc = Xcols - X_mean
 
-        PRIOR_SD = {'beta_gender': 2.0, 'gamma1': 1.0, 'gamma2': 0.3,
-                    'gamma1_x': 0.5, 'gamma2_x': 0.15, 'delta1': 1.0,
-                    'delta2': 0.3, 'delta1_x': 0.5, 'delta2_x': 0.15,
-                    'beta_h_missing': 1.0, 'beta_a_missing': 1.0}
         coefs = [pm.Normal(nm, 0, PRIOR_SD.get(nm, 1.0)) for nm in Xnames]
         beta_vec = pt.stack(coefs)
         # Columns involving gender are rebuilt per-branch in marginalize mode,

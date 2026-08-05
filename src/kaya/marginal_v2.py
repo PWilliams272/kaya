@@ -76,7 +76,8 @@ import numpy as np
 from numpy.polynomial.hermite_e import hermegauss
 from scipy.special import log_ndtr, logsumexp
 
-from kaya.grading_model_v2 import DatasetV2, _design_columns
+from kaya.grading_model_v2 import (DatasetV2, _design_columns,
+                                   PRIOR_SD as _PRIOR_SD)
 
 __all__ = ['MarginalModel', 'exgaussian_logpdf']
 
@@ -204,10 +205,8 @@ class MarginalModel:
     prior_sd: dict = field(default_factory=dict)
     label: str = ''
 
-    PRIOR_SD = {'beta_gender': 2.0, 'gamma1': 1.0, 'gamma2': 0.3,
-                'gamma1_x': 0.5, 'gamma2_x': 0.15, 'delta1': 1.0,
-                'delta2': 0.3, 'delta1_x': 0.5, 'delta2_x': 0.15,
-                'beta_h_missing': 1.0, 'beta_a_missing': 1.0}
+    # Imported, never redefined -- see the note in grading_model_v2.
+    PRIOR_SD = _PRIOR_SD
 
     # ---- construction -------------------------------------------------
 
