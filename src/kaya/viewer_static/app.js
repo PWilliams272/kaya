@@ -3175,10 +3175,14 @@ function renderV2FormsLoo() {
   if (!forms.length) { el.innerHTML = ''; return; }
 
   const hasDse = forms.some((f) => f.dse !== undefined);
-  el.innerHTML = '<thead><tr><th>height form</th><th>height params</th>'
-    + '<th>LOO elpd</th><th>&Delta; vs best</th>'
-    + (hasDse ? '<th>SE of &Delta;</th>' : '')
-    + '<th>max R&#770;</th><th>min ESS</th></tr></thead><tbody>'
+  el.innerHTML = '<thead><tr><th>height form</th>'
+    + '<th>height params<br /><span class="muted">free parameters, fewer is simpler</span></th>'
+    + '<th>LOO elpd<br /><span class="muted">leave-one-out score, higher is better</span></th>'
+    + '<th>&Delta; vs best<br /><span class="muted">elpd below the top row, 0 is best</span></th>'
+    + (hasDse ? '<th>SE of &Delta;<br /><span class="muted">standard error of that gap</span></th>' : '')
+    + '<th>max R&#770;<br /><span class="muted">chain agreement, &le; 1.01 wanted</span></th>'
+    + '<th>min ESS<br /><span class="muted">effective sample size, &ge; 400 wanted</span></th>'
+    + '</tr></thead><tbody>'
     + forms.map((f, i) => {
       const conv = f.rhat <= 1.01;
       // A gap inside one SE of the difference is not a ranking, it is noise.
@@ -3225,8 +3229,10 @@ function renderV2FormsLoo() {
       }
     }
     if (pending.length) {
-      txt += `Still running or queued: <code>${pending.join('</code>, <code>')}</code>.`;
+      txt += `Still running or queued: <code>${pending.join('</code>, <code>')}</code>. `;
     }
+    txt += 'Built by <code>scripts/build_v2_results.py</code> from the per-fit '
+      + 'results JSON under <code>runs/</code>.';
     note.innerHTML = txt;
   }
 }
@@ -4039,9 +4045,15 @@ function renderV2AdvTable() {
     .sort((x, y) => x.v - y.v);
   const sgn = (x) => (x === undefined ? '&mdash;'
     : `${x >= 0 ? '+' : ''}${x.toFixed(2)}`);
-  el.innerHTML = '<thead><tr><th>grade</th><th>naive</th><th>3-month only</th>'
-    + '<th>1-year only</th><th>steady rate</th><th>&plusmn;</th>'
-    + '<th>χ²/dof</th><th>triples</th></tr></thead><tbody>'
+  el.innerHTML = '<thead><tr><th>grade</th>'
+    + '<th>naive<br /><span class="muted">grades/year</span></th>'
+    + '<th>3-month only<br /><span class="muted">grades/year</span></th>'
+    + '<th>1-year only<br /><span class="muted">grades/year</span></th>'
+    + '<th>steady rate<br /><span class="muted">grades/year, debiased</span></th>'
+    + '<th>&plusmn;<br /><span class="muted">standard error, grades/year</span></th>'
+    + '<th>χ²/dof<br /><span class="muted">fit quality, &asymp; 1 is good</span></th>'
+    + '<th>triples<br /><span class="muted">observations behind the row</span></th>'
+    + '</tr></thead><tbody>'
     + rows.map((r) => `<tr><td class="label-cell">V${r.v}</td>`
       + `<td class="unit muted">${sgn(r.naive)}</td>`
       + `<td class="unit muted">${sgn(r.sw)}</td>`
@@ -4471,7 +4483,8 @@ async function renderV2VsNull() {
       + 'Columns count fewer rows as they narrow, so compare only <i>down</i> '
       + 'a column. The <b>&ge;3 sends</b> column is the trustworthy one: it is '
       + 'where two fits of the identical model agree (+25.4 and +25.0), while '
-      + 'in the first column those same two fits differ by 31 points.';
+      + 'in the first column those same two fits differ by 31 points. '
+      + 'Built by <code>scripts/build_v2_vs_null.py</code>.';
   }
 }
 

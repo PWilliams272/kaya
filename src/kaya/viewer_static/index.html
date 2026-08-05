@@ -340,7 +340,7 @@
               <div class="meta-row">
                 <span class="muted-copy">Last updated 2026-07-29</span>
                 <span class="muted-copy">&middot;</span>
-                <span class="muted-copy">PyMC / NUTS, hierarchical model, 6-gym LA Touchstone network</span>
+                <span class="muted-copy">PyMC / NUTS (No-U-Turn Sampler), hierarchical model, 6-gym LA Touchstone network</span>
               </div>
             </div>
 
@@ -1017,7 +1017,8 @@
                 <li><b>EMG marginalization.</b> The gap-likelihood construction
                   (Exponential latent + Normal soft link) has a known closed-form
                   marginalization (an Exponentially Modified Gaussian), which
-                  would fix the LOO reliability problem above. Scoped, not yet
+                  would fix the LOO (leave-one-out cross-validation) reliability
+                  problem above. Scoped, not yet
                   built.</li>
                 <li><b>Routes discipline.</b> Everything above is bouldering
                   only. Routes climbing has its own grading scale and dynamics —
@@ -1030,7 +1031,7 @@
             </section>
 
             <footer class="article-footer">
-              Model built with PyMC (NUTS sampler), staged validation from a
+              Model built with PyMC (the NUTS &mdash; No-U-Turn Sampler), staged validation from a
               single-covariate baseline up through the full hierarchical
               specification. All estimates on this page come from real Kaya
               send-log data restricted to the connected 6-gym LA Touchstone
@@ -1054,7 +1055,7 @@
               <div class="meta-row">
                 <span id="v2-updated">Updated 2026-08-04</span>
                 <span class="dot">&middot;</span>
-                <span>PyMC / NUTS &middot; 20,014 observations &middot; 10,357 climbers</span>
+                <span>PyMC / NUTS (No-U-Turn Sampler) &middot; 20,014 observations &middot; 10,357 climbers</span>
               </div>
             </header>
 
@@ -1070,6 +1071,7 @@
                 <li><a href="#v2-gender">The Gender Problem</a></li>
                 <li><a href="#v2-height">The Height Question</a></li>
                 <li><a href="#v2-diagnostics">Diagnostics</a></li>
+                <li><a href="#v2-provenance">Where the Numbers Come From</a></li>
               </ol>
             </nav>
 
@@ -1596,7 +1598,8 @@
               </div>
               <div class="eqn" data-syms="a delta" tabindex="0">$$f_{\text{ape}}(\tilde a) \;=\; \delta_1\tilde a + \delta_2\tilde a^{2}$$</div>
               <p class="prose">
-                Six candidate height shapes are compared by LOO on identical data:
+                Six candidate height shapes are compared by LOO &mdash; leave-one-out
+                cross-validation &mdash; on identical data:
                 the gender-blended quadratic above, a plain quadratic, linear, zero,
                 a <b>monotone saturating</b> form &mdash; "reach helps until you have
                 enough of it, then stops paying" &mdash; and a <b>vertex
@@ -1625,7 +1628,8 @@
               <p class="prose">
                 The point of comparing these is that they encode genuinely
                 different claims about the world, not just different numbers of
-                parameters. All are compared by LOO on identical data.
+                parameters. All are compared by LOO (leave-one-out cross-validation)
+                on identical data.
               </p>
               <div class="data-table-wrap">
                 <table class="data-table" id="v2-forms-table"></table>
@@ -1704,7 +1708,8 @@
               <p class="prose">
                 That removes one latent variable per observation &mdash; 32,501 of them
                 on this network &mdash; and turns the likelihood into an ordinary
-                observed node, so LOO and posterior predictive checks work natively.
+                observed node, so LOO (leave-one-out cross-validation) and posterior
+                predictive checks work natively.
                 Verified against numerical integration of the original formulation to
                 1&times;10<sup>&minus;8</sup>.
               </p>
@@ -2172,7 +2177,8 @@
                 Every form below is fitted on <b>identical data</b> &mdash; the same
                 29-gym network, the same confident-name filter, the same 20,014
                 observations &mdash; so leave-one-out cross-validation can rank them.
-                Only the gaps between models mean anything; the absolute elpd does not.
+                Only the gaps between models mean anything; the absolute elpd
+                &mdash; expected log pointwise predictive density &mdash; does not.
               </p>
               <div class="data-table-wrap">
                 <table class="data-table" id="v2-loo-table"></table>
@@ -2197,7 +2203,8 @@
               </p>
               <div class="callout warn">
                 <div>
-                  <b>Two runs of the identical model scored 31.1 elpd apart.</b>
+                  <b>Two runs of the identical model scored 31.1 elpd
+                  (expected log pointwise predictive density) apart.</b>
                   That is larger than the gap between every pair of height
                   forms except the most extreme. Refitting the winning model
                   drops it to fourth place, below shapes it had supposedly
@@ -2503,7 +2510,7 @@
                   parameter <span>\(\nu\)</span> gets very small, and cancel
                   exactly &mdash; in exact arithmetic. In floating point that is
                   <code>inf&nbsp;&minus;&nbsp;inf</code>, which is
-                  <code>NaN</code>. NUTS never wandered far enough to hit it, so
+                  <code>NaN</code>. NUTS (the No-U-Turn Sampler) never wandered far enough to hit it, so
                   it sat undetected in the original model for the whole project.
                   Nested sampling starts from the entire prior and hit it
                   immediately, in 2 of 5 random draws. Both implementations now
@@ -2704,7 +2711,7 @@
                 <div>
                   <b>Why each one, and why none of them on the original model.</b>
                   <br /><br />
-                  <b>PyMC / NUTS</b> uses the gradient of the likelihood to
+                  <b>PyMC / NUTS</b> (the No-U-Turn Sampler) uses the gradient of the likelihood to
                   take long, well-aimed steps. It is the only one of the four
                   that can handle thousands of parameters at all, which is why
                   it was the only option before.
@@ -2775,9 +2782,86 @@
               </div>
             </section>
 
+            <!-- ============ PROVENANCE ============ -->
+            <section class="article-section" id="v2-provenance">
+              <h3>Where every number on this page comes from</h3>
+              <p class="prose">
+                Nothing here is hand-typed into the markup. Each section reads a
+                precomputed JSON payload, and each payload is written by one
+                script in this repo. If a number on this page looks wrong, the
+                script named beside it is the thing to re-run &mdash; and if a
+                script is re-run, the page changes with it, which is the point.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Payload</th>
+                      <th>Written by</th>
+                      <th>Feeds</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="label-cell"><code>v2_results.json</code></td>
+                      <td><code>scripts/build_v2_results.py</code></td>
+                      <td>height-form comparison, posterior summaries, sampling statistics</td>
+                    </tr>
+                    <tr>
+                      <td class="label-cell"><code>v2_posterior.json</code></td>
+                      <td><code>scripts/build_v2_posteriors.py</code></td>
+                      <td>posterior distributions, trace plots, corner plots, sampler diagnostics</td>
+                    </tr>
+                    <tr>
+                      <td class="label-cell"><code>v2_vs_null.json</code></td>
+                      <td><code>scripts/build_v2_vs_null.py</code></td>
+                      <td>scores against a fixed no-height reference, with per-row error bars</td>
+                    </tr>
+                    <tr>
+                      <td class="label-cell"><code>v2_reliability.json</code></td>
+                      <td><code>scripts/build_v2_reliability.py</code></td>
+                      <td>refit-to-refit noise floor, per-subset scores, unreliable-row counts</td>
+                    </tr>
+                    <tr>
+                      <td class="label-cell"><code>v2_arm_params.json</code></td>
+                      <td><code>scripts/build_v2_arm_params.py</code></td>
+                      <td>original vs. offsets-integrated-out parameter comparison</td>
+                    </tr>
+                    <tr>
+                      <td class="label-cell"><code>v2_time.json</code></td>
+                      <td><code>scripts/build_v2_time.py</code></td>
+                      <td>climber advancement rate, date/correction confound</td>
+                    </tr>
+                    <tr>
+                      <td class="label-cell"><code>v2_kfold.json</code></td>
+                      <td><code>scripts/build_v2_kfold.py</code></td>
+                      <td>grouped k-fold held-out scores <span class="muted">(pending the fold refits)</span></td>
+                    </tr>
+                    <tr>
+                      <td class="label-cell"><code>v2_samplers.json</code></td>
+                      <td><code>scripts/compare_samplers.py</code></td>
+                      <td>cross-sampler agreement <span class="muted">(pending the independent runs)</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="caption">
+                The fits themselves come from <code>scripts/run_fit.py</code> and
+                <code>scripts/run_batch.py</code>, which write traces and a
+                per-run results JSON under <code>runs/</code>. Both fit inputs
+                &mdash; <code>runs/networks.json</code> (the gym-network
+                definitions) and <code>runs/base_bouldering.pkl</code> (the send
+                snapshot) &mdash; are documented in
+                <code>DATA_STORAGE_NOTES.md</code>.
+              </p>
+            </section>
+
             <footer class="article-footer">
               All estimates from real Kaya send logs on the 29-gym connected network,
-              fitted with PyMC/NUTS. Sections marked in&nbsp;progress are exactly that.
+              fitted with PyMC/NUTS (the No-U-Turn Sampler). Sections marked
+              in&nbsp;progress are exactly that. Every number is traceable to a
+              script &mdash; see <a href="#v2-provenance">Where every number on
+              this page comes from</a>.
             </footer>
           </div>
 
