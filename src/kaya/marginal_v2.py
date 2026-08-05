@@ -103,6 +103,26 @@ def exgaussian_logpdf(x, mu, sigma, nu):
     return np.where(nu > 0.05 * sigma, ex, normal)
 
 
+def zero_sum_basis(n):
+    """Orthonormal basis (n x n-1) for the hyperplane {x : sum(x) = 0}.
+
+    Mapping n-1 unconstrained coordinates through this reproduces PyMC's
+    ZeroSumNormal(sigma=1) exactly: every element gets variance (n-1)/n and
+    the n categories stay exchangeable.
+
+    The obvious alternative -- sample n-1 values and set the last to minus
+    their sum -- is NOT the same distribution and was a real bug here. It
+    gives the first n-1 elements variance 1 and the last one variance n-1,
+    so on 29 gyms whichever gym happened to sort last carried a prior 28
+    times wider than every other. The likelihood never noticed, because both
+    schemes hand it a valid zero-sum vector; only the prior differs, so the
+    two implementations agreed on the log-likelihood to 1e-9 while quietly
+    fitting different models.
+    """
+    q, _ = np.linalg.qr(np.column_stack([np.ones(n), np.eye(n)[:, :n - 1]]))
+    return q[:, 1:]
+
+
 def prepare_design(dataset: DatasetV2, *, height_form='linear',
                    ape_quadratic=True, ape_x_gender=False, consts=None):
     """Build the design matrix and per-observation vectors from a dataset.
@@ -200,6 +220,9 @@ class MarginalModel:
     gh_z: np.ndarray
     gh_logw: np.ndarray
 
+    # (n_gyms x n_gyms-1) orthonormal map onto the zero-sum hyperplane
+    gym_basis: np.ndarray = field(default_factory=lambda: np.zeros((0, 0)))
+
     param_names: list[str] = field(default_factory=list)
     prior_sd: dict = field(default_factory=dict)
     label: str = ''
@@ -255,6 +278,7 @@ class MarginalModel:
             single_obs=single_obs, multi_obs=multi_obs, multi_seg=multi_seg,
             n_multi_users=int(multi_seg.max()) + 1 if len(multi_seg) else 0,
             gh_z=z, gh_logw=gh_logw,
+            gym_basis=zero_sum_basis(len(gym_ids)),
             param_names=param_names,
             prior_sd={nm: cls.PRIOR_SD.get(nm, 1.0) for nm in Xnames},
             label=dataset.label,
@@ -275,8 +299,9 @@ class MarginalModel:
 
         Gym corrections carry a zero-sum constraint (the model is identified
         only up to an additive shift between climber ability and gym
-        correction), so n_gyms - 1 free values are sampled and the last is set
-        to make the sum zero.
+        correction), so n_gyms - 1 free values are sampled and mapped onto the
+        zero-sum hyperplane through an orthonormal basis -- see
+        `zero_sum_basis` for why the obvious shortcut is wrong.
         """
         theta = np.asarray(theta, float)
         i = 0
@@ -290,7 +315,7 @@ class MarginalModel:
         log_lambda0 = theta[i]; i += 1
         kappa = theta[i]; i += 1
         rho = theta[i]; i += 1
-        gym_raw = np.concatenate([gym_free, [-gym_free.sum()]])
+        gym_raw = self.gym_basis @ gym_free
         return dict(beta0=beta0, sigma_user=np.exp(log_sigma_user),
                     log_sigma_user=log_sigma_user, beta=beta,
                     sigma_gym=np.exp(log_sigma_gym), log_sigma_gym=log_sigma_gym,
