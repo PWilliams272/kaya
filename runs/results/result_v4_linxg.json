@@ -1,0 +1,193 @@
+{
+  "name": "v4_linxg",
+  "args": {
+    "name": "v4_linxg",
+    "network": "net50",
+    "name_filter": "confident",
+    "height_form": "linear_x_gender",
+    "gender_mode": "point",
+    "climb_quant": false,
+    "ape_x_gender": false,
+    "ape_linear": false,
+    "fixed_sigma_link": true,
+    "zero_sum_users": false,
+    "draws": 500,
+    "tune": 600,
+    "chains": 4,
+    "target_accept": 0.9
+  },
+  "dataset": {
+    "label": "net50/confident",
+    "n_obs": 20014,
+    "n_users": 10357,
+    "n_gyms": 29,
+    "n_climbs": 11187,
+    "pct_multi_gym": 0.40561938785362556,
+    "median_visits": 8.0
+  },
+  "elapsed_min": 64.47695719798406,
+  "divergences": 0,
+  "max_rhat": 1.09,
+  "min_ess": 45.0,
+  "params": {
+    "beta0": {
+      "mean": 5.63,
+      "sd": 0.022,
+      "hdi_5.5%": 5.595,
+      "hdi_94.5%": 5.664,
+      "mcse_mean": 0.003,
+      "mcse_sd": 0.001,
+      "ess_bulk": 54.0,
+      "ess_tail": 156.0,
+      "r_hat": 1.06
+    },
+    "beta_gender": {
+      "mean": -1.435,
+      "sd": 0.055,
+      "hdi_5.5%": -1.522,
+      "hdi_94.5%": -1.345,
+      "mcse_mean": 0.008,
+      "mcse_sd": 0.002,
+      "ess_bulk": 56.0,
+      "ess_tail": 209.0,
+      "r_hat": 1.06
+    },
+    "log_lambda0": {
+      "mean": 0.081,
+      "sd": 0.013,
+      "hdi_5.5%": 0.06,
+      "hdi_94.5%": 0.102,
+      "mcse_mean": 0.001,
+      "mcse_sd": 0.0,
+      "ess_bulk": 527.0,
+      "ess_tail": 1104.0,
+      "r_hat": 1.0
+    },
+    "gamma1": {
+      "mean": -0.172,
+      "sd": 0.026,
+      "hdi_5.5%": -0.212,
+      "hdi_94.5%": -0.132,
+      "mcse_mean": 0.003,
+      "mcse_sd": 0.001,
+      "ess_bulk": 101.0,
+      "ess_tail": 240.0,
+      "r_hat": 1.03
+    },
+    "gamma1_x": {
+      "mean": -0.023,
+      "sd": 0.049,
+      "hdi_5.5%": -0.098,
+      "hdi_94.5%": 0.062,
+      "mcse_mean": 0.007,
+      "mcse_sd": 0.002,
+      "ess_bulk": 45.0,
+      "ess_tail": 317.0,
+      "r_hat": 1.09
+    },
+    "delta1": {
+      "mean": 0.29,
+      "sd": 0.028,
+      "hdi_5.5%": 0.247,
+      "hdi_94.5%": 0.337,
+      "mcse_mean": 0.004,
+      "mcse_sd": 0.001,
+      "ess_bulk": 45.0,
+      "ess_tail": 244.0,
+      "r_hat": 1.09
+    },
+    "delta2": {
+      "mean": -0.012,
+      "sd": 0.008,
+      "hdi_5.5%": -0.025,
+      "hdi_94.5%": 0.001,
+      "mcse_mean": 0.001,
+      "mcse_sd": 0.0,
+      "ess_bulk": 147.0,
+      "ess_tail": 168.0,
+      "r_hat": 1.02
+    },
+    "sigma_user": {
+      "mean": 1.626,
+      "sd": 0.014,
+      "hdi_5.5%": 1.605,
+      "hdi_94.5%": 1.65,
+      "mcse_mean": 0.001,
+      "mcse_sd": 0.001,
+      "ess_bulk": 128.0,
+      "ess_tail": 253.0,
+      "r_hat": 1.04
+    },
+    "sigma_gym": {
+      "mean": 0.308,
+      "sd": 0.047,
+      "hdi_5.5%": 0.236,
+      "hdi_94.5%": 0.376,
+      "mcse_mean": 0.005,
+      "mcse_sd": 0.003,
+      "ess_bulk": 96.0,
+      "ess_tail": 138.0,
+      "r_hat": 1.04
+    },
+    "lambda0": {
+      "mean": 1.085,
+      "sd": 0.015,
+      "hdi_5.5%": 1.06,
+      "hdi_94.5%": 1.106,
+      "mcse_mean": 0.001,
+      "mcse_sd": 0.0,
+      "ess_bulk": 527.0,
+      "ess_tail": 1104.0,
+      "r_hat": 1.0
+    },
+    "kappa": {
+      "mean": 0.277,
+      "sd": 0.01,
+      "hdi_5.5%": 0.261,
+      "hdi_94.5%": 0.292,
+      "mcse_mean": 0.001,
+      "mcse_sd": 0.0,
+      "ess_bulk": 348.0,
+      "ess_tail": 857.0,
+      "r_hat": 1.01
+    },
+    "rho": {
+      "mean": -0.014,
+      "sd": 0.068,
+      "hdi_5.5%": -0.13,
+      "hdi_94.5%": 0.08,
+      "mcse_mean": 0.004,
+      "mcse_sd": 0.002,
+      "ess_bulk": 324.0,
+      "ess_tail": 610.0,
+      "r_hat": 1.01
+    },
+    "beta_h_missing": {
+      "mean": -0.46,
+      "sd": 0.059,
+      "hdi_5.5%": -0.558,
+      "hdi_94.5%": -0.374,
+      "mcse_mean": 0.006,
+      "mcse_sd": 0.003,
+      "ess_bulk": 107.0,
+      "ess_tail": 202.0,
+      "r_hat": 1.02
+    },
+    "beta_a_missing": {
+      "mean": -0.614,
+      "sd": 0.043,
+      "hdi_5.5%": -0.683,
+      "hdi_94.5%": -0.546,
+      "mcse_mean": 0.006,
+      "mcse_sd": 0.003,
+      "ess_bulk": 59.0,
+      "ess_tail": 59.0,
+      "r_hat": 1.07
+    }
+  },
+  "loo": {
+    "elpd_loo": -30998.764658141008,
+    "se": 133.4313714125494,
+    "p_loo": 8390.057528716436
+  }
+}

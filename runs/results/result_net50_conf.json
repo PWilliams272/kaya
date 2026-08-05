@@ -1,0 +1,190 @@
+{
+  "name": "net50_conf",
+  "args": {
+    "name": "net50_conf",
+    "network": "net50",
+    "name_filter": "confident",
+    "height_form": "quadratic_x_gender",
+    "gender_mode": "point",
+    "climb_quant": false,
+    "fixed_sigma_link": true,
+    "draws": 500,
+    "tune": 600,
+    "chains": 4,
+    "target_accept": 0.9
+  },
+  "dataset": {
+    "label": "net50/confident",
+    "n_obs": 20014,
+    "n_users": 10357,
+    "n_gyms": 29,
+    "n_climbs": 11187,
+    "pct_multi_gym": 0.40561938785362556,
+    "median_visits": 8.0
+  },
+  "elapsed_min": 108.90036284923553,
+  "divergences": 0,
+  "max_rhat": 1.19,
+  "min_ess": 16.0,
+  "params": {
+    "beta0": {
+      "mean": 5.974,
+      "sd": 0.028,
+      "hdi_5.5%": 5.928,
+      "hdi_94.5%": 6.019,
+      "mcse_mean": 0.007,
+      "mcse_sd": 0.002,
+      "ess_bulk": 16.0,
+      "ess_tail": 37.0,
+      "r_hat": 1.19
+    },
+    "beta_gender": {
+      "mean": -1.601,
+      "sd": 0.055,
+      "hdi_5.5%": -1.689,
+      "hdi_94.5%": -1.512,
+      "mcse_mean": 0.006,
+      "mcse_sd": 0.003,
+      "ess_bulk": 73.0,
+      "ess_tail": 154.0,
+      "r_hat": 1.05
+    },
+    "log_lambda0": {
+      "mean": 0.074,
+      "sd": 0.014,
+      "hdi_5.5%": 0.051,
+      "hdi_94.5%": 0.095,
+      "mcse_mean": 0.001,
+      "mcse_sd": 0.0,
+      "ess_bulk": 405.0,
+      "ess_tail": 908.0,
+      "r_hat": 1.01
+    },
+    "gamma1": {
+      "mean": -0.12,
+      "sd": 0.03,
+      "hdi_5.5%": -0.167,
+      "hdi_94.5%": -0.073,
+      "mcse_mean": 0.005,
+      "mcse_sd": 0.001,
+      "ess_bulk": 31.0,
+      "ess_tail": 195.0,
+      "r_hat": 1.1
+    },
+    "gamma2": {
+      "mean": -0.037,
+      "sd": 0.015,
+      "hdi_5.5%": -0.063,
+      "hdi_94.5%": -0.015,
+      "mcse_mean": 0.002,
+      "mcse_sd": 0.001,
+      "ess_bulk": 45.0,
+      "ess_tail": 103.0,
+      "r_hat": 1.1
+    },
+    "gamma1_x": {
+      "mean": -0.264,
+      "sd": 0.09,
+      "hdi_5.5%": -0.414,
+      "hdi_94.5%": -0.129,
+      "mcse_mean": 0.014,
+      "mcse_sd": 0.007,
+      "ess_bulk": 44.0,
+      "ess_tail": 88.0,
+      "r_hat": 1.08
+    },
+    "gamma2_x": {
+      "mean": 0.053,
+      "sd": 0.046,
+      "hdi_5.5%": -0.023,
+      "hdi_94.5%": 0.123,
+      "mcse_mean": 0.009,
+      "mcse_sd": 0.003,
+      "ess_bulk": 26.0,
+      "ess_tail": 138.0,
+      "r_hat": 1.13
+    },
+    "delta1": {
+      "mean": 0.376,
+      "sd": 0.028,
+      "hdi_5.5%": 0.332,
+      "hdi_94.5%": 0.42,
+      "mcse_mean": 0.007,
+      "mcse_sd": 0.002,
+      "ess_bulk": 18.0,
+      "ess_tail": 44.0,
+      "r_hat": 1.18
+    },
+    "delta2": {
+      "mean": 0.008,
+      "sd": 0.01,
+      "hdi_5.5%": -0.007,
+      "hdi_94.5%": 0.024,
+      "mcse_mean": 0.001,
+      "mcse_sd": 0.0,
+      "ess_bulk": 81.0,
+      "ess_tail": 228.0,
+      "r_hat": 1.06
+    },
+    "sigma_user": {
+      "mean": 1.671,
+      "sd": 0.013,
+      "hdi_5.5%": 1.649,
+      "hdi_94.5%": 1.691,
+      "mcse_mean": 0.001,
+      "mcse_sd": 0.001,
+      "ess_bulk": 143.0,
+      "ess_tail": 228.0,
+      "r_hat": 1.01
+    },
+    "sigma_gym": {
+      "mean": 0.282,
+      "sd": 0.039,
+      "hdi_5.5%": 0.228,
+      "hdi_94.5%": 0.346,
+      "mcse_mean": 0.005,
+      "mcse_sd": 0.002,
+      "ess_bulk": 64.0,
+      "ess_tail": 208.0,
+      "r_hat": 1.06
+    },
+    "lambda0": {
+      "mean": 1.076,
+      "sd": 0.015,
+      "hdi_5.5%": 1.052,
+      "hdi_94.5%": 1.099,
+      "mcse_mean": 0.001,
+      "mcse_sd": 0.0,
+      "ess_bulk": 405.0,
+      "ess_tail": 908.0,
+      "r_hat": 1.01
+    },
+    "kappa": {
+      "mean": 0.282,
+      "sd": 0.01,
+      "hdi_5.5%": 0.265,
+      "hdi_94.5%": 0.298,
+      "mcse_mean": 0.001,
+      "mcse_sd": 0.0,
+      "ess_bulk": 326.0,
+      "ess_tail": 828.0,
+      "r_hat": 1.01
+    },
+    "rho": {
+      "mean": -0.005,
+      "sd": 0.069,
+      "hdi_5.5%": -0.114,
+      "hdi_94.5%": 0.106,
+      "mcse_mean": 0.004,
+      "mcse_sd": 0.003,
+      "ess_bulk": 292.0,
+      "ess_tail": 378.0,
+      "r_hat": 1.01
+    }
+  },
+  "loo": {
+    "elpd_loo": -31115.82730194275,
+    "se": 133.4051897586818,
+    "p_loo": 8463.93955109828
+  }
+}

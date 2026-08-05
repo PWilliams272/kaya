@@ -4187,6 +4187,28 @@ function renderV2ArmCompare() {
 // same parameters, so the question that matters can be asked directly.
 
 let V2_ARMP = null;
+let V2_ARMP_FORM = null;
+
+// The model's parameters have terse mathematical names. Nobody should have to
+// remember which Greek letter meant what, so every row says it in words and
+// gives its units.
+const V2_PARAM_LABEL = {
+  beta0: ['baseline ceiling', 'hardest grade an average climber sends, in V-grades'],
+  beta_gender: ['gender offset', 'grades, women relative to men'],
+  gamma1: ['height, straight-line term', 'grades gained per inch above average'],
+  gamma2: ['height, curvature term', 'bend in that line; 0 = perfectly straight'],
+  gamma1_x: ['height term, women', 'the straight-line height effect, fitted separately for women'],
+  gamma2_x: ['height curvature, women', 'the curvature, fitted separately for women'],
+  delta1: ['ape index, straight-line term', 'grades per inch of arm span beyond height'],
+  delta2: ['ape index, curvature term', 'bend in the ape-index line'],
+  beta_h_missing: ['no height on file', 'grades, climbers who never entered a height'],
+  beta_a_missing: ['no arm span on file', 'grades, climbers who never entered a span'],
+  sigma_user: ['spread between climbers', 'grades; how far apart natural ability runs'],
+  sigma_gym: ['spread between gyms', 'grades; how far apart gym stiffness runs'],
+  log_lambda0: ['effort baseline', 'log scale; how far past their ceiling a climber reaches'],
+  kappa: ['effect of gym visits', 'more visits → sends further past the ceiling'],
+  rho: ['effect of time at the gym', 'per year; ~0 means no drift'],
+};
 
 async function renderV2ArmParams() {
   const host = document.getElementById('v2-armparam-chart');
@@ -4198,17 +4220,34 @@ async function renderV2ArmParams() {
     } catch (e) { /* not built yet */ }
   }
   const forms = (V2_ARMP && V2_ARMP.forms) || {};
-  const key = Object.keys(forms).find((k) => forms[k].gyms && forms[k].gyms.length);
+  const ready = Object.keys(forms).filter((k) => forms[k].gyms && forms[k].gyms.length);
+  const key = ready.includes(V2_ARMP_FORM) ? V2_ARMP_FORM : ready[0];
   const note = document.getElementById('v2-armparam-note');
   const tbl = document.getElementById('v2-armparam-table');
+  const pick = document.getElementById('v2-armparam-picker');
   if (!key) {
     host.style.display = 'none';
+    if (pick) pick.style.display = 'none';
     if (tbl) tbl.closest('.data-table-wrap').style.display = 'none';
     if (note) {
       note.innerHTML = 'This comparison appears once both versions of the same '
         + 'height form have finished fitting.';
     }
     return;
+  }
+  // One picker for both the chart and the table below it: the question is asked
+  // per height form, and the answer is only convincing if it holds for all.
+  if (pick) {
+    pick.style.display = ready.length > 1 ? '' : 'none';
+    if (ready.length > 1) {
+      pick.innerHTML = '<span class="muted seg-note" style="margin:0 10px 0 0">'
+        + 'height form:</span>'
+        + ready.map((k) => `<button type="button" class="seg-btn`
+          + `${k === key ? ' on' : ''}" data-form="${k}">${k}</button>`).join('');
+      pick.querySelectorAll('[data-form]').forEach((b) => {
+        b.onclick = () => { V2_ARMP_FORM = b.dataset.form; renderV2ArmParams(); };
+      });
+    }
   }
   host.style.display = '';
   if (tbl) tbl.closest('.data-table-wrap').style.display = '';
@@ -4274,12 +4313,17 @@ async function renderV2ArmParams() {
 
   if (tbl) {
     const rows = Object.entries(f.scalars).filter(([, v]) => v.old && v.new);
-    tbl.innerHTML = '<thead><tr><th>parameter</th><th>original model</th>'
-      + '<th>offsets integrated out</th><th>shift<br />'
-      + '<span class="muted">in original sd</span></th></tr></thead><tbody>'
+    tbl.innerHTML = '<thead><tr><th>what it measures</th>'
+      + '<th>original model<br /><span class="muted">mean &plusmn; sd</span></th>'
+      + '<th>offsets integrated out<br /><span class="muted">mean &plusmn; sd</span></th>'
+      + '<th>how far it moved<br /><span class="muted">&times; the original sd; '
+      + 'under 1 = within noise</span></th></tr></thead><tbody>'
       + rows.map(([k, v]) => {
         const z = Math.abs(v.old.mean - v.new.mean) / Math.max(v.old.sd, 1e-9);
-        return `<tr><td class="label-cell">${k}</td>`
+        const [name, unit] = V2_PARAM_LABEL[k] || [k, ''];
+        return `<tr><td class="label-cell">${name}`
+          + (unit ? `<br /><span class="muted" style="font-size:11px">${unit}</span>` : '')
+          + `</td>`
           + `<td class="unit">${v.old.mean.toFixed(3)} <span class="muted">&plusmn;${v.old.sd.toFixed(3)}</span></td>`
           + `<td class="unit">${v.new.mean.toFixed(3)} <span class="muted">&plusmn;${v.new.sd.toFixed(3)}</span></td>`
           + `<td class="unit${z > 2 ? '' : ' muted'}">${z.toFixed(1)}</td></tr>`;

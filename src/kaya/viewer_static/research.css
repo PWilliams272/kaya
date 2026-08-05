@@ -1166,3 +1166,10 @@
   border-color: var(--lg-cat-1); font-weight: 600;
 }
 .seg-note { font-size: 12px; margin-left: 10px; }
+/* Six height forms is too many for one row on a narrow screen, and the buttons
+   are the navigation for the figure below, so they wrap rather than scroll. */
+.seg-picker {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 6px 0; margin: 0 0 14px;
+}
+.seg-picker .seg-note { margin-left: 0; }

@@ -7,7 +7,7 @@
     <meta name="kaya-viewer-data-mode" content="static" />
     <link rel="stylesheet" href="/static/tokens.css" />
     <link rel="stylesheet" href="/static/app.css?v=6" />
-    <link rel="stylesheet" href="/static/research.css?v=30" />
+    <link rel="stylesheet" href="/static/research.css?v=31" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -2342,17 +2342,22 @@
                 <b>does the answer change, or was this only a repair to the way
                 models were being compared?</b>
               </p>
+              <div id="v2-armparam-picker" class="seg-picker"></div>
               <div id="v2-armparam-chart" class="chart-mid"></div>
               <p class="caption" id="v2-armparam-note"></p>
               <p class="prose">
-                The same question for everything else the model estimates. The
-                one to watch is
+                The same question for everything else the model estimates. Going
+                in, the parameter to watch was
                 <span>\(\sigma_{\text{user}}\)</span>, the spread of natural
-                ability between climbers: with 10,357 free offsets the original
-                could let per-climber parameters soak up variation that belongs
-                to the population, so it is the parameter most likely to move
-                &mdash; and a large move there is informative rather than
-                worrying.
+                ability between climbers: with 10,357 free offsets, the original
+                could let per-climber parameters soak up variation that really
+                belongs to the population spread. It did not. It is the
+                <i>least</i>-moved number in the table. The rightmost column
+                gives each shift as a multiple of the uncertainty the original
+                already had on that parameter, which is the only scale on which
+                &ldquo;did it move&rdquo; has an answer &mdash; below 1 means the
+                shift is smaller than the noise it was already quoted with, and
+                nothing here reaches 0.5.
               </p>
               <div class="data-table-wrap">
                 <table class="data-table" id="v2-armparam-table"></table>
@@ -2497,6 +2502,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=82"></script>
+    <script src="/static/app.js?v=83"></script>
   </body>
 </html>
