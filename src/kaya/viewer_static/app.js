@@ -4481,8 +4481,14 @@ async function renderV2VsNull() {
 // parameters, as each sampler saw them.
 
 async function renderV2Samplers() {
-  const el = document.getElementById('v2-sampler-table');
-  const note = document.getElementById('v2-sampler-note');
+  // v2-crosssampler-*, NOT v2-sampler-* — those belong to renderV2Sampler()
+  // (no trailing 's'), the per-fit diagnostics table further up the page. Both
+  // sections used to carry the same two ids, so getElementById handed both
+  // renderers the diagnostics elements. This function is async and resolved
+  // last, so its "not run yet" branch hid the diagnostics table and replaced
+  // its caption with the cross-sampler placeholder text.
+  const el = document.getElementById('v2-crosssampler-table');
+  const note = document.getElementById('v2-crosssampler-note');
   if (!el) return;
   let d = null;
   try {
@@ -4527,8 +4533,79 @@ async function renderV2Samplers() {
   }
 }
 
+// ---- grouped k-fold: predicting a climber the model never saw ----
+//
+// v2_kfold.json is written by scripts/build_v2_kfold.py, which adds up the
+// per-fold row scores produced by `scripts/run_batch.py --batch kfold`. Until
+// that batch runs, build_v2_kfold.py writes {models: [], ...} and this section
+// hides itself rather than showing an empty table — same contract as
+// renderV2Samplers above.
+
+async function renderV2Kfold() {
+  const el = document.getElementById('v2-kfold-table');
+  const note = document.getElementById('v2-kfold-note');
+  if (!el) return;
+  let d = null;
+  try {
+    const r = await fetch('/static/v2_kfold.json', { cache: 'no-cache' });
+    if (r.ok) d = await r.json();
+  } catch (e) { /* not built yet */ }
+  if (!d || !d.models || !d.models.length) {
+    el.closest('.data-table-wrap').style.display = 'none';
+    if (note) {
+      note.innerHTML = 'The grouped k-fold comparison appears once the fold '
+        + 'refits have finished &mdash; it costs one full refit per fold per '
+        + 'height form, so it is run as a batch '
+        + '(<code>scripts/run_batch.py --batch kfold</code>) rather than with '
+        + 'the rest of the page.';
+    }
+    return;
+  }
+  el.closest('.data-table-wrap').style.display = '';
+  const refLabel = (d.models.find((m) => m.name === d.reference) || {}).label
+    || 'no height term';
+  el.innerHTML = '<thead><tr>'
+    + '<th>height form</th>'
+    + '<th>held-out score<br /><span class="muted">total elpd, higher is better</span></th>'
+    + '<th>per observation<br /><span class="muted">elpd / row, higher is better</span></th>'
+    + `<th>gap vs. &ldquo;${refLabel}&rdquo;<br /><span class="muted">elpd, positive = height helps</span></th>`
+    + '<th>gap in standard errors<br /><span class="muted">|z| &gt; 2 is a real gap</span></th>'
+    + '<th>worst R&#770; across folds<br /><span class="muted">&le; 1.01 wanted</span></th>'
+    + '</tr></thead><tbody>'
+    + d.models.map((m) => {
+      const gap = m.vs_null === undefined
+        ? '<span class="muted">reference</span>'
+        : `${m.vs_null > 0 ? '+' : ''}${m.vs_null.toFixed(1)} `
+          + `<span class="muted">&plusmn;${m.se.toFixed(1)}</span>`;
+      const z = (m.z === undefined || m.z === null)
+        ? '<span class="muted">&mdash;</span>'
+        : `<span class="${Math.abs(m.z) > 2 ? '' : 'muted'}">${m.z.toFixed(1)}</span>`;
+      const rhatBad = m.worst_rhat > 1.01;
+      return `<tr><td class="label-cell">${m.label}</td>`
+        + `<td class="unit">${m.elpd.toFixed(1)}</td>`
+        + `<td class="unit">${m.per_row.toFixed(3)}</td>`
+        + `<td class="unit">${gap}</td>`
+        + `<td class="unit">${z}</td>`
+        + `<td class="unit${rhatBad ? '' : ' muted'}">${m.worst_rhat.toFixed(3)}</td></tr>`;
+    }).join('')
+    + '</tbody>';
+  if (note) {
+    const nRows = d.n_rows ? d.n_rows.toLocaleString() : 'the';
+    note.innerHTML = `Grouped k-fold cross-validation over ${nRows} observations `
+      + 'scored by every model, each climber held out exactly once. '
+      + 'elpd is the expected log pointwise predictive density &mdash; the '
+      + 'model&rsquo;s total log-probability for data it did not see, so higher '
+      + 'is better and only differences between rows are meaningful. The gap '
+      + 'column differences the two models row by row before summing, which '
+      + 'cancels the shared difficulty of the same hard climbers and is why '
+      + 'its error bar is far tighter than either total&rsquo;s. Built by '
+      + '<code>scripts/build_v2_kfold.py</code>.';
+  }
+}
+
 async function renderV2Reliability() {
   renderV2Samplers();
+  renderV2Kfold();
   renderV2ArmParams();
   renderV2VsNull();
   if (!(await loadV2Reliability())) return;

@@ -2610,6 +2610,30 @@
                   are quoted.
                 </div>
               </div>
+              <h4 class="sub-head">Predicting a climber the model has never seen</h4>
+              <p class="prose">
+                Every score above comes from <b>leave-one-out cross-validation
+                (LOO)</b>: hold back one observation, predict it from the rest.
+                But the held-back send belongs to a climber the model has
+                already fitted an ability offset for, so LOO asks
+                &ldquo;<i>one more send from someone we know</i>&rdquo; &mdash;
+                a much easier question than the one the model exists to answer.
+              </p>
+              <p class="prose">
+                <b>Grouped k-fold cross-validation</b> asks the harder one. Split
+                the <i>climbers</i> into k groups; refit the model k times, each
+                time holding out one whole group; score each held-out climber
+                using only what the model learned from the others. A climber in
+                the held-out group contributes no ability offset of their own,
+                so the score measures what the <i>height and gym terms</i>
+                generalize &mdash; and the gap between this and LOO is exactly
+                what the per-climber offsets were buying.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-kfold-table"></table>
+              </div>
+              <p class="caption" id="v2-kfold-note"></p>
+
               <p class="prose">
                 Their <b>parameters</b>, though, are the same parameters. A gym
                 correction means &ldquo;how much stiffer this gym grades than
@@ -2673,9 +2697,9 @@
                 posterior does.</b>
               </p>
               <div class="data-table-wrap">
-                <table class="data-table" id="v2-sampler-table"></table>
+                <table class="data-table" id="v2-crosssampler-table"></table>
               </div>
-              <p class="caption" id="v2-sampler-note"></p>
+              <p class="caption" id="v2-crosssampler-note"></p>
               <div class="callout">
                 <div>
                   <b>Why each one, and why none of them on the original model.</b>
