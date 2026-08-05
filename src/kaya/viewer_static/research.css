@@ -1173,3 +1173,12 @@
   gap: 6px 0; margin: 0 0 14px;
 }
 .seg-picker .seg-note { margin-left: 0; }
+
+/* Hand-drawn explanatory figures. They inherit the page foreground through
+   currentColor, so they read in both themes without a second palette. */
+.figure.diagram { margin: 22px 0; }
+.figure.diagram svg {
+  width: 100%; max-width: 760px; height: auto;
+  color: var(--lg-text);
+  display: block; margin: 0 auto;
+}

@@ -4331,6 +4331,88 @@ async function renderV2ArmParams() {
   }
 }
 
+// ---- scored against a fixed reference, with an error on the difference ----
+//
+// v2_vs_null.json is written by scripts/build_v2_vs_null.py. Every height form
+// is scored against the same "no height term" model rather than against
+// whichever form won its column, and every gap carries the error on the
+// difference itself -- which is much smaller than the error on either total,
+// because the two models find the same rows hard and that part cancels.
+
+let V2_VSNULL = null;
+let V2_VSNULL_ARM = 'marginalized';
+
+async function renderV2VsNull() {
+  const tbl = document.getElementById('v2-vsnull-table');
+  if (!tbl) return;
+  if (!V2_VSNULL) {
+    try {
+      const r = await fetch('/static/v2_vs_null.json', { cache: 'no-cache' });
+      if (r.ok) V2_VSNULL = await r.json();
+    } catch (e) { /* not built yet */ }
+  }
+  const note = document.getElementById('v2-vsnull-note');
+  const pick = document.getElementById('v2-vsnull-picker');
+  const arms = (V2_VSNULL && V2_VSNULL.arms) || {};
+  const keys = Object.keys(arms);
+  if (!keys.length) {
+    tbl.closest('.data-table-wrap').style.display = 'none';
+    if (pick) pick.style.display = 'none';
+    if (note) note.textContent = 'This table appears once the fits have been scored.';
+    return;
+  }
+  tbl.closest('.data-table-wrap').style.display = '';
+  const arm = keys.includes(V2_VSNULL_ARM) ? V2_VSNULL_ARM : keys[0];
+
+  if (pick) {
+    pick.style.display = '';
+    pick.innerHTML = keys.map((k) => `<button type="button" class="seg-btn`
+      + `${k === arm ? ' on' : ''}" data-vsnull="${k}">`
+      + `${k === 'marginalized' ? 'Offsets integrated out' : 'Original model'}`
+      + '</button>').join('');
+    pick.querySelectorAll('[data-vsnull]').forEach((b) => {
+      b.onclick = () => { V2_VSNULL_ARM = b.dataset.vsnull; renderV2VsNull(); };
+    });
+  }
+
+  const subs = V2_VSNULL.subsets;
+  // Best first, judged on the >=3 column: it is the one where the identical
+  // refits agree, so it is the only column worth sorting on.
+  const models = [...arms[arm].models].sort((a, b) =>
+    b.by_subset['3'].diff - a.by_subset['3'].diff);
+
+  tbl.innerHTML = '<thead><tr><th>height form</th>'
+    + subs.map((k) => `<th>climbers with<br />&ge;${k} send${k > 1 ? 's' : ''}`
+      + '</th>').join('')
+    + '</tr></thead><tbody>'
+    + models.map((m) => {
+      const cells = subs.map((k) => {
+        const b = m.by_subset[String(k)];
+        // Two standard errors is the threshold for calling a gap real; below
+        // it the number is greyed rather than hidden, because "we looked and
+        // could not tell" is itself a result.
+        const real = b.z !== null && Math.abs(b.z) >= 2;
+        return `<td class="unit${real ? '' : ' muted'}">`
+          + `${b.diff >= 0 ? '+' : ''}${b.diff.toFixed(1)}`
+          + ` <span class="muted">&plusmn;${b.se.toFixed(1)}</span></td>`;
+      }).join('');
+      return `<tr><td class="label-cell">${m.label}</td>${cells}</tr>`;
+    }).join('') + '</tbody>';
+
+  if (note) {
+    note.innerHTML = 'How much better each height form predicts than a model '
+      + `with <b>no height term at all</b>, in elpd &mdash; <b>higher is `
+      + 'better, and 0 would mean height adds nothing</b>. The &plusmn; is the '
+      + 'error on that difference, not on either model\'s total. Numbers in '
+      + 'full contrast clear two standard errors; <span class="muted">greyed '
+      + 'ones do not, and mean the comparison could not resolve them</span>. '
+      + 'Columns count fewer rows as they narrow, so compare only <i>down</i> '
+      + 'a column. The <b>&ge;3 sends</b> column is the trustworthy one: it is '
+      + 'where two fits of the identical model agree (+25.4 and +25.0), while '
+      + 'in the first column those same two fits differ by 31 points.';
+  }
+}
+
 // ---- do the samplers agree? ----
 //
 // v2_samplers.json is written by scripts/compare_samplers.py: the same shared
@@ -4386,6 +4468,7 @@ async function renderV2Samplers() {
 async function renderV2Reliability() {
   renderV2Samplers();
   renderV2ArmParams();
+  renderV2VsNull();
   if (!(await loadV2Reliability())) return;
   renderV2ArmPicker();
   renderV2Noise();
