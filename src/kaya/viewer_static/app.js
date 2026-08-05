@@ -3334,6 +3334,18 @@ const v2Fit = (n) => V2_POST?.fits?.[n];
 const v2FitNames = () => Object.keys(V2_POST?.fits || {});
 const v2SelectedFit = () => document.getElementById('v2-fit-pick')?.value || v2FitNames()[0];
 
+// A fit's display name. The marginalized arm shares its height form with the
+// original, so it is labelled by that form plus which version it is -- a
+// legend that mixed "linear" with "v3_lin_marg" told the reader nothing about
+// how the two relate.
+function v2FitLabel(fn) {
+  if (V2_FIT_LABEL[fn]) return V2_FIT_LABEL[fn];
+  const f = v2Fit(fn);
+  const base = (f && f.base) || (fn.endsWith('_marg') ? fn.slice(0, -5) : fn);
+  const stem = V2_FIT_LABEL[base] || (f && f.height_form) || base;
+  return fn.endsWith('_marg') ? `${stem} · offsets integrated out` : stem;
+}
+
 // Gaussian KDE on a fixed grid. Silverman bandwidth; these posteriors are
 // unimodal, so nothing fancier earns its keep.
 function v2Kde(samples, grid) {
@@ -3503,7 +3515,7 @@ function renderV2ParamDetail(name) {
         // Only fits run after discard_tuned_samples=False went in have their
         // warm-up; say which those are rather than leaving a silent absence.
         const withWarm = v2FitNames().filter((f) => v2Fit(f)?.n_warmup)
-          .map((f) => V2_FIT_LABEL[f] || f);
+          .map((f) => v2FitLabel(f));
         layout.annotations.push({
           xref: 'paper', x: 0.5, yref: 'paper', y: 1, yanchor: 'bottom',
           showarrow: false, font: { size: 10, color: cssVar('--lg-text-2') },
@@ -3609,11 +3621,11 @@ function renderV2AcrossFits(name) {
     const bad = p.rhat > 1.01;
     return {
       type: 'scatter', mode: 'lines',
-      name: `${V2_FIT_LABEL[f] || f}${bad ? ' ⚠' : ''}`,
+      name: `${v2FitLabel(f)}${bad ? ' ⚠' : ''}`,
       x: grid, y: v2Kde(p.chains.flat(), grid),
       line: { color: cssVar(V2_FIT_HUES[i % V2_FIT_HUES.length]), width: 2,
               dash: bad ? 'dot' : 'solid' },
-      hovertemplate: `${V2_FIT_LABEL[f] || f}<br>%{x:.3f}<extra></extra>`,
+      hovertemplate: `${v2FitLabel(f)}<br>%{x:.3f}<extra></extra>`,
     };
   });
   const layout = chartLayout('value');
@@ -4560,6 +4572,7 @@ function v2HeightAt(form, d, z, G) {
   switch (form) {
     case 'zero': return 0;
     case 'linear': return d.gamma1 * z;
+    case 'linear_x_gender': return (d.gamma1 + G * d.gamma1_x) * z;
     case 'quadratic': return d.gamma1 * z + d.gamma2 * z * z;
     case 'quadratic_x_gender':
       return d.gamma1 * z + d.gamma2 * z * z
@@ -4591,14 +4604,22 @@ function v2CurveBand(fitName, kind, zs, G) {
   const fit = v2Fit(fitName);
   if (!fit) return null;
   const form = fit.height_form;
-  const need = kind === 'height'
-    ? { zero: [], linear: ['gamma1'], quadratic: ['gamma1', 'gamma2'],
-        quadratic_x_gender: ['gamma1', 'gamma2', 'gamma1_x', 'gamma2_x'],
-        vertex_quadratic: ['vq_curv', 'vq_peak'],
-        saturating: ['sat_amp', 'sat_h0', 'sat_scale'] }[form] || []
-    : ['delta1', 'delta2'];
+  const HEIGHT_PARAMS = {
+    zero: [], linear: ['gamma1'], quadratic: ['gamma1', 'gamma2'],
+    linear_x_gender: ['gamma1', 'gamma1_x'],
+    quadratic_x_gender: ['gamma1', 'gamma2', 'gamma1_x', 'gamma2_x'],
+    vertex_quadratic: ['vq_curv', 'vq_peak'],
+    saturating: ['sat_amp', 'sat_h0', 'sat_scale'],
+  };
   if (kind === 'height' && form === 'zero') return { flat: true };
+  // An unrecognised height form must not fall through as "needs no
+  // parameters" -- that produced an empty column set and threw on the first
+  // draw, taking the whole figure with it. A form this function does not know
+  // how to draw is simply not drawn.
+  const need = kind === 'height' ? HEIGHT_PARAMS[form] : ['delta1', 'delta2'];
+  if (!need) return null;
   if (need.some((p) => !fit.params[p])) return null;
+  if (!need.length) return null;
 
   const cols = {};
   need.forEach((p) => { cols[p] = fit.params[p].chains.flat(); });
@@ -4734,7 +4755,7 @@ function renderV2FittedForms() {
     const allNames = v2FitNames();
     names.forEach((fn) => {
       const c = cssVar(V2_FIT_HUES[allNames.indexOf(fn) % V2_FIT_HUES.length]);
-      const label = V2_FIT_LABEL[fn] || fn;
+      const label = v2FitLabel(fn);
       const band = v2CurveBand(fn, kind, zs, G);
       if (!band) return;
       if (band.flat) {
@@ -4820,7 +4841,7 @@ function renderV2FittedForms() {
     // other model's ape term is gender-blind. Say so, or the toggle looks
     // broken on the right-hand panel.
     const apeByGender = names.filter((f) => v2Fit(f)?.params?.delta1_x)
-      .map((f) => V2_FIT_LABEL[f] || f);
+      .map((f) => v2FitLabel(f));
     const hm = sc.h_male, hf = sc.h_female;
     const bands = (hm && hf)
       ? 'Shaded strips are each group&rsquo;s median &plusmn;1 SD &mdash; '
@@ -4830,7 +4851,7 @@ function renderV2FittedForms() {
         + 'extrapolation. '
       : '';
     const dropNote = dropped.length
-      ? `<b>${dropped.map((f) => V2_FIT_LABEL[f] || f).join(', ')}</b> `
+      ? `<b>${dropped.map((f) => v2FitLabel(f)).join(', ')}</b> `
         + `${dropped.length === 1 ? 'is' : 'are'} not drawn here: fitted on a `
         + 'different user set, so the curves would not be comparable. '
       : '';
@@ -4842,7 +4863,7 @@ function renderV2FittedForms() {
         + 'model&rsquo;s ape term is the same for everyone. ';
     note.innerHTML = worst
       ? bands + apeNote + dropNote
-        + `The largest height effect any model claims is <b>${V2_FIT_LABEL[worst.fn] || worst.fn}</b>, `
+        + `The largest height effect any model claims is <b>${v2FitLabel(worst.fn)}</b>, `
         + `travelling <b>${worst.span.toFixed(2)} grades</b> across the whole range `
         + `&mdash; against a credible band up to <b>${worst.width.toFixed(2)} grades</b> wide. `
         + (worst.span < worst.width
@@ -4950,7 +4971,7 @@ function renderV2Corner() {
     chosen.push(keep);
     downgraded = `Overlaying models is off in this view: ${nCells} panels &times; every `
       + 'model is ~1,200 separate plots, which takes over half a minute to draw. '
-      + `Showing <b>${V2_FIT_LABEL[keep] || keep}</b> alone. Pick a parameter group `
+      + `Showing <b>${v2FitLabel(keep)}</b> alone. Pick a parameter group `
       + 'above to compare models.';
   }
   const load = nCells * chosen.length;
@@ -5034,7 +5055,7 @@ function renderV2Corner() {
       const isDiag = i === j;
       chosen.forEach((fn) => {
         const c = colourOf[fn];
-        const label = V2_FIT_LABEL[fn] || fn;
+        const label = v2FitLabel(fn);
         // Legend entry once per fit, on whichever cell that fit first appears
         // in; legendgroup makes the click toggle the whole model at once.
         const legend = () => {
@@ -5131,7 +5152,7 @@ function renderV2Corner() {
   const note = document.getElementById('v2-corner-note');
   if (!note) return;
   const primary = v2Fit(chosen.includes(primaryName) ? primaryName : chosen[0]);
-  const pName = V2_FIT_LABEL[chosen.includes(primaryName) ? primaryName : chosen[0]];
+  const pName = v2FitLabel(chosen.includes(primaryName) ? primaryName : chosen[0]);
   let worst = null;
   for (let i = 0; i < N; i++) {
     for (let j = i + 1; j < N; j++) {
