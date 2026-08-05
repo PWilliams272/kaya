@@ -30,6 +30,7 @@ Outputs, per group of climbers by how many rows they have:
 
 Writes src/kaya/viewer_static/v2_psis.json. Run from the repo root.
 """
+import argparse
 import json
 import pickle
 import warnings
@@ -43,7 +44,9 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNS = ROOT / 'runs'
 OUT = ROOT / 'src' / 'kaya' / 'viewer_static' / 'v2_psis.json'
 
-TRACE = 'v3_lin'          # the ORIGINAL model: this is the problem being shown
+# The ORIGINAL model by default: this is the problem being shown. Pass
+# --trace v3_lin_marg to measure whether marginalizing actually fixed it.
+TRACE = 'v3_lin'
 GROUPS = [(1, 'exactly 1'), (2, 'exactly 2'), (3, 'exactly 3'), (5, '5 or more')]
 SAMPLE_ROWS = 400         # rows sampled per group; the curves are medians
 # Where to read the concentration curve. Log-ish spacing: the interesting part
@@ -51,11 +54,50 @@ SAMPLE_ROWS = 400         # rows sampled per group; the curves are medians
 CURVE_AT = [1, 2, 5, 10, 20, 50, 100, 200, 400, 800, 1200, 1600, 2000]
 
 
+def merged_log_likelihood(idata):
+    """One 'm_obs' group in original row order, whichever arm this trace is.
+
+    The marginalized model has two observed variables -- m_single (the
+    climber's offset integrated out) and m_multi (offset still sampled) -- so
+    the saved trace carries two log-likelihood groups with no way for arviz to
+    know they are one dataset. run_fit.py stitches them for its own LOO call
+    but writes the netcdf BEFORE doing so, so anything reading the file back
+    has to repeat the stitch. The dimension coordinates hold the original row
+    indices, which is what makes the reordering possible.
+    """
+    import xarray as xr
+
+    ll = idata.log_likelihood
+    if 'm_obs' in ll.data_vars:
+        return idata.log_likelihood['m_obs'].values
+    parts, idx = [], []
+    for nm, dim in (('m_single', 'obs_single'), ('m_multi', 'obs_multi')):
+        da = ll[nm]
+        idx.append(da[dim].values)
+        parts.append(da.rename({dim: 'obs'}).assign_coords(
+            obs=np.arange(da.sizes[dim])))
+    order = np.argsort(np.concatenate(idx))
+    merged = xr.concat(parts, dim='obs')
+    merged = merged.assign_coords(obs=np.arange(merged.sizes['obs']))
+    merged = merged.isel(obs=order)
+    # Write it back so az.loo() below sees one group and scores the same rows
+    # in the same order as the concentration curves computed from the array.
+    idata.log_likelihood = xr.Dataset({'m_obs': merged})
+    return merged.values
+
+
 def main():
     from kaya.grading_model_v2 import make_dataset
 
-    idata = az.from_netcdf(str(RUNS / 'traces' / f'idata_{TRACE}.nc'))
-    ll = idata.log_likelihood['m_obs'].values
+    p = argparse.ArgumentParser()
+    p.add_argument('--trace', default=TRACE)
+    p.add_argument('--out', default=None)
+    args = p.parse_args()
+    trace = args.trace
+    out = Path(args.out) if args.out else OUT
+
+    idata = az.from_netcdf(str(RUNS / 'traces' / f'idata_{trace}.nc'))
+    ll = merged_log_likelihood(idata)
     n_draws = ll.shape[0] * ll.shape[1]
     ll = ll.reshape(n_draws, -1)
 
@@ -102,16 +144,16 @@ def main():
         })
 
     payload = {
-        'trace': TRACE, 'n_draws': int(n_draws), 'curve_x': xs,
+        'trace': trace, 'n_draws': int(n_draws), 'curve_x': xs,
         'groups': groups,
         'k_threshold': 0.7,
         'overall_bad_k': round(float((khat > 0.7).mean()), 4),
         # The mechanism in one pair of numbers: how much wider the target gets.
         'sigma_user': round(float(idata.posterior['sigma_user'].values.mean()), 3),
     }
-    OUT.write_text(json.dumps(payload, separators=(',', ':')))
+    out.write_text(json.dumps(payload, separators=(',', ':')))
 
-    print(f'{n_draws} draws, threshold k > {payload["k_threshold"]}\n')
+    print(f'{trace}: {n_draws} draws, threshold k > {payload["k_threshold"]}\n')
     print(f'{"climber has":<14}{"rows":>9}{"max/median w":>15}'
           f'{"top draw":>11}{"top 10":>9}{"k>0.7":>9}{"median k":>10}')
     for g in groups:
@@ -120,7 +162,7 @@ def main():
               f'{g["top_draw_share"]:>10.1%}{top10:>9.1%}'
               f'{g["bad_k"]:>9.1%}{g["k_median"]:>10.2f}')
     print(f'\nall rows: {payload["overall_bad_k"]:.1%} exceed the threshold')
-    print(f'wrote {OUT}')
+    print(f'wrote {out}')
 
 
 if __name__ == '__main__':
