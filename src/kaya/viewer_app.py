@@ -13,18 +13,28 @@ from kaya.viewer_payloads import VIEWER_ARTIFACTS_DIR, ViewerPayloadBuilder
 
 STATIC_DIR = Path(__file__).with_name('viewer_static')
 
+# kaya's assigned loopback port in the workspace registry; the systemd unit
+# binds the same one.
+VIEWER_PORT = int(os.getenv('KAYA_VIEWER_PORT', '8010'))
+
 # Set KAYA_VIEWER_ENV=production (e.g. via the systemd unit's EnvironmentFile)
 # to disable dev-only behavior: the reloader in main(), the wildcard/no-cache
 # defaults below, and the no-cache-everything middleware.
 IS_PRODUCTION = os.getenv('KAYA_VIEWER_ENV', 'development') == 'production'
 
-# No real site origin is known yet (subdomain not finalized/deployed), so this
-# stays configurable rather than hardcoded. Comma-separated, e.g.
-# KAYA_VIEWER_ALLOWED_ORIGINS=https://kaya.peterwilliams.dev
+# Live since 2026-07-28 at kaya.peterwilliams.dev, iframe-embedded into
+# peterwilliams.dev/kaya. The viewer's own requests are same-origin (asset paths
+# are root-relative and the iframe is its own browsing context), so CORS governs
+# only third-party callers — which is why production defaults to the two known
+# origins instead of the dev wildcard. Override with a comma-separated
+# KAYA_VIEWER_ALLOWED_ORIGINS if another origin ever needs API access.
+PRODUCTION_ORIGINS = ['https://kaya.peterwilliams.dev', 'https://peterwilliams.dev']
 _allowed_origins_env = os.getenv('KAYA_VIEWER_ALLOWED_ORIGINS', '')
 ALLOWED_ORIGINS = [origin.strip() for origin in _allowed_origins_env.split(',') if origin.strip()]
+if not ALLOWED_ORIGINS and IS_PRODUCTION:
+    ALLOWED_ORIGINS = list(PRODUCTION_ORIGINS)
 
-app = FastAPI(title='Kaya Local Viewer')
+app = FastAPI(title='Kaya Data Analyzer')
 app.add_middleware(
     CORSMiddleware,
     # allow_origins=['*'] with allow_credentials=True is a combination
@@ -143,7 +153,11 @@ def main() -> None:
     # `uvicorn kaya.viewer_app:app` directly (see KAYA_VIEWER_DESIGN_HANDOFF.md),
     # which bypasses this function entirely. reload is still gated here too,
     # so main() itself is never accidentally hot-reloading in production.
-    uvicorn.run('kaya.viewer_app:app', host='127.0.0.1', port=8000, reload=not IS_PRODUCTION)
+    #
+    # 8010 is kaya's assigned port in the workspace registry. It used to be
+    # 8000, which is the main site's gunicorn port — running both locally
+    # meant one silently failed to bind.
+    uvicorn.run('kaya.viewer_app:app', host='127.0.0.1', port=VIEWER_PORT, reload=not IS_PRODUCTION)
 
 
 if __name__ == '__main__':

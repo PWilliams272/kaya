@@ -12,5 +12,9 @@ docs/build/
 kaya.egg-info/
 notebooks/
 runs/*.nc
+runs/*.pkl
 runs/logs/
 runs/traces/
+# runs/networks.json is deliberately NOT ignored — see DATA_STORAGE_NOTES.md,
+# "Fit inputs under runs/". It is a hand-maintained source input that nothing
+# in this repo can regenerate.

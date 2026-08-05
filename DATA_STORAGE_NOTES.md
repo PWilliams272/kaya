@@ -40,6 +40,19 @@ Use this file for Kaya storage and deployment decisions while working only in th
 - let the website backend read curated S3-backed datasets and serve filtered subsets or aggregates
 - for scatter plots, histograms, and grade filters, prefer backend analytical querying over parquet rather than storing everything in Postgres
 
+## Fit Inputs Under `runs/`
+
+Provenance for the two files every `scripts/build_v2_*.py` and `scripts/run_*.py` entrypoint reads.
+Nothing in this repo writes either one, so "just re-run it" is not a recovery path:
+
+| File | Provenance | Tracked? | Why |
+| --- | --- | --- | --- |
+| `runs/networks.json` | **source** — hand-maintained gym-network definitions (`la6`, `net50`, `net100`, …) | yes | 3.5KB, no generator exists, and seven scripts fail without it. Losing it means no payload can be rebuilt. |
+| `runs/base_bouldering.pkl` | **derived** — pickled bouldering-send snapshot built from the S3 history | no (`runs/*.pkl`) | 8MB binary; rebuildable from S3, and a pickle is the wrong thing to put in git |
+
+Everything else under `runs/` is fit output: `*.nc` traces (~600MB each), `logs/`, and `traces/` are
+all ignored.
+
 ## Local Data Access
 
 - use DuckDB over local parquet copies or synced S3 exports for tabular browsing and SQL-style filtering

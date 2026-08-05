@@ -14,14 +14,24 @@ all of it, plus what isn't written down elsewhere.
 
 An interactive dashboard for exploring Kaya climbing-gym data: send histories,
 grade distributions, body-metric correlations (height/ape-index vs. grade),
-and gym-vs-gym grading comparisons. Four tabs: Gym Comparison, Body
-Morphology, User Segmentation, Data Overview. FastAPI + vanilla JS frontend
+and gym-vs-gym grading comparisons. FastAPI + vanilla JS frontend
 (no framework, no build step, Plotly.js from CDN). See `VIEWER_HANDOFF.md`
 for the detailed architecture/UX writeup — this section is just orientation.
 
+Six tabs, of two kinds — the split matters, because they follow different
+conventions and should not borrow each other's components:
+
+| Kind | Tabs | Convention |
+| --- | --- | --- |
+| Dashboard — a tool for exploring data | Gym Comparison, Height and Wingspan, User Analysis, Data Overview | `viewer-app` skill; no article components |
+| Explainer — an argument about a method | Grading Model, Grading Model v2 | `research-page` / `writeup` skills |
+
+Where this doc says "the four tabs" below, it means the four dashboard tabs —
+that narrative predates the two explainer tabs.
+
 ## 1. Viewer application work
 
-- Extensive bug-fixing pass across all four tabs: chart colors, corner-plot
+- Extensive bug-fixing pass across all four dashboard tabs: chart colors, corner-plot
   rendering, grade-tick generation, height/ape-index filtering and
   formatting, caching-driven staleness, layout overflow, theme toggle
   styling, tab persistence across reloads.
@@ -59,7 +69,7 @@ for the detailed architecture/UX writeup — this section is just orientation.
 ## 3. Precompute architecture
 
 Rationale: daily data updates + a live production site shouldn't mean every
-page view re-queries SQLite. Three of the four tabs need no live filtering at
+page view re-queries SQLite. Three of the four dashboard tabs need no live filtering at
 all (checked directly against every `fetchViewerData` call site in
 `app.js`); Gym Comparison's apparent "liveness" is entirely client-side JS
 combining over one precomputed base dataset, not a server-side query per
