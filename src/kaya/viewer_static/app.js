@@ -4180,6 +4180,113 @@ function renderV2ArmCompare() {
     + '</tbody>';
 }
 
+// ---- do the two model versions give the same ANSWERS? ----
+//
+// v2_arm_params.json is written by scripts/build_v2_arm_params.py. The two
+// versions' predictive scores are not comparable, but their parameters are the
+// same parameters, so the question that matters can be asked directly.
+
+let V2_ARMP = null;
+
+async function renderV2ArmParams() {
+  const host = document.getElementById('v2-armparam-chart');
+  if (!host) return;
+  if (!V2_ARMP) {
+    try {
+      const r = await fetch('/static/v2_arm_params.json', { cache: 'no-cache' });
+      if (r.ok) V2_ARMP = await r.json();
+    } catch (e) { /* not built yet */ }
+  }
+  const forms = (V2_ARMP && V2_ARMP.forms) || {};
+  const key = Object.keys(forms).find((k) => forms[k].gyms && forms[k].gyms.length);
+  const note = document.getElementById('v2-armparam-note');
+  const tbl = document.getElementById('v2-armparam-table');
+  if (!key) {
+    host.style.display = 'none';
+    if (tbl) tbl.closest('.data-table-wrap').style.display = 'none';
+    if (note) {
+      note.innerHTML = 'This comparison appears once both versions of the same '
+        + 'height form have finished fitting.';
+    }
+    return;
+  }
+  host.style.display = '';
+  if (tbl) tbl.closest('.data-table-wrap').style.display = '';
+  const f = forms[key], gyms = f.gyms, st = f.stats;
+
+  const brands = [...new Set(gyms.map((g) => g.b))];
+  const traces = brands.map((b) => {
+    const rs = gyms.filter((g) => g.b === b);
+    const c = cssVar(V2_BRAND_COLOURS[b] || '--lg-text-2');
+    return {
+      type: 'scatter', mode: 'markers', name: b || 'other',
+      x: rs.map((g) => g.old.mean), y: rs.map((g) => g.new.mean),
+      error_x: { type: 'data', symmetric: false,
+        array: rs.map((g) => g.old.hi - g.old.mean),
+        arrayminus: rs.map((g) => g.old.mean - g.old.lo),
+        color: hexToRgba(c, 0.35), thickness: 1.2, width: 0 },
+      error_y: { type: 'data', symmetric: false,
+        array: rs.map((g) => g.new.hi - g.new.mean),
+        arrayminus: rs.map((g) => g.new.mean - g.new.lo),
+        color: hexToRgba(c, 0.35), thickness: 1.2, width: 0 },
+      marker: { size: 10, color: hexToRgba(c, 0.72),
+        line: { width: 2, color: hexToRgba(c, 0.85) } },
+      text: rs.map((g) => g.g || g.id),
+      hovertemplate: '<b>%{text}</b><br>original %{x:+.3f}'
+        + '<br>marginalized %{y:+.3f}<extra></extra>',
+    };
+  });
+  // The identity line: a gym that landed in the same place sits exactly on it,
+  // so the eye reads "did the answer change" without doing arithmetic.
+  const all = gyms.flatMap((g) => [g.old.mean, g.new.mean]);
+  const lo = Math.min(...all) - 0.05, hi = Math.max(...all) + 0.05;
+  traces.unshift({
+    type: 'scatter', mode: 'lines', x: [lo, hi], y: [lo, hi],
+    line: { color: cssVar('--lg-text-2'), width: 1.4, dash: 'dash' },
+    name: 'unchanged', hoverinfo: 'skip',
+  });
+
+  const layout = chartLayout('');
+  layout.height = 440;
+  layout.margin = { l: 70, r: 20, t: 12, b: 96 };
+  layout.xaxis = { ...layout.xaxis, automargin: false, range: [lo, hi],
+    zeroline: true, zerolinecolor: cssVar('--lg-text-2'),
+    title: { text: 'gym correction, original model (grades)', standoff: 10 } };
+  layout.yaxis = { ...layout.yaxis, automargin: false, range: [lo, hi],
+    zeroline: true, zerolinecolor: cssVar('--lg-text-2'),
+    scaleanchor: 'x', scaleratio: 1,
+    title: { text: 'gym correction, offsets integrated out', standoff: 6 } };
+  layout.legend = { ...layout.legend, orientation: 'v', x: 0.02, y: 0.98,
+    xanchor: 'left', yanchor: 'top', font: { size: 10 } };
+  Plotly.react(host, traces, layout, { displayModeBar: false, responsive: true });
+
+  if (note) {
+    note.innerHTML = `Each point is one of the ${st.n_gyms} gyms, on the `
+      + `<b>${key}</b> height form. Bars are 89% intervals. Points on the `
+      + 'dashed line did not move. Across all gyms the two versions correlate '
+      + `<b>${st.corr.toFixed(3)}</b>, the largest single shift is `
+      + `<b>${st.max_shift.toFixed(3)} grades</b> (${st.max_shift_in_sd.toFixed(1)}&times; `
+      + `that gym's own standard deviation), and the spread from softest to `
+      + `stiffest goes ${st.spread_old.toFixed(2)} &rarr; `
+      + `${st.spread_new.toFixed(2)} grades. `
+      + `${st.rank_changes} of ${st.n_gyms} gyms change position in the ranking.`;
+  }
+
+  if (tbl) {
+    const rows = Object.entries(f.scalars).filter(([, v]) => v.old && v.new);
+    tbl.innerHTML = '<thead><tr><th>parameter</th><th>original model</th>'
+      + '<th>offsets integrated out</th><th>shift<br />'
+      + '<span class="muted">in original sd</span></th></tr></thead><tbody>'
+      + rows.map(([k, v]) => {
+        const z = Math.abs(v.old.mean - v.new.mean) / Math.max(v.old.sd, 1e-9);
+        return `<tr><td class="label-cell">${k}</td>`
+          + `<td class="unit">${v.old.mean.toFixed(3)} <span class="muted">&plusmn;${v.old.sd.toFixed(3)}</span></td>`
+          + `<td class="unit">${v.new.mean.toFixed(3)} <span class="muted">&plusmn;${v.new.sd.toFixed(3)}</span></td>`
+          + `<td class="unit${z > 2 ? '' : ' muted'}">${z.toFixed(1)}</td></tr>`;
+      }).join('') + '</tbody>';
+  }
+}
+
 // ---- do the samplers agree? ----
 //
 // v2_samplers.json is written by scripts/compare_samplers.py: the same shared
@@ -4234,6 +4341,7 @@ async function renderV2Samplers() {
 
 async function renderV2Reliability() {
   renderV2Samplers();
+  renderV2ArmParams();
   if (!(await loadV2Reliability())) return;
   renderV2ArmPicker();
   renderV2Noise();

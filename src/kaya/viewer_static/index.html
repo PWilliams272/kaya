@@ -2330,8 +2330,32 @@
                   <i>averaging over</i> an unknown climber&rsquo;s ability,
                   which is honest and therefore scores lower. A lower number
                   here is the more trustworthy number, not a worse model.
-                  Compare within a version, never across.
+                  Compare scores within a version, never across.
                 </div>
+              </div>
+              <p class="prose">
+                Their <b>parameters</b>, though, are the same parameters. A gym
+                correction means &ldquo;how much stiffer this gym grades than
+                the network average&rdquo; in both, measured in grades, on the
+                same 29 gyms. So the question that actually matters can be
+                asked directly, and it is not a question about scores at all:
+                <b>does the answer change, or was this only a repair to the way
+                models were being compared?</b>
+              </p>
+              <div id="v2-armparam-chart" class="chart-mid"></div>
+              <p class="caption" id="v2-armparam-note"></p>
+              <p class="prose">
+                The same question for everything else the model estimates. The
+                one to watch is
+                <span>\(\sigma_{\text{user}}\)</span>, the spread of natural
+                ability between climbers: with 10,357 free offsets the original
+                could let per-climber parameters soak up variation that belongs
+                to the population, so it is the parameter most likely to move
+                &mdash; and a large move there is informative rather than
+                worrying.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-armparam-table"></table>
               </div>
               <div class="callout">
                 <div>
@@ -2473,6 +2497,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=81"></script>
+    <script src="/static/app.js?v=82"></script>
   </body>
 </html>
