@@ -916,6 +916,35 @@
 }
 .post-tile-rhat.bad { color: var(--lg-danger); font-weight: 640; }
 
+/* ---- the same height form fitted both ways ---- */
+.pair-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 172px), 1fr));
+  gap: 8px;
+  margin: 14px 0 6px;
+  width: var(--fg-w, 100%);
+  margin-left: calc((100% - var(--fg-w, 100%)) / 2);
+}
+.pair-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 8px 5px;
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-md);
+  background: var(--lg-surface);
+}
+.pair-tile-name { font-size: 0.78rem; font-weight: 600; }
+.pair-tile-chart { display: block; width: 100%; height: 74px; }
+.pair-tile-shift {
+  font-size: 0.66rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--lg-text-2);
+}
+/* A shift larger than the fit's own uncertainty is the only case worth the
+   reader stopping on, so it is the only one that gets emphasis. */
+.pair-tile-shift.big { color: var(--lg-warning); font-weight: 640; }
+
 /* ---- single-parameter detail ---- */
 .param-detail {
   border: 1px solid var(--lg-border);

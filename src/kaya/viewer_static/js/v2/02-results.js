@@ -455,6 +455,9 @@ function renderV2ParamDetail(name) {
   }
 
   renderV2AcrossFits(name);
+  // Deliberately not scoped: this figure's whole subject is the difference
+  // between the two arms, so filtering to one arm would empty it.
+  renderV2ArmPairs(name);
   renderV2ParamStats(name, p);
 }
 
