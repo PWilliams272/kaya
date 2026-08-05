@@ -2753,7 +2753,27 @@ function v2Colour(row) {
   return cssVar(V2_BRAND_COLOURS[row.b] || '--lg-text-2') || '#888';
 }
 
+// Numbers quoted in the prose, filled from the same JSON the charts use.
+// They were hardcoded and had drifted: the text claimed a 1.26-grade spread
+// across "twenty" gyms while the data under it said 1.29 across 19. Prose that
+// restates a figure has to read it, or it silently becomes wrong the next time
+// the model is refitted.
+function renderV2InlineFigures() {
+  const R = V2_RESULTS;
+  if (!R) return;
+  const fmt = {
+    spread: () => `${(+R.spread).toFixed(2)} grades`,
+    n_gyms: () => String(R.n_gyms),
+    n_sig: () => String(R.n_sig),
+  };
+  document.querySelectorAll('[data-v2]').forEach((el) => {
+    const f = fmt[el.dataset.v2];
+    if (f) el.textContent = f();
+  });
+}
+
 function renderV2Stats() {
+  renderV2InlineFigures();
   const host = document.getElementById('v2-stats');
   if (!host) return;
   host.innerHTML = v2Stats().map((s) => `

@@ -1078,10 +1078,12 @@
               <h2>The Headline</h2>
               <div class="stat-row" id="v2-stats"></div>
               <p class="prose">
-                Across a connected network of 29 gyms, the stiffest grader and the
-                softest differ by <b>1.26 grades</b> &mdash; more than a full
-                V-grade. Twenty of the 29 differ from the network average by a
-                margin that excludes zero.
+                Across a connected network of <b data-v2="n_gyms">29</b> gyms,
+                the stiffest grader and the softest differ by
+                <b data-v2="spread">1.29 grades</b> &mdash; more than a full
+                V-grade. <b data-v2="n_sig">19</b> of the
+                <span data-v2="n_gyms">29</span> differ from the network
+                average by a margin that excludes zero.
               </p>
               <div class="callout">
                 <b>Why this is bigger than the previous estimate.</b> Version&nbsp;1
@@ -2777,6 +2779,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=86"></script>
+    <script src="/static/app.js?v=87"></script>
   </body>
 </html>
