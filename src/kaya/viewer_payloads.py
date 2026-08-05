@@ -1,6 +1,5 @@
 import json
 import os
-from functools import lru_cache
 from math import isnan
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -50,6 +49,7 @@ class ViewerPayloadBuilder:
         self.accessor = accessor or KayaDataAccessor()
         self._cached_gym_comparison_base: Optional[Dict[str, Any]] = None
         self._cached_gym_comparison_base_version: Optional[float] = None
+        self._body_metrics_cache: Dict[Any, Dict[str, Any]] = {}
 
     def coerce_gym_ids(self, gym_id: Optional[str]) -> Optional[List[str]]:
         if not gym_id:
@@ -80,8 +80,15 @@ class ViewerPayloadBuilder:
             return 'female'
         return None
 
-    @lru_cache(maxsize=1)
     def body_metrics_cache_key(self) -> tuple[Optional[float], str]:
+        """Identity of the underlying SQLite mirror: its version and its path.
+
+        Deliberately NOT lru_cached. It used to be, which defeated its own
+        purpose — the whole point is to notice when the mirror is rebuilt, and
+        a cached key can never change. Its return value was also discarded by
+        the only caller, so no body-metrics result was ever actually reused and
+        every request refit the GAMs from scratch.
+        """
         return self.accessor._local_db_version(), str(self.accessor.local_db_path)
 
     def build_summary(
@@ -157,7 +164,33 @@ class ViewerPayloadBuilder:
         discipline: str = 'bouldering',
         active_only: bool = True,
     ) -> Dict[str, Any]:
-        self.body_metrics_cache_key()
+        """Body-metrics payload, memoized against the SQLite mirror's version.
+
+        This one is expensive: `_fit_gam_curve` runs a 15-point cross-validated
+        gridsearch per curve, so it is the reason `build_static_artifacts`
+        precomputes these offline and the reason the live `/api` route it backs
+        is development-only (see `viewer_app.py`).
+        """
+        cache_key = (self.body_metrics_cache_key(), discipline, active_only)
+        cached = self._body_metrics_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        payload = self._build_body_metrics_uncached(discipline, active_only)
+        # Keep every entry built against the current mirror (there are only
+        # four discipline/audience combinations) and drop entries from an older
+        # one, so a rebuilt mirror invalidates rather than accumulates.
+        version = cache_key[0]
+        self._body_metrics_cache = {
+            key: value for key, value in self._body_metrics_cache.items() if key[0] == version
+        }
+        self._body_metrics_cache[cache_key] = payload
+        return payload
+
+    def _build_body_metrics_uncached(
+        self,
+        discipline: str = 'bouldering',
+        active_only: bool = True,
+    ) -> Dict[str, Any]:
         users_df = self._segment_users(self.accessor.read_user_profiles(source='local_db'))
         normalized_discipline = normalize_climb_discipline(discipline) or 'bouldering'
         grade_num_column = (

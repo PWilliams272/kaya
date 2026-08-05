@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import uvicorn
-from fastapi import FastAPI, Query, Request
+from fastapi import APIRouter, FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -66,13 +66,26 @@ if VIEWER_ARTIFACTS_DIR.exists():
 
 payload_builder = ViewerPayloadBuilder()
 
+# Development-only API. These endpoints query the SQLite mirror per request, and
+# /charts/body-metrics fits GAMs (generalized additive models) with a 15-point
+# cross-validated gridsearch while the request is open. That is exactly what the
+# viewer is not allowed to do in production: routes read precomputed payloads,
+# they never fit a model or query a database on demand.
+#
+# The deployed page never calls these — index.html sets the viewer's data mode to
+# 'static', so the frontend reads /viewer-data/*.json instead (see
+# fetchViewerData in app.js). They exist for the local dev loop, where hitting
+# live SQLite beats rebuilding artifacts after every data pull, so the router is
+# registered only outside production rather than deleted.
+dev_api = APIRouter(prefix='/api', tags=['development-only'])
+
 
 @app.get('/')
 def serve_index() -> FileResponse:
     return FileResponse(STATIC_DIR / 'index.html')
 
 
-@app.get('/api/summary')
+@dev_api.get('/summary')
 def get_summary(
     gym_id: Optional[str] = None,
     start_date: Optional[str] = None,
@@ -85,12 +98,12 @@ def get_summary(
     )
 
 
-@app.get('/api/gyms')
+@dev_api.get('/gyms')
 def get_gyms() -> List[Dict[str, Any]]:
     return payload_builder.build_gyms()
 
 
-@app.get('/api/charts/time-series')
+@dev_api.get('/charts/time-series')
 def get_time_series(
     gym_id: Optional[str] = None,
     start_date: Optional[str] = None,
@@ -105,7 +118,7 @@ def get_time_series(
     )
 
 
-@app.get('/api/charts/grade-distribution')
+@dev_api.get('/charts/grade-distribution')
 def get_grade_distribution(
     gym_id: Optional[str] = None,
     start_date: Optional[str] = None,
@@ -120,12 +133,12 @@ def get_grade_distribution(
     )
 
 
-@app.get('/api/charts/top-gyms')
+@dev_api.get('/charts/top-gyms')
 def get_top_gyms(limit: Optional[int] = None) -> List[Dict[str, Any]]:
     return payload_builder.build_top_gyms(limit=limit)
 
 
-@app.get('/api/charts/body-metrics')
+@dev_api.get('/charts/body-metrics')
 def get_body_metrics(
     discipline: str = Query(default='bouldering', pattern='^(bouldering|routes)$'),
     active_only: bool = True,
@@ -133,19 +146,23 @@ def get_body_metrics(
     return payload_builder.build_body_metrics(discipline=discipline, active_only=active_only)
 
 
-@app.get('/api/charts/user-segmentation')
+@dev_api.get('/charts/user-segmentation')
 def get_user_segmentation() -> Dict[str, Any]:
     return payload_builder.build_user_segmentation()
 
 
-@app.get('/api/charts/gym-comparison-base')
+@dev_api.get('/charts/gym-comparison-base')
 def get_gym_comparison_base() -> Dict[str, Any]:
     return payload_builder.build_gym_comparison_base()
 
 
-@app.get('/api/state-preview')
+@dev_api.get('/state-preview')
 def get_state_preview(limit: int = 20) -> List[Dict[str, Any]]:
     return payload_builder.build_state_preview(limit=limit)
+
+
+if not IS_PRODUCTION:
+    app.include_router(dev_api)
 
 
 def main() -> None:
