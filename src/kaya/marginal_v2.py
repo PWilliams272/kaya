@@ -103,6 +103,71 @@ def exgaussian_logpdf(x, mu, sigma, nu):
     return np.where(nu > 0.05 * sigma, ex, normal)
 
 
+def prepare_design(dataset: DatasetV2, *, height_form='linear',
+                   ape_quadratic=True, ape_x_gender=False, consts=None):
+    """Build the design matrix and per-observation vectors from a dataset.
+
+    Every centring and scaling here is copied from `build_model_v2`
+    deliberately rather than re-derived: the two must produce the same numbers
+    for the cross-check between implementations to mean anything.
+
+    `consts` is the point of the split. Passing None derives the scaling from
+    this dataset and returns it. Passing a previously returned dict applies
+    *those* constants instead, which is what grouped cross-validation needs:
+    held-out climbers have to be mapped through the training set's medians and
+    standard deviations. Letting them set their own scale would leak the test
+    set into the fit through the back door, quietly and without any error.
+    """
+    obs, users = dataset.observations, dataset.users
+    user_ids = users.index.tolist()
+    uidx = {u: i for i, u in enumerate(user_ids)}
+    gym_ids = sorted(obs['gym_id'].unique())
+    gidx = {g: i for i, g in enumerate(gym_ids)}
+
+    obs_u = obs['user_id'].map(uidx).to_numpy()
+    obs_g = obs['gym_id'].map(gidx).to_numpy()
+    m = obs['m'].to_numpy(float)
+
+    height = users['height'].to_numpy(float)
+    ape = users['ape_index'].to_numpy(float)
+    nsps = users['n_sends_per_sesh'].to_numpy(float)
+    nv_raw = obs['n_visits'].to_numpy(float)
+
+    own = consts is None
+    c = {} if own else dict(consts)
+    if own:
+        c['nv_scale'] = float(np.nanmedian(nv_raw)) or 1.0
+        c['h_sd'] = float(np.nanstd(height)) or 1.0
+        c['a_sd'] = float(np.nanstd(ape)) or 1.0
+        c['h_med'] = float(np.nanmedian(height))
+        c['a_med'] = float(np.nanmedian(ape))
+        c['r_scale'] = float(np.nanmedian(nsps))
+
+    n_visits = nv_raw / c['nv_scale'] - 1.0
+    h_c = np.nan_to_num((height - c['h_med']) / c['h_sd'], nan=0.0)
+    a_c = np.nan_to_num((ape - c['a_med']) / c['a_sd'], nan=0.0)
+    h_miss = np.isnan(height).astype(float)
+    a_miss = np.isnan(ape).astype(float)
+    w_female = users['w_female'].fillna(0.5).to_numpy(float)
+
+    Xcols, Xnames = _design_columns(height_form, h_c, a_c, w_female,
+                                    ape_quadratic, ape_x_gender)
+    Xcols = np.column_stack([Xcols, h_miss, a_miss])
+    Xnames = list(Xnames) + ['beta_h_missing', 'beta_a_missing']
+    if own:
+        c['X_mean'] = Xcols.mean(axis=0)
+    Xc = Xcols - np.asarray(c['X_mean'])
+
+    r_user = ((nsps / c['r_scale'] - 1.0) if c['r_scale']
+              else np.zeros_like(nsps))
+    r_obs = np.nan_to_num(r_user[obs_u], nan=0.0)
+
+    return {'Xc': Xc, 'Xnames': Xnames, 'obs_u': obs_u, 'obs_g': obs_g,
+            'm': m, 'n_visits': n_visits, 'r_obs': r_obs,
+            'user_ids': user_ids, 'gym_ids': gym_ids,
+            'w_female': w_female, 'consts': c}
+
+
 @dataclass
 class MarginalModel:
     """Everything the marginal likelihood needs, precomputed from a dataset.
@@ -156,40 +221,13 @@ class MarginalModel:
         deliberately, not re-derived: the two must produce the same numbers
         for the cross-check to mean anything.
         """
-        obs, users = dataset.observations, dataset.users
-        user_ids = users.index.tolist()
-        uidx = {u: i for i, u in enumerate(user_ids)}
-        gym_ids = sorted(obs['gym_id'].unique())
-        gidx = {g: i for i, g in enumerate(gym_ids)}
-
-        obs_u = obs['user_id'].map(uidx).to_numpy()
-        obs_g = obs['gym_id'].map(gidx).to_numpy()
-        m = obs['m'].to_numpy(float)
-
-        nv_raw = obs['n_visits'].to_numpy(float)
-        nv_scale = float(np.nanmedian(nv_raw)) or 1.0
-        n_visits = nv_raw / nv_scale - 1.0
-
-        height = users['height'].to_numpy(float)
-        ape = users['ape_index'].to_numpy(float)
-        h_sd = float(np.nanstd(height)) or 1.0
-        a_sd = float(np.nanstd(ape)) or 1.0
-        h_c = np.nan_to_num((height - np.nanmedian(height)) / h_sd, nan=0.0)
-        a_c = np.nan_to_num((ape - np.nanmedian(ape)) / a_sd, nan=0.0)
-        h_miss = np.isnan(height).astype(float)
-        a_miss = np.isnan(ape).astype(float)
-        w_female = users['w_female'].fillna(0.5).to_numpy(float)
-
-        Xcols, Xnames = _design_columns(height_form, h_c, a_c, w_female,
-                                        ape_quadratic, ape_x_gender)
-        Xcols = np.column_stack([Xcols, h_miss, a_miss])
-        Xnames = list(Xnames) + ['beta_h_missing', 'beta_a_missing']
-        Xc = Xcols - Xcols.mean(axis=0)
-
-        nsps = users['n_sends_per_sesh'].to_numpy(float)
-        r_scale = np.nanmedian(nsps)
-        r_user = (nsps / r_scale - 1.0) if r_scale else np.zeros_like(nsps)
-        r_obs = np.nan_to_num(r_user[obs_u], nan=0.0)
+        d = prepare_design(dataset, height_form=height_form,
+                           ape_quadratic=ape_quadratic,
+                           ape_x_gender=ape_x_gender)
+        Xc, Xnames = d['Xc'], d['Xnames']
+        obs_u, obs_g, m = d['obs_u'], d['obs_g'], d['m']
+        n_visits, r_obs = d['n_visits'], d['r_obs']
+        user_ids, gym_ids = d['user_ids'], d['gym_ids']
 
         # Split climbers by how many observations they have. Sorting the
         # multi-observation rows by climber turns "group by user" into a

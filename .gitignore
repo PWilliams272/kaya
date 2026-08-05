@@ -1,16 +1,16 @@
-notebooks/
-data/
-*.ipynb
+
+__pycache__/
+.DS_Store
 .env
 .venv/
-__pycache__/
+*.db
+*.ipynb
+# Fit archive: traces are ~600MB each
+# Sphinx build output
+data/
+docs/build/
 kaya.egg-info/
 notebooks/
-*.db
-.DS_Store
-
-# Sphinx build output
-docs/build/
-# Fit archive: traces are ~600MB each
-runs/traces/
 runs/*.nc
+runs/logs/
+runs/traces/
