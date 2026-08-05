@@ -3276,6 +3276,8 @@ const V2_FIT_LABEL = {
   v3_lin: 'linear', v3_sat: 'saturating', v3_zero: 'zero',
   v3_quad: 'quadratic', v3_vtx: 'vertex quadratic',
   v4_linxg: 'linear × gender',
+  v4_lin_b: 'linear, refit #2', v4_lin_c: 'linear, refit #3',
+  v4_lin_d: 'linear, refit #4', v4_lin_e: 'linear, refit #5',
   v4_lin_apex: 'linear + ape×gender', v4_lin_apelin: 'linear, linear ape',
   v3_apex: 'quad × gender + ape×gender', v3_zsu: 'quad × gender (zero-sum users)',
 };
@@ -4123,6 +4125,18 @@ function renderV2Noise() {
       + `<b>${(n3.range || 0).toFixed(1)}</b>. Nothing was refitted between `
       + 'these columns; the same per-observation scores are simply added up '
       + 'over different rows.';
+    // A refit that failed to converge is not sampling noise, it is a broken
+    // chain, so it is out of the band -- but hiding it would overstate how
+    // dependably this model fits, which is the very thing being measured.
+    (arm.noise_excluded || []).forEach((ex) => {
+      note.innerHTML += ` <b>One refit is excluded from that band:</b> `
+        + `&ldquo;${ex.label}&rdquo; did not converge (R-hat `
+        + `${ex.max_rhat.toFixed(2)}, against a limit of `
+        + `${(arm.rhat_gate || 1.2).toFixed(1)}), so its score measures a `
+        + 'failed fit rather than run-to-run variation. That it happened at '
+        + 'all is worth knowing: this model does not converge every time, and '
+        + 'a single fit should be checked before it is trusted.';
+    });
   }
 }
 
@@ -5202,13 +5216,28 @@ function bindV2Inference() {
 
   const fitSel = document.getElementById('v2-fit-pick');
   if (fitSel && !fitSel.options.length) {
-    v2FitNames().forEach((f) => {
-      const o = document.createElement('option');
-      const fit = v2Fit(f);
-      o.value = f;
-      o.textContent = `${f} — ${V2_FIT_LABEL[f] || fit.height_form}`
-        + (fit.max_rhat > 1.01 ? ` (R-hat ${fit.max_rhat.toFixed(2)})` : '');
-      fitSel.appendChild(o);
+    // Two arms of the same model, so the list is grouped rather than flat:
+    // "v3_lin" and "v3_lin_marg" are the same height form fitted two ways, and
+    // a flat list of fifteen names gives no way to see that.
+    const byArm = { unmarginalized: [], marginalized: [] };
+    v2FitNames().forEach((f) => byArm[v2Fit(f).arm || 'unmarginalized']?.push(f));
+    const groupLabel = {
+      unmarginalized: 'Original model — one ability offset per climber',
+      marginalized: 'Offsets integrated out',
+    };
+    Object.entries(byArm).forEach(([arm, names]) => {
+      if (!names.length) return;
+      const g = document.createElement('optgroup');
+      g.label = groupLabel[arm];
+      names.forEach((f) => {
+        const fit = v2Fit(f);
+        const o = document.createElement('option');
+        o.value = f;
+        o.textContent = `${f} — ${V2_FIT_LABEL[fit.base || f] || fit.height_form}`
+          + (fit.max_rhat > 1.01 ? ` (R-hat ${fit.max_rhat.toFixed(2)})` : '');
+        g.appendChild(o);
+      });
+      fitSel.appendChild(g);
     });
     if (v2FitNames().includes('v3_conf')) fitSel.value = 'v3_conf';
   }

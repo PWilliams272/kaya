@@ -32,7 +32,13 @@ def thin(arr, to=THIN_TO):
 
 def prior_draws(fit_args, n=1500):
     """Sample this fit's prior. Needs the model rebuilt with its own settings,
-    since e.g. the saturating arm has parameters the quadratic arm does not."""
+    since e.g. the saturating arm has parameters the quadratic arm does not.
+
+    `marginalize_singles` is deliberately NOT passed through. Integrating out
+    the per-climber offsets changes the likelihood, not the priors: every
+    parameter shown here has exactly the same prior in both versions. Building
+    the cheaper unmarginalized model gives the identical answer.
+    """
     import pymc as pm
     from kaya.grading_model_v2 import make_dataset, build_model_v2
     base = pickle.load(open(TMP / 'base_bouldering.pkl', 'rb'))
@@ -118,8 +124,12 @@ def main():
     args = ap.parse_args()
 
     payload = {'thin_to': THIN_TO, 'fits': {}}
-    for path in sorted(glob.glob(str(TMP / 'idata_v3_*.nc'))):
+    paths = sorted(set(glob.glob(str(TMP / 'idata_v3_*.nc')))
+                   | set(glob.glob(str(TMP / 'idata_v4_*.nc'))))
+    for path in paths:
         name = Path(path).stem.replace('idata_', '')
+        if name.startswith('smoke'):
+            continue
         res_path = TMP / f'result_{name}.json'
         if not res_path.exists():
             print(f'  {name}: no result json (still writing?), skipping')
@@ -131,8 +141,15 @@ def main():
         present = [v for v in SCALARS if v in post]
         summ = az.summary(idata, var_names=present, hdi_prob=0.89)
 
+        # Which version of the model this fit came from. The two arms are the
+        # same model except for whether the per-climber offsets are estimated
+        # or integrated out, so every figure that shows a parameter has to say
+        # which one it is showing -- the draws are not interchangeable.
+        marg = bool(res['args'].get('marginalize_singles', False))
         fit = {'n_chains': int(post.sizes['chain']), 'n_draws': int(post.sizes['draw']),
                'n_warmup': int(warm.sizes['draw']) if warm is not None else 0,
+               'arm': 'marginalized' if marg else 'unmarginalized',
+               'base': name[:-5] if name.endswith('_marg') else name,
                'height_form': res['args']['height_form'],
                'name_filter': res['args']['name_filter'],
                'zero_sum_users': bool(res['args'].get('zero_sum_users', False)),

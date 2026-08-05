@@ -2573,6 +2573,32 @@
                   Compare scores within a version, never across.
                 </div>
               </div>
+              <div class="callout">
+                <div>
+                  <b>Did it work? Partly, and less tidily than hoped.</b>
+                  <br /><br />
+                  Scored on <b>all</b> climbers &mdash; the case the fix was
+                  aimed at &mdash; run-to-run noise falls from <b>31.1 points to
+                  2.9</b>. That is the result, and it is a large one: the column
+                  that was unusable is now usable.
+                  <br /><br />
+                  Scored on <b>well-observed</b> climbers only, the two versions
+                  are both in the low single digits (0.5 and 3.3 points) and
+                  cannot be separated. There are only <b>two converged refits
+                  per version</b>, which is far too few to rank two small
+                  numbers against each other. Restricting the score and
+                  integrating out the offsets turn out to fix the same problem;
+                  doing both is not measurably better than doing either.
+                  <br /><br />
+                  <b>And one refit in three did not converge at all</b> (R-hat
+                  1.44, effective sample size 8). It is excluded from the noise
+                  band above, because a broken chain is not a measure of
+                  sampling noise &mdash; but the failure itself is a finding.
+                  This model does not fit dependably on every seed, and any
+                  single fit needs its diagnostics checked before its numbers
+                  are quoted.
+                </div>
+              </div>
               <p class="prose">
                 Their <b>parameters</b>, though, are the same parameters. A gym
                 correction means &ldquo;how much stiffer this gym grades than
@@ -2742,6 +2768,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=84"></script>
+    <script src="/static/app.js?v=86"></script>
   </body>
 </html>

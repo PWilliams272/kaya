@@ -71,7 +71,7 @@ each climber's mode, Laplace width) converges at 21–31 nodes in 88–134 ms.
   nested sampling starts from the whole prior and hit it in 2 of 5 random
   draws. Switch to the Normal limit.
 
-## Stage 2 — refit everything, keep both arms (RUNNING)
+## Stage 2 — refit everything, keep both arms (DONE)
 
 `batch_marg.sh`: seven height forms plus two refits of one of them, on the
 marginalized model, with settings otherwise identical to the original batch
@@ -156,10 +156,62 @@ discussion.
 * **Grouped k-fold** — hold out entire *climbers*, refit, predict all their
   rows. Answers "can this predict someone it has never seen", which is the
   honest test for a model separating climber ability from gym grading. Costs a
-  refit per fold (5 folds × 7 models ≈ 35 fits). Deferred: the marginalization
-  already dropped the noise from 31 to under 1, so this buys a stronger claim
-  rather than a necessary one.
+  refit per fold (5 folds × 7 models ≈ 35 fits). Now looks *more* worth doing,
+  not less: see the Stage 2 result below.
+
+* **More refits.** Two converged refits per arm is not enough to estimate a
+  noise floor, and the floor is the yardstick everything else is measured
+  against. Three or four more per arm would cost ~6 hours and would firm up
+  the one number the whole comparison rests on.
 * **The multi-observation offsets in PyMC.** Stage 1 marginalizes only the
   single-observation half there. Full quadrature in PyTensor would need
   `stop_gradient` on the node placement. Only worth doing if Stage 2 shows
   4,241 parameters still sampling badly.
+
+
+## Stage 2 result (2026-08-05)
+
+Nine marginalized fits, matching the original nine settings for settings.
+
+**Sampling quality improved.** Minimum effective sample size roughly tripled
+(23–53 → 104–128), max R-hat moved toward 1 (1.07–1.14 → 1.03–1.05), and
+`p_loo` halved from ~8,400 to ~4,200 — exactly the parameters removed. Same
+wall-clock time.
+
+**The answers did not move.** Across five height forms with both versions
+fitted, gym corrections correlate 0.9999, the largest single gym shifts 0.013
+grades, and no parameter moves by even half its own standard deviation.
+`sigma_user` — predicted to be the most-affected parameter — is the least.
+The marginalization is a repair to model *comparison*, not a change of finding.
+
+**The noise floor: better where it mattered, unresolved elsewhere.**
+
+| scored on | original | marginalized |
+|---|---|---|
+| all climbers | 31.1 | 2.9 |
+| ≥2 sends | 0.7 | 3.2 |
+| ≥3 sends | 0.5 | 3.3 |
+| ≥5 sends | 2.2 | 1.9 |
+
+The all-climbers column — the one the fix targeted — improves 10×. The
+well-observed columns are low single digits in both arms and cannot be ranked
+with two refits each. Restricting the score and marginalizing address the same
+defect; doing both is not measurably better than doing either.
+
+**One refit in three failed to converge** (`v4_lin_c_marg`, max R-hat 1.44,
+min ESS 8). Excluded from the floor via `RHAT_GATE = 1.2` and named in the
+write-up. The marginalized model is not uniformly well-behaved.
+
+**Two changes to how the comparison is read**, both in
+`scripts/build_v2_vs_null.py`:
+
+* Score against a **fixed** reference (no height term) rather than gap-from-
+  best. The winner is selected on the data it is scored on, so it is biased
+  upward, and it changes between columns, which moves the zero point.
+* Compute the **error on the difference** by differencing per observation
+  before summing. The two models find the same rows hard and that cancels:
+  ±145 on a total becomes ±8–19 on a difference. This was missing entirely.
+
+With those in place: height matters at 2–3 standard errors (not decisively);
+the functional form is **not** resolved; and `v3_conf`, the model used
+elsewhere on the page, is the weakest height form in both arms.

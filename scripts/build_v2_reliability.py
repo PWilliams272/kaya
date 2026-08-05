@@ -37,6 +37,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # 30-60 minutes of sampling each and scratch is deleted with the job.
 RUNS = ROOT / 'runs'
 TMP = RUNS / 'traces'
+RESULTS = RUNS / 'results'
 OUT = ROOT / 'src' / 'kaya' / 'viewer_static' / 'v2_reliability.json'
 
 # label -> (trace name, is this a refit of another entry?)
@@ -64,6 +65,9 @@ MARGINALIZED = {
 }
 ARMS = {'unmarginalized': UNMARGINALIZED, 'marginalized': MARGINALIZED}
 SUBSETS = [1, 2, 3, 5]
+# A fit above this R-hat did not converge, so its score measures a broken chain
+# rather than sampling noise; it is kept out of the noise floor and named.
+RHAT_GATE = 1.2
 
 
 def _merged(idata):
@@ -97,7 +101,7 @@ def score_arm(fits, obs, rows_per_user):
     Returns None if none of the arm's traces exist yet, so the page can show
     the unmarginalized results before the marginalized fits have finished.
     """
-    elpd, kbad, present = {}, {}, []
+    elpd, kbad, rhat, present = {}, {}, {}, []
     for label, (name, _) in fits.items():
         f = TMP / f'idata_{name}.nc'
         if not f.exists():
@@ -109,6 +113,9 @@ def score_arm(fits, obs, rows_per_user):
             continue
         elpd[label] = v
         kbad[label] = np.asarray(lo.pareto_k).ravel()
+        rj = RESULTS / f'result_{name}.json'
+        rhat[label] = (json.loads(rj.read_text())['max_rhat']
+                       if rj.exists() else float('nan'))
         present.append(label)
     if not present:
         return None
@@ -127,20 +134,30 @@ def score_arm(fits, obs, rows_per_user):
         models.append(row)
 
     # The noise floor: how far apart refits of the identical model land.
+    #
+    # A fit that did not converge is not a draw from the posterior, so its
+    # score does not measure sampling noise -- it measures a failure. Including
+    # one turns the floor into a statement about the worst chain rather than
+    # about the method. They are excluded and named, not silently dropped: a
+    # refit failing to converge is itself worth reporting.
     reps = [m for m in present if fits[m][1] is not None]
     base_label = fits[reps[0]][1] if reps else None
-    noise = {}
+    noise, excluded = {}, []
     if base_label and base_label in elpd:
         group = [base_label] + reps
+        ok = [m for m in group if rhat.get(m, 0) <= RHAT_GATE]
+        excluded = [{'label': m, 'max_rhat': round(rhat[m], 3)}
+                    for m in group if m not in ok]
         for k in SUBSETS:
             mask = rows_per_user >= k
-            vals = np.array([elpd[m][mask].sum() for m in group])
+            vals = np.array([elpd[m][mask].sum() for m in ok])
             noise[str(k)] = {
                 'n_runs': int(len(vals)),
                 'sd': round(float(vals.std(ddof=1)), 2) if len(vals) > 1 else None,
-                'range': round(float(vals.max() - vals.min()), 2),
+                'range': round(float(vals.max() - vals.min()), 2) if len(vals) else None,
             }
     return {'models': models, 'noise': noise, 'n_fits': len(present),
+            'noise_excluded': excluded, 'rhat_gate': RHAT_GATE,
             'replicate_group': ([base_label] + reps) if base_label else []}
 
 
@@ -150,6 +167,9 @@ def show(name, arm):
     for k, v in arm['noise'].items():
         sd = f'{v["sd"]:.2f}' if v['sd'] is not None else 'n/a'
         print(f'  >={k} rows: {v["n_runs"]} runs, sd {sd}, range {v["range"]:.2f}')
+    for ex in arm.get('noise_excluded', []):
+        print(f'  !! excluded from the floor: {ex["label"]} did not converge '
+              f'(max R-hat {ex["max_rhat"]}, gate {arm.get("rhat_gate")})')
     print('\ngap from the best model in each column '
           '(0 = best; more negative = predicts worse)')
     hdr = ''.join(f'{">="+str(k)+" rows":>13}' for k in SUBSETS)
