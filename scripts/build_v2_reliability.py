@@ -28,6 +28,7 @@ from pathlib import Path
 warnings.filterwarnings('ignore')
 import arviz as az
 import numpy as np
+import xarray as xr
 
 from kaya.grading_model_v2 import make_dataset
 
@@ -65,6 +66,31 @@ ARMS = {'unmarginalized': UNMARGINALIZED, 'marginalized': MARGINALIZED}
 SUBSETS = [1, 2, 3, 5]
 
 
+def _merged(idata):
+    """Put the marginalized arm's two likelihood groups back in row order.
+
+    The marginalized model has two observed variables -- climbers with one send
+    and climbers with several -- so it writes two log-likelihood arrays, each
+    carrying the original row indices it covers. Cross-validation needs one
+    array in the dataset's own row order, or the per-row scores line up with
+    the wrong rows and every subset below is silently wrong.
+    """
+    ll = getattr(idata, 'log_likelihood', None)
+    if ll is None or 'm_single' not in ll or 'm_multi' not in ll:
+        return idata
+    parts, idx = [], []
+    for nm, dim in (('m_single', 'obs_single'), ('m_multi', 'obs_multi')):
+        da = ll[nm]
+        idx.append(np.asarray(da[dim].values))
+        parts.append(da.rename({dim: 'obs'}).assign_coords(
+            obs=np.arange(da.sizes[dim])))
+    merged = xr.concat(parts, dim='obs')
+    merged = merged.assign_coords(obs=np.arange(merged.sizes['obs']))
+    merged = merged.isel(obs=np.argsort(np.concatenate(idx)))
+    idata.log_likelihood = xr.Dataset({'m_obs': merged})
+    return idata
+
+
 def score_arm(fits, obs, rows_per_user):
     """Load an arm's fits and score every model on every subset.
 
@@ -76,7 +102,7 @@ def score_arm(fits, obs, rows_per_user):
         f = TMP / f'idata_{name}.nc'
         if not f.exists():
             continue
-        lo = az.loo(az.from_netcdf(str(f)), pointwise=True)
+        lo = az.loo(_merged(az.from_netcdf(str(f))), pointwise=True)
         v = np.asarray(lo.loo_i).ravel()
         if len(v) != len(obs):
             print(f'!! {label}: {len(v)} pointwise values vs {len(obs)} rows')
