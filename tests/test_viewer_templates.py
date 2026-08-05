@@ -87,7 +87,7 @@ def test_shell_elements_survive_the_split(page: str) -> None:
     assert '<title>Kaya Data Analyzer</title>' in page
     assert 'kaya-viewer-data-mode' in page
     assert 'id="v2-glossary"' in page, 'docked parameter panel lost'
-    assert '/static/app.js' in page
+    assert '/static/js/01-core.js' in page, 'the first script must still load'
 
 
 def test_explainer_components_stay_out_of_the_dashboards(page: str) -> None:
@@ -126,3 +126,58 @@ def test_no_template_file_is_oversized() -> None:
 def test_static_index_html_is_gone() -> None:
     """One source of truth for the page, not a template and a stale copy."""
     assert not (Path(viewer_app.STATIC_DIR) / 'index.html').exists()
+
+
+# --- the JavaScript split -------------------------------------------------
+#
+# app.js was one 6,074-line file. It is now 16 classic scripts sharing one
+# global scope, each a verbatim slice of the original. Because they are classic
+# scripts and not modules, LOAD ORDER IS LOAD-BEARING: 09-shell.js calls
+# bootstrapWithFallback() at top level before the v2 files are evaluated,
+# exactly as the single file did. These tests exist to catch a shuffled,
+# missing, or orphaned script — none of which would raise on their own.
+
+def _script_srcs(page: str) -> list:
+    import re
+
+    return re.findall(r'<script src="/static/(js/[^"?]+)', page)
+
+
+def test_every_referenced_script_exists(page: str) -> None:
+    static = Path(viewer_app.STATIC_DIR)
+    missing = [src for src in _script_srcs(page) if not (static / src).is_file()]
+    assert not missing, f'base.html references scripts that do not exist: {missing}'
+
+
+def test_no_script_is_orphaned(page: str) -> None:
+    """A file nobody loads is dead code that still looks live."""
+    static = Path(viewer_app.STATIC_DIR)
+    on_disk = {
+        str(path.relative_to(static)) for path in (static / 'js').rglob('*.js')
+    }
+    referenced = set(_script_srcs(page))
+    assert on_disk == referenced, f'not loaded by base.html: {sorted(on_disk - referenced)}'
+
+
+def test_scripts_load_in_numeric_order(page: str) -> None:
+    """The numeric prefixes encode a real dependency order, not a preference."""
+    srcs = _script_srcs(page)
+    top_level = [s for s in srcs if s.count('/') == 1]
+    v2 = [s for s in srcs if s.startswith('js/v2/')]
+    assert top_level == sorted(top_level), 'top-level scripts are out of order'
+    assert v2 == sorted(v2), 'v2 scripts are out of order'
+    assert srcs == top_level + v2, 'the v2 scripts must load after the shell'
+
+
+def test_no_script_is_oversized() -> None:
+    static = Path(viewer_app.STATIC_DIR)
+    oversized = {
+        str(path.relative_to(static)): path.read_text(encoding='utf-8').count('\n')
+        for path in (static / 'js').rglob('*.js')
+        if path.read_text(encoding='utf-8').count('\n') > 700
+    }
+    assert not oversized, f'split these further: {oversized}'
+
+
+def test_monolithic_app_js_is_gone() -> None:
+    assert not (Path(viewer_app.STATIC_DIR) / 'app.js').exists()

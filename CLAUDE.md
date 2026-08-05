@@ -25,6 +25,9 @@ viewer's structural conventions here has downstream consequences.
   template per tab (`viewer_templates/tabs/`), with the two explainer tabs split again by
   article section. Add a tab by adding a fragment and an `{% include %}`, not by growing a file.
   The `/api/*` routes are development-only; production registers only `/` and the static mounts.
+- `src/kaya/viewer_static/js/` — the client, 16 **classic** scripts (not ES modules) sharing one
+  global scope. **Load order in `base.html` is load-bearing** — `09-shell.js` boots at top level
+  before the `v2/` files evaluate. Numeric prefixes encode that; don't reorder or drop one.
 - `src/kaya/viewer_static/tokens.css` — design tokens. **Source of truth for the whole workspace**;
   other repos sync from here. Do not edit a downstream copy. See `scripts/sync-design-tokens.sh`
   in `system-overview`.

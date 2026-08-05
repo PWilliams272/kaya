@@ -24,7 +24,8 @@ src/kaya/viewer_templates/
   tabs/grading-v2/<section>.html    The two explainer tabs split again by article section,
   tabs/grading-model/<section>.html since one tab's article is longer than all four dashboards
 src/kaya/viewer_static/
-  app.js                        All client logic: fetching, rendering, custom UI widgets (~6000 lines)
+  js/01-core.js .. 09-shell.js  Client logic, split by concern; largest is 609 lines
+  js/v2/01-*.js .. 07-*.js      The Grading Model v2 tab's own seven files
   app.css                       Component styles (~530 lines)
   research.css                  Article components for the explainer tabs (~1180 lines)
   tokens.css                    Design tokens (CSS custom properties) + light/dark theme
@@ -33,9 +34,13 @@ src/kaya/viewer_static/
 
 There is no `index.html`. The page is rendered from `base.html` through
 `Jinja2Templates`; a static copy alongside it would be a second thing to hand-edit.
-`app.js` is still one file — splitting it into per-tab modules is the remaining
-half of this work, and it carries real regression risk because the whole file
-shares one flat scope.
+`app.js` is gone too, split into 16 files. They are **classic scripts, not ES
+modules** — they share one global scope exactly as the single file did, so the
+split changed no scoping and each file is a verbatim slice of the original
+(concatenating them in order reproduces `app.js` byte for byte). **The order in
+`base.html` is load-bearing**: `09-shell.js` calls `bootstrapWithFallback()` at
+top level before the v2 files are evaluated, which is what the single file did.
+The numeric prefixes exist so that order cannot be shuffled by accident.
 
 `viewer_payloads.py` is framework-agnostic — it's a plain Python class that takes no FastAPI dependency, so it can be reused as-is behind a Flask view if you go that route.
 
