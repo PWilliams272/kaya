@@ -234,6 +234,23 @@
 .callout b { display: block; margin-bottom: 3px; }
 .callout.warn { border-left-color: var(--lg-warning); }
 
+/* ---- archive banner ----
+   Sits directly under the masthead of a superseded page. Deliberately louder
+   than .callout: a reader who lands here from a bookmark needs to know before
+   the first paragraph that a current version exists. */
+.archive-banner {
+  border: 1px solid var(--lg-border);
+  border-left: 3px solid var(--lg-text-2);
+  border-radius: var(--lg-radius-md);
+  padding: 14px 16px;
+  margin: 0 0 24px;
+  background: var(--lg-active);
+  color: var(--lg-text-2);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.archive-banner b { color: var(--lg-text); }
+
 /* ---- footnote / methodology aside ---- */
 .methodology-note {
   font-size: 13px;
@@ -688,16 +705,19 @@
    centres inside. Below 1180px the panel overlays as a drawer instead, so no
    reservation is made and the text keeps its full width. */
 @media (min-width: 1180px) {
-  #tab-grading-v2.gloss-open { padding-right: var(--gloss-body-w, 340px); }
+  #tab-grading-v2.gloss-open,
+  #tab-grading-current.gloss-open { padding-right: var(--gloss-body-w, 340px); }
   /* Gated for the same reason as .glossary.is-animated: a transition that
      starts while the pane is still display:none sticks in "running" and pins
      the property, outranking even inline styles. */
-  #tab-grading-v2.gloss-anim {
+  #tab-grading-v2.gloss-anim,
+  #tab-grading-current.gloss-anim {
     transition: padding-right 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  #tab-grading-v2.gloss-anim { transition: none; }
+  #tab-grading-v2.gloss-anim,
+  #tab-grading-current.gloss-anim { transition: none; }
 }
 
 /* --- highlight wiring --- */

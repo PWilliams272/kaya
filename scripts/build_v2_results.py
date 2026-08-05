@@ -249,6 +249,10 @@ def main():
         # is exported rather than retyped.
         'pct_single_obs': round(pct_single_obs(prim), 4),
         'sigma_gym': prim['params']['sigma_gym'],
+        # The width of the ability prior. Quoted in the cross-validation
+        # section as the number a held-out climber's posterior falls back
+        # to, so it has to come from the fit rather than be retyped.
+        'sigma_user': prim['params']['sigma_user'],
         'forms': forms,
         'replication': replication,
         'sampling': {'max_rhat': round(prim['max_rhat'], 2),

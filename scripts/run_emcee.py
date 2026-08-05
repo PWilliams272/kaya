@@ -39,6 +39,10 @@ def main():
     ap.add_argument('--burn', type=int, default=1000)
     ap.add_argument('--n-quad', type=int, default=31)
     ap.add_argument('--threads', type=int, default=8)
+    ap.add_argument('--moves', default='de', choices=['de', 'stretch'],
+                    help="'de' mixes differential-evolution moves, which mix "
+                         "far better than emcee's default stretch move above "
+                         "~10 dimensions; 'stretch' is the default move")
     args = ap.parse_args()
 
     # One BLAS thread per worker. Without this, every one of the N worker
@@ -63,7 +67,8 @@ def main():
                                     sigma_link_fixed=0.5, n_quad=args.n_quad)
     ndim = mm.n_params
     nw = max(args.walkers, 2 * ndim + 2)
-    print(f'[{args.name}] {ndim} parameters, {nw} walkers, {args.steps} steps')
+    print(f'[{args.name}] {ndim} parameters, {nw} walkers, {args.steps} steps, '
+          f'{args.moves} moves')
     print(f'[{args.name}] parameters: {", ".join(mm.param_names[:8])}, ...')
 
     # Start the ensemble as a tight ball around a sensible point. Wide starts
@@ -79,7 +84,18 @@ def main():
     t0 = time.time()
     from multiprocessing import Pool
     with Pool(args.threads) as pool:
-        sampler = emcee.EnsembleSampler(nw, ndim, mm.log_posterior, pool=pool)
+        # emcee's default stretch move degrades badly with dimension: on the
+        # first run of this model it left an integrated autocorrelation time of
+        # 560 steps, so a 4,000-step chain held only ~7 independent samples per
+        # walker and emcee refused to call it converged. The
+        # differential-evolution pair is the standard remedy at 40 dimensions --
+        # proposals follow the ensemble's own covariance instead of a scalar
+        # stretch along one direction.
+        moves = ([(emcee.moves.DEMove(), 0.8),
+                  (emcee.moves.DESnookerMove(), 0.2)]
+                 if args.moves == 'de' else None)
+        sampler = emcee.EnsembleSampler(nw, ndim, mm.log_posterior, pool=pool,
+                                        moves=moves)
         # progress=False: emcee's tqdm bar does not flush to a redirected log.
         for i, _ in enumerate(sampler.sample(start, iterations=args.steps,
                                              progress=False), 1):

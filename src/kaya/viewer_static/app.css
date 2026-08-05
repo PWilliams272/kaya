@@ -184,6 +184,19 @@ body {
   border-color: var(--lg-gold);
 }
 
+/* Archived tabs stay reachable but read as secondary — they are kept for
+   reference, not for reading. Muted until hovered or selected; active state is
+   unchanged so the current tab is never ambiguous. */
+.tab-button.tab-archived {
+  color: var(--lg-text-3, var(--lg-text-2));
+  font-weight: 500;
+  opacity: 0.72;
+}
+.tab-button.tab-archived:hover,
+.tab-button.tab-archived.active {
+  opacity: 1;
+}
+
 .tab-pane {
   display: none;
   flex-direction: column;

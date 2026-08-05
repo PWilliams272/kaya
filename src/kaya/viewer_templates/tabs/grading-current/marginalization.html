@@ -1,0 +1,238 @@
+<!-- Integrating the per-climber ability offset out: what it means, why the
+     product goes inside the integral, why only single-observation climbers get
+     it in the PyMC arm, and the before/after evidence that it worked. -->
+<section class="article-section" id="gm-marginal">
+              <h2>Integrating the climber out</h2>
+              <p class="prose">
+                The previous section leaves a specific problem. The model gives
+                every climber a personal ability offset, and for
+                <b data-v2="pct_single">59%</b> of them that offset is fitted
+                from a single observation &mdash; the very observation the
+                cross-validation then tries to hold out. There are two ways out,
+                and they are quite different in character.
+              </p>
+              <ul class="prose">
+                <li>
+                  <b>Score only the rows the method can see.</b> Add up the
+                  held-out scores over climbers with three or more
+                  observations instead of all of them. Cheap, honest, and it
+                  throws away most of the data.
+                </li>
+                <li>
+                  <b>Remove the offset from the model.</b> Not by deleting it
+                  &mdash; that would assert every climber is identical &mdash;
+                  but by <b>integrating over it</b>: considering every ability
+                  the climber might have, weighted by how plausible each one is,
+                  and adding up the results. This is <b>marginalization</b>.
+                </li>
+              </ul>
+
+              <h3>What marginalizing actually does</h3>
+              <p class="prose">
+                For a climber with one send, the probability of what they did
+                is no longer evaluated at one guessed ability. It is averaged
+                across all of them:
+              </p>
+              <div class="eqn-block">
+                $$p(y) \;=\; \int p(y \mid a)\; p(a)\; \mathrm{d}a$$
+              </div>
+              <p class="prose">
+                The critical thing about this is that it is <b>not an
+                approximation and not a different model</b>. That integral
+                <i>is</i> the likelihood of the same model the previous sections
+                describe, written down without the offset in it. Sampling
+                <span>\(a\)</span> and then ignoring it gives the identical
+                answer, given infinitely many draws. Doing the integral exactly
+                just removes the &ldquo;given infinitely many draws&rdquo;
+                &mdash; and with it the Monte&nbsp;Carlo noise those draws
+                contribute.
+              </p>
+              <div class="callout">
+                <div>
+                  <b>The distribution being integrated over is not the
+                  population&rsquo;s.</b> It is <i>this climber&rsquo;s</i>. A
+                  climber&rsquo;s ceiling is the population intercept, plus
+                  their height, gender, ape-index and visit terms, plus the gym
+                  correction, plus a personal offset. <b>Only the last term is
+                  integrated out</b> &mdash; everything to its left stays, so
+                  the bell curve being swept is centred where that
+                  climber&rsquo;s profile puts it.
+                  <br /><br />
+                  This is why the height and gender effects survive
+                  marginalization rather than being destroyed by it. Taller
+                  climbers&rsquo; sends are scored against a curve centred
+                  differently from shorter climbers&rsquo;, and the fitted shift
+                  between those centres <i>is</i> the height effect.
+                  <span>\(\sigma_{\text{user}}\)</span> &mdash;
+                  <b data-v2="sigma_user">1.63 grades</b> &mdash; describes only
+                  what is left over once the profile is accounted for.
+                </div>
+              </div>
+
+              <h3>Why the product goes inside the integral</h3>
+              <p class="prose">
+                For a climber with several sends the arithmetic is not the same
+                thing done repeatedly. Their sends are <b>correlated</b>,
+                because they share one ability: a strong climber&rsquo;s sends
+                are all high <i>together</i>. So the integral has to run over
+                the joint probability of everything they did at once.
+              </p>
+              <div class="eqn-block">
+                $$p(y_1,\dots,y_n) \;=\; \int \Big[\prod_{r=1}^{n} p(y_r \mid a)\Big]\, p(a)\, \mathrm{d}a$$
+              </div>
+              <p class="prose">
+                Moving the product outside &mdash;
+                <span>\(\prod_r \int p(y_r \mid a) p(a)\,\mathrm{d}a\)</span>
+                &mdash; would assert that the climber re-rolls their ability
+                before every session, treating four sends by one person as four
+                sends by four strangers. That destroys exactly the information
+                that makes well-observed climbers valuable, and it inflates the
+                effective sample size, so every uncertainty on the page would
+                come back too small.
+              </p>
+              <figure class="figure diagram">
+                <svg viewBox="0 0 760 300" role="img"
+                     aria-label="A bell curve over an ability axis, centred by
+                     the climber's height, gender and ape index. Three vertical
+                     lines mark candidate ability values; below each, the same
+                     three send markers appear, shifted together. One candidate
+                     is emphasised, the others are faint, showing that the
+                     integral sweeps the whole curve and that all of a climber's
+                     sends move as one.">
+                  <g fill="none" stroke="currentColor">
+                    <path d="M60,210 L160,208 L220,199 L270,177 L320,143 L350,126 L380,120 L410,126 L440,143 L490,177 L540,199 L600,208 L700,210"
+                          stroke-width="2.4" stroke-linejoin="round" />
+                    <line x1="60" y1="210" x2="700" y2="210" stroke-width="1" opacity="0.5" />
+                  </g>
+                  <!-- Ghost candidates: the sweep the integral performs. -->
+                  <g stroke="currentColor" opacity="0.3">
+                    <line x1="320" y1="143" x2="320" y2="232" stroke-width="1.4" stroke-dasharray="4 4" />
+                    <line x1="560" y1="204" x2="560" y2="232" stroke-width="1.4" stroke-dasharray="4 4" />
+                  </g>
+                  <g fill="currentColor" opacity="0.3">
+                    <circle cx="290" cy="248" r="5" /><circle cx="328" cy="248" r="5" /><circle cx="358" cy="248" r="5" />
+                    <circle cx="530" cy="248" r="5" /><circle cx="568" cy="248" r="5" /><circle cx="598" cy="248" r="5" />
+                  </g>
+                  <!-- The emphasised candidate: one ability, all three sends. -->
+                  <line x1="440" y1="143" x2="440" y2="232" stroke="var(--lg-cat-1, currentColor)" stroke-width="2.4" />
+                  <g fill="var(--lg-cat-1, currentColor)">
+                    <circle cx="410" cy="248" r="6" /><circle cx="448" cy="248" r="6" /><circle cx="478" cy="248" r="6" />
+                  </g>
+                  <g fill="currentColor" font-size="12">
+                    <text x="380" y="100" text-anchor="middle" font-weight="600">plausible abilities for a climber with this profile</text>
+                    <text x="380" y="116" text-anchor="middle" font-size="11" opacity="0.7">centred by their height, gender and ape index</text>
+                    <text x="452" y="176" font-size="11" font-weight="600">one candidate ability</text>
+                    <text x="444" y="272" text-anchor="middle" font-size="11" opacity="0.85">their three sends, moving as a block</text>
+                    <text x="380" y="292" text-anchor="middle" font-size="11" opacity="0.7">the integral sweeps every candidate, weighting each by the curve above</text>
+                  </g>
+                </svg>
+                <figcaption>
+                  All of a climber&rsquo;s sends hang off <i>one</i> ability, so
+                  they shift as a block as the integral sweeps. That is what the
+                  product being inside the integral encodes, and it is why
+                  multi-send climbers cannot be handled one row at a time.
+                </figcaption>
+              </figure>
+
+              <h3>Why only the single-send climbers</h3>
+              <p class="prose">
+                The fitted model integrates out the offsets of climbers with one
+                observation and leaves everyone else&rsquo;s in place, taking it
+                from <b>10,397 parameters to 4,241</b>. That boundary is an
+                engineering compromise, not a statistical principle, and it is
+                worth saying so plainly.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr><th>climber has</th><th>the integral is</th><th>cost per evaluation</th><th>differentiable?</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="label-cell">one send</td>
+                      <td>exact, in closed form <span class="muted">&mdash; a Gaussian blurred by a Gaussian stays a Gaussian</span></td>
+                      <td class="unit">free</td>
+                      <td class="unit">cleanly</td>
+                    </tr>
+                    <tr>
+                      <td class="label-cell">several sends</td>
+                      <td>numerical <span class="muted">&mdash; adaptive Gauss&ndash;Hermite quadrature, 21&ndash;31 points</span></td>
+                      <td class="unit">21&ndash;31&times;</td>
+                      <td class="unit">awkwardly</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="caption">
+                PyMC&rsquo;s sampler needs gradients, and the quadrature points
+                are placed by solving for each climber&rsquo;s most likely
+                ability &mdash; so the point <i>locations</i> depend on the
+                parameters being differentiated with respect to. Closed form has
+                no such problem, which is why the free case is the one that made
+                it into the fitted model.
+              </p>
+              <div class="callout">
+                <div>
+                  <b>The marginalize-everyone version exists too.</b> A second,
+                  gradient-free implementation integrates out all 10,357
+                  climbers and comes to <b>40 parameters</b>. It is what the
+                  independent samplers &mdash; emcee, nested sampling &mdash;
+                  run on, since they never needed gradients and so never hit the
+                  problem above. It is a cross-check on the fitted model, not a
+                  replacement for it.
+                </div>
+              </div>
+
+              <h3>Did it work?</h3>
+              <p class="prose">
+                The same diagnostic as the previous section, on both versions,
+                over the same rows and the same number of draws. Single-send
+                climbers are the target. <b>The other rows are the control</b>
+                &mdash; marginalizing single-send climbers must leave them
+                alone, and if they had moved, something other than the intended
+                change would have happened.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gm-psis-arms"></table>
+              </div>
+              <p class="caption">
+                Single-send rows go from <b>38.0%</b> unusable to <b>0.0%</b>,
+                and their largest importance weight from <b>133&times;</b> a
+                typical one to <b>1.1&times;</b> &mdash; an essentially even
+                spread, which is what healthy importance sampling looks like.
+                Median Pareto&nbsp;k falls from <b>0.62</b> to
+                <b>&minus;0.07</b>. The control rows shift by a percentage point
+                at most &mdash; the two versions are separate sampling runs, so
+                rows the change does not touch still differ by the ordinary
+                run-to-run noise, and that is what a control looks like when it
+                works.
+              </p>
+              <p class="prose">
+                This is less a repair than a disappearance. In the marginalized
+                model a single-send climber has <b>no offset to remove</b>, so
+                holding their row out no longer widens anything and there is
+                nothing left for the weights to correct. The diagnostic is not
+                &ldquo;better&rdquo;; the failure mode it detects is absent.
+              </p>
+              <div class="callout warn">
+                <div>
+                  <b>What it costs.</b> Two things, both worth stating.
+                  <br /><br />
+                  <b>Per-climber abilities are no longer sampled</b> for the
+                  single-send climbers. In practice that costs nothing &mdash;
+                  their &ldquo;estimate&rdquo; was essentially the prior anyway
+                  &mdash; and the distribution can be reconstructed afterwards
+                  in closed form if it is ever wanted.
+                  <br /><br />
+                  <b>Held-out scores are not comparable across the two
+                  versions.</b> For a single-send climber the question has
+                  genuinely changed: the original model asks &ldquo;predict this
+                  row using an ability fitted from this row,&rdquo; and the
+                  marginalized model asks &ldquo;predict this row for a climber
+                  whose ability is unknown.&rdquo; The second is harder and
+                  scores lower. That is the honest question scoring worse than
+                  the flattering one, not a worse model. Compare within a
+                  version, never across.
+                </div>
+              </div>
+            </section>

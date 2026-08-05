@@ -316,6 +316,11 @@ async function renderCurrentTabInner() {
 
   await renderGmVsNull();
 
+  // How the held-out score is computed and where it fails, then the version of
+  // the model where that failure stops existing. Both read v2_psis.json.
+  await renderV2Psis();
+  await renderV2PsisArms();
+
   // Priors and posteriors, chain mixing, the across-fit overlays, the fitted
   // height/ape curves and the corner plots. All of it reads
   // v2_posterior.json, so it renders once that file is in.

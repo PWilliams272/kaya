@@ -44,9 +44,15 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNS = ROOT / 'runs'
 OUT = ROOT / 'src' / 'kaya' / 'viewer_static' / 'v2_psis.json'
 
-# The ORIGINAL model by default: this is the problem being shown. Pass
-# --trace v3_lin_marg to measure whether marginalizing actually fixed it.
-TRACE = 'v3_lin'
+# Both arms of the same height form, so the page can show the diagnostic
+# before and after. The first is the problem; the second is the fix, and the
+# multi-observation groups are the control -- marginalizing singles must leave
+# them untouched, and if it does not, something other than the intended change
+# happened.
+ARMS = [
+    ('v3_lin', 'offsets sampled'),
+    ('v3_lin_marg', 'offsets integrated out'),
+]
 GROUPS = [(1, 'exactly 1'), (2, 'exactly 2'), (3, 'exactly 3'), (5, '5 or more')]
 SAMPLE_ROWS = 400         # rows sampled per group; the curves are medians
 # Where to read the concentration curve. Log-ish spacing: the interesting part
@@ -86,37 +92,24 @@ def merged_log_likelihood(idata):
     return merged.values
 
 
-def main():
-    from kaya.grading_model_v2 import make_dataset
-
-    p = argparse.ArgumentParser()
-    p.add_argument('--trace', default=TRACE)
-    p.add_argument('--out', default=None)
-    args = p.parse_args()
-    trace = args.trace
-    out = Path(args.out) if args.out else OUT
-
+def arm_summary(trace, label, ds, inv, rows_per, xs_want):
+    """Concentration curves and Pareto k for one fitted arm."""
     idata = az.from_netcdf(str(RUNS / 'traces' / f'idata_{trace}.nc'))
     ll = merged_log_likelihood(idata)
     n_draws = ll.shape[0] * ll.shape[1]
     ll = ll.reshape(n_draws, -1)
-
-    base = pickle.loads((RUNS / 'base_bouldering.pkl').read_bytes())
-    nets = json.loads((RUNS / 'networks.json').read_text())['networks']
-    ds = make_dataset(base, nets['net50'], name_filter='confident', label='')
-    uid = ds.observations['user_id'].to_numpy()
-    _, inv = np.unique(uid, return_inverse=True)
-    rows_per = np.bincount(inv)[inv]
 
     # Pareto k straight from arviz, so the page quotes the same diagnostic the
     # cross-validation itself used rather than a re-derivation of it.
     loo = az.loo(idata, pointwise=True)
     khat = np.asarray(loo.pareto_k).ravel()
 
-    xs = [c for c in CURVE_AT if c <= n_draws]
+    xs = [c for c in xs_want if c <= n_draws]
     groups = []
+    # Seeded per arm rather than per call, so both arms sample the SAME rows
+    # and the before/after comparison is not partly a change of sample.
     rng = np.random.default_rng(0)
-    for k, label in GROUPS:
+    for k, glabel in GROUPS:
         idx = (np.flatnonzero(rows_per == k) if k < 5
                else np.flatnonzero(rows_per >= 5))
         pick = rng.choice(idx, size=min(SAMPLE_ROWS, len(idx)), replace=False)
@@ -130,7 +123,7 @@ def main():
             ratios.append(sw[0] / max(np.median(w), 1e-300))
             tops.append(sw[0])
         groups.append({
-            'k': k, 'label': label,
+            'k': k, 'label': glabel,
             'n_rows': int(len(idx)),
             'n_climbers': int(len(np.unique(inv[idx]))),
             # Median curve across sampled rows: the typical row's concentration,
@@ -142,27 +135,62 @@ def main():
             'k_median': round(float(np.median(khat[idx])), 3),
             'k_p90': round(float(np.percentile(khat[idx], 90)), 3),
         })
+    return {
+        'trace': trace, 'label': label, 'n_draws': int(n_draws),
+        'curve_x': xs, 'groups': groups,
+        # Every scored row, not the sum of the groups above: climbers with
+        # exactly four observations are in neither, so summing the displayed
+        # groups undercounts and would not match overall_bad_k.
+        'n_rows': int(ll.shape[1]),
+        'overall_bad_k': round(float((khat > 0.7).mean()), 4),
+        # The mechanism in one number: how wide the target gets when a
+        # single-observation climber's only row is removed.
+        'sigma_user': round(float(idata.posterior['sigma_user'].values.mean()), 3),
+    }
+
+
+def main():
+    from kaya.grading_model_v2 import make_dataset
+
+    p = argparse.ArgumentParser()
+    p.add_argument('--out', default=None)
+    args = p.parse_args()
+    out = Path(args.out) if args.out else OUT
+
+    base = pickle.loads((RUNS / 'base_bouldering.pkl').read_bytes())
+    nets = json.loads((RUNS / 'networks.json').read_text())['networks']
+    ds = make_dataset(base, nets['net50'], name_filter='confident', label='')
+    uid = ds.observations['user_id'].to_numpy()
+    _, inv = np.unique(uid, return_inverse=True)
+    rows_per = np.bincount(inv)[inv]
+
+    arms = [arm_summary(t, lab, ds, inv, rows_per, CURVE_AT) for t, lab in ARMS]
 
     payload = {
-        'trace': trace, 'n_draws': int(n_draws), 'curve_x': xs,
-        'groups': groups,
-        'k_threshold': 0.7,
-        'overall_bad_k': round(float((khat > 0.7).mean()), 4),
-        # The mechanism in one pair of numbers: how much wider the target gets.
-        'sigma_user': round(float(idata.posterior['sigma_user'].values.mean()), 3),
+        'arms': arms, 'k_threshold': 0.7,
+        # Kept at the top level too: every arm has the same draw count and x
+        # grid, and the chart reads them before an arm is chosen.
+        'n_draws': arms[0]['n_draws'], 'curve_x': arms[0]['curve_x'],
+        # The archived v2 page predates the two-arm shape and reads these.
+        'trace': arms[0]['trace'], 'groups': arms[0]['groups'],
+        'overall_bad_k': arms[0]['overall_bad_k'],
+        'sigma_user': arms[0]['sigma_user'],
     }
     out.write_text(json.dumps(payload, separators=(',', ':')))
 
-    print(f'{trace}: {n_draws} draws, threshold k > {payload["k_threshold"]}\n')
-    print(f'{"climber has":<14}{"rows":>9}{"max/median w":>15}'
-          f'{"top draw":>11}{"top 10":>9}{"k>0.7":>9}{"median k":>10}')
-    for g in groups:
-        top10 = g['curve'][xs.index(10)] if 10 in xs else float('nan')
-        print(f'{g["label"]:<14}{g["n_rows"]:>9,}{g["max_over_median"]:>15,.0f}'
-              f'{g["top_draw_share"]:>10.1%}{top10:>9.1%}'
-              f'{g["bad_k"]:>9.1%}{g["k_median"]:>10.2f}')
-    print(f'\nall rows: {payload["overall_bad_k"]:.1%} exceed the threshold')
-    print(f'wrote {out}')
+    for a in arms:
+        print(f'\n{a["trace"]} ({a["label"]}): {a["n_draws"]} draws, '
+              f'threshold k > {payload["k_threshold"]}')
+        print(f'{"climber has":<14}{"rows":>9}{"max/median w":>15}'
+              f'{"top draw":>11}{"top 10":>9}{"k>0.7":>9}{"median k":>10}')
+        for g in a['groups']:
+            xs = a['curve_x']
+            top10 = g['curve'][xs.index(10)] if 10 in xs else float('nan')
+            print(f'{g["label"]:<14}{g["n_rows"]:>9,}{g["max_over_median"]:>15,.0f}'
+                  f'{g["top_draw_share"]:>10.1%}{top10:>9.1%}'
+                  f'{g["bad_k"]:>9.1%}{g["k_median"]:>10.2f}')
+        print(f'all rows: {a["overall_bad_k"]:.1%} exceed the threshold')
+    print(f'\nwrote {out}')
 
 
 if __name__ == '__main__':

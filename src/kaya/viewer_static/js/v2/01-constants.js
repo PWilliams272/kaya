@@ -214,6 +214,12 @@ function renderV2InlineFigures() {
     },
     pct_single: () => (R.pct_single_obs != null
       ? `${(100 * R.pct_single_obs).toFixed(0)}%` : '59%'),
+    // The width of the ability prior, which is what a climber's posterior
+    // falls back to when their only observation is held out. The whole
+    // importance-sampling failure is this number against the ~0.5 the
+    // posterior had while the row was in.
+    sigma_user: () => (R.sigma_user
+      ? `${(+R.sigma_user.mean).toFixed(2)} grades` : '—'),
   };
   document.querySelectorAll('[data-v2]').forEach((el) => {
     const f = fmt[el.dataset.v2];
