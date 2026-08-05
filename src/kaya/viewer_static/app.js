@@ -4180,7 +4180,60 @@ function renderV2ArmCompare() {
     + '</tbody>';
 }
 
+// ---- do the samplers agree? ----
+//
+// v2_samplers.json is written by scripts/compare_samplers.py: the same shared
+// parameters, as each sampler saw them.
+
+async function renderV2Samplers() {
+  const el = document.getElementById('v2-sampler-table');
+  const note = document.getElementById('v2-sampler-note');
+  if (!el) return;
+  let d = null;
+  try {
+    const r = await fetch('/static/v2_samplers.json', { cache: 'no-cache' });
+    if (r.ok) d = await r.json();
+  } catch (e) { /* not run yet */ }
+  if (!d || !d.params || !d.params.length) {
+    el.closest('.data-table-wrap').style.display = 'none';
+    if (note) {
+      note.innerHTML = 'The cross-sampler comparison appears once the '
+        + 'independent runs have finished. Only the parameters every sampler '
+        + 'reports are compared &mdash; the gym corrections are a vector in '
+        + 'one and 28 scalars in another, so they are handled separately.';
+    }
+    return;
+  }
+  el.closest('.data-table-wrap').style.display = '';
+  const S = d.samplers;
+  el.innerHTML = '<thead><tr><th>parameter</th>'
+    + S.map((s) => `<th>${s}<br /><span class="muted">mean (sd)</span></th>`).join('')
+    + '<th>largest gap<br /><span class="muted">as a fraction of sd</span></th>'
+    + '</tr></thead><tbody>'
+    + d.params.map((p) => {
+      const ref = p[S[0]];
+      const worst = Math.max(...S.slice(1).map(
+        (s) => Math.abs(p[s].mean - ref.mean) / Math.max(ref.sd, 1e-12)));
+      return `<tr><td class="label-cell">${p.param}</td>`
+        + S.map((s) => `<td class="unit">${p[s].mean.toFixed(3)} `
+          + `<span class="muted">(${p[s].sd.toFixed(3)})</span></td>`).join('')
+        + `<td class="unit${worst > 0.1 ? '' : ' muted'}">${worst.toFixed(3)}</td></tr>`;
+    }).join('')
+    + '</tbody>';
+  if (note) {
+    note.innerHTML = `Posterior mean and standard deviation for every parameter `
+      + `all ${S.length} samplers report. The last column is the largest `
+      + 'disagreement between them, measured against the width of the '
+      + 'posterior itself &mdash; the only scale on which the question has an '
+      + `answer. The worst case anywhere is <b>${d.worst_frac_sd.toFixed(3)} `
+      + 'standard deviations</b>. With enough draws two samplers always differ '
+      + '<i>statistically</i>; what matters is whether they differ by enough '
+      + 'to change a conclusion.';
+  }
+}
+
 async function renderV2Reliability() {
+  renderV2Samplers();
   if (!(await loadV2Reliability())) return;
   renderV2ArmPicker();
   renderV2Noise();

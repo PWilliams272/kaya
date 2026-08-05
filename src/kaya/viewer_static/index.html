@@ -2348,6 +2348,57 @@
                 </div>
               </div>
 
+              <h3>Four samplers, one posterior</h3>
+              <p class="prose">
+                Removing 6,156 parameters did something else besides fixing the
+                cross-validation: it put the model within reach of algorithms
+                that could not touch it before. That is worth using, because a
+                sampler agreeing with itself proves very little.
+              </p>
+              <p class="prose">
+                The concern is concrete. The marginalized likelihood is a
+                numerical integral nested inside a distribution that is itself
+                a sum of two others, and it is written twice &mdash; once as a
+                PyTensor graph so PyMC can differentiate it, once in plain
+                NumPy. Code like that does not usually fail loudly. It computes
+                a plausible wrong number. <b>One implementation converging says
+                nothing about whether it converged to the right thing; two
+                implementations and three algorithms landing on the same
+                posterior does.</b>
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-sampler-table"></table>
+              </div>
+              <p class="caption" id="v2-sampler-note"></p>
+              <div class="callout">
+                <div>
+                  <b>Why each one, and why none of them on the original model.</b>
+                  <br /><br />
+                  <b>PyMC / NUTS</b> uses the gradient of the likelihood to
+                  take long, well-aimed steps. It is the only one of the four
+                  that can handle thousands of parameters at all, which is why
+                  it was the only option before.
+                  <br /><br />
+                  <b>emcee</b> runs a population of walkers that propose moves
+                  by looking at each other, using no gradients &mdash; so it
+                  exercises the NumPy implementation, entirely independent of
+                  the PyTensor graph. It needs more walkers than parameters and
+                  degrades badly past a few tens of dimensions, so on 10,397
+                  parameters it was not merely slow but unusable.
+                  <br /><br />
+                  <b>Nested sampling</b> answers a different question: it
+                  computes the <i>evidence</i>, which gives Bayes factors
+                  directly and touches none of the importance-sampling
+                  machinery where every problem above lives. Also unusable
+                  above a few tens of parameters.
+                  <br /><br />
+                  <b>Bridge sampling</b> estimates the same evidence from draws
+                  already in hand, by a different estimator, in minutes.
+                  Agreement with nested sampling is evidence for both.
+                </div>
+              </div>
+              <div id="v2-evidence-block"></div>
+
               <h3>What has held steady across every fit</h3>
               <p class="prose">
                 Different height forms are different models. A number that barely
@@ -2422,6 +2473,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=80"></script>
+    <script src="/static/app.js?v=81"></script>
   </body>
 </html>
