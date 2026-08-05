@@ -4616,7 +4616,11 @@ function v2CurveBand(fitName, kind, zs, G) {
   // parameters" -- that produced an empty column set and threw on the first
   // draw, taking the whole figure with it. A form this function does not know
   // how to draw is simply not drawn.
-  const need = kind === 'height' ? HEIGHT_PARAMS[form] : ['delta1', 'delta2'];
+  // The ape curve needs only delta1; delta2 is picked up when the fit has it,
+  // exactly like the gender interactions below. Demanding delta2 hid the
+  // linear-ape arm, which has a perfectly drawable straight ape curve --
+  // v2ApeAt already treats a missing term as zero.
+  const need = kind === 'height' ? HEIGHT_PARAMS[form] : ['delta1'];
   if (!need) return null;
   if (need.some((p) => !fit.params[p])) return null;
   if (!need.length) return null;
@@ -4624,7 +4628,7 @@ function v2CurveBand(fitName, kind, zs, G) {
   const cols = {};
   need.forEach((p) => { cols[p] = fit.params[p].chains.flat(); });
   if (kind === 'ape') {
-    ['delta1_x', 'delta2_x'].forEach((p) => {
+    ['delta2', 'delta1_x', 'delta2_x'].forEach((p) => {
       if (fit.params[p]) cols[p] = fit.params[p].chains.flat();
     });
   }
