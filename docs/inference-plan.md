@@ -59,13 +59,22 @@ each climber's mode, Laplace width) converges at 21–31 nodes in 88–134 ms.
 | `scripts/check_marginal.py` | closed form vs dense numerical integration (1.2e-13); quadrature convergence; the model's own node placement vs dense integration on the 25 hardest climbers (8.9e-13). |
 | `scripts/check_pymc_marginal.py` | PyTensor logp vs NumPy logp at the same point: 1.3e-9 relative. |
 
-### Two traps already paid for
+### Three traps already paid for
 
 * `model['x']` compiles the **random variable** — evaluating it draws from the
   prior and ignores the point entirely. Use `replace_rvs_by_values`. This
   produced a fake 4,535-unit "disagreement" between implementations.
 * `ZeroSumNormal`'s transform is an orthogonal projection, not "append minus
-  the sum". Its free coordinates cannot be reconstructed by hand.
+  the sum". Its free coordinates cannot be reconstructed by hand. **This was
+  written down here and then implemented wrong anyway**: `marginal_v2.unpack`
+  sampled 28 gym corrections and set the 29th to minus their sum, giving that
+  one gym a prior variance of 28.02 against everyone else's 1.00 (PyMC's is a
+  uniform 0.966). It survived for weeks because `check_pymc_marginal.py`
+  compares `model.logp(vars=model.observed_RVs)` — the **likelihood only**, and
+  both schemes hand the likelihood a valid zero-sum vector. A likelihood check
+  cannot see a prior bug. Fixed with `zero_sum_basis()` (QR of `[1 | I]`,
+  columns 1:), guarded by `tests/test_marginal_prior.py`, which checks the
+  prior directly and includes a test that the broken scheme *fails* it.
 * The ExGaussian log-density is `inf - inf` when `nu <= 0.05*sigma` — three
   terms individually infinite that cancel exactly. NUTS never wandered there;
   nested sampling starts from the whole prior and hit it in 2 of 5 random
