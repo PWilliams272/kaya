@@ -1,0 +1,73 @@
+emcee start 08:00
+[lin] 40 parameters, 128 walkers, 4000 steps
+[lin] parameters: beta0, log_sigma_user, beta_gender, gamma1, delta1, delta2, beta_h_missing, beta_a_missing, ...
+[lin] step 100/4000  7.8 min  acc 0.399
+[lin] step 200/4000  15.6 min  acc 0.371
+[lin] step 300/4000  23.3 min  acc 0.349
+[lin] step 400/4000  31.0 min  acc 0.333
+[lin] step 500/4000  38.6 min  acc 0.320
+[lin] step 600/4000  46.3 min  acc 0.310
+[lin] step 700/4000  54.1 min  acc 0.305
+[lin] step 800/4000  61.7 min  acc 0.300
+[lin] step 900/4000  69.5 min  acc 0.293
+[lin] step 1000/4000  77.4 min  acc 0.289
+[lin] step 1100/4000  85.5 min  acc 0.285
+[lin] step 1200/4000  94.1 min  acc 0.282
+[lin] step 1300/4000  103.5 min  acc 0.280
+[lin] step 1400/4000  112.4 min  acc 0.277
+[lin] step 1500/4000  121.1 min  acc 0.274
+[lin] step 1600/4000  130.5 min  acc 0.270
+[lin] step 1700/4000  140.4 min  acc 0.267
+[lin] step 1800/4000  150.5 min  acc 0.265
+[lin] step 1900/4000  161.0 min  acc 0.263
+[lin] step 2000/4000  171.9 min  acc 0.261
+[lin] step 2100/4000  181.2 min  acc 0.259
+[lin] step 2200/4000  190.4 min  acc 0.258
+[lin] step 2300/4000  199.6 min  acc 0.256
+[lin] step 2400/4000  208.6 min  acc 0.255
+[lin] step 2500/4000  217.5 min  acc 0.254
+[lin] step 2600/4000  227.7 min  acc 0.252
+[lin] step 2700/4000  238.0 min  acc 0.251
+[lin] step 2800/4000  247.3 min  acc 0.250
+[lin] step 2900/4000  256.9 min  acc 0.249
+[lin] step 3000/4000  266.7 min  acc 0.247
+[lin] step 3100/4000  276.2 min  acc 0.246
+[lin] step 3200/4000  285.3 min  acc 0.245
+[lin] step 3300/4000  294.0 min  acc 0.245
+[lin] step 3400/4000  302.4 min  acc 0.244
+[lin] step 3500/4000  311.0 min  acc 0.243
+[lin] step 3600/4000  319.8 min  acc 0.242
+[lin] step 3700/4000  328.7 min  acc 0.242
+[lin] step 3800/4000  337.5 min  acc 0.241
+[lin] step 3900/4000  346.8 min  acc 0.240
+[lin] step 4000/4000  355.8 min  acc 0.240
+
+[lin] 355.8 min, acceptance 0.240
+[lin] autocorrelation time: max 560 steps (NOT converged: The chain is shorter than 50 times the integrated autocorrelation time for 39 parameter(s). Use this estimate with caution and run a longer chain!
+N/50 = 80;
+tau: [123.37448817  42.05890358 400.27031737 366.03140984 183.42276652
+ 164.26682948 249.02020435 443.35674686 401.76121559 463.20046173
+ 211.39693096 351.07980417 269.29713155 340.25434255 460.44063523
+ 295.91431298 343.06980972 457.13396807 258.73182579 484.21298984
+ 325.89592152 456.21075403 486.90902616 460.79869431 390.27379046
+ 323.43120112 559.24245759 560.39768735 434.38624919 276.15531745
+ 297.89614611 485.51012564 454.82998585 486.16415027 279.72566897
+ 193.67097892 324.61261454 263.33649498 144.93113768 257.67307935])
+[lin] effective sample size ~ 685 from 384,000 draws
+
+             parameter       mean        sd     tau
+                 beta0     5.6542    0.0285     123
+        log_sigma_user     0.4876    0.0094      42
+           beta_gender    -1.3996    0.0659     400
+                gamma1    -0.1899    0.0263     366
+                delta1     0.2680    0.0336     183
+                delta2    -0.0074    0.0107     164
+        beta_h_missing    -0.5123    0.0631     249
+        beta_a_missing    -0.5858    0.0501     443
+         log_sigma_gym    -1.6466    0.1796     402
+           log_lambda0     0.0676    0.0164     263
+                 kappa     0.2798    0.0125     145
+                   rho    -0.0293    0.0732     258
+
+[lin] wrote /Users/peterwilliams/projects/kaya/runs/results/emcee_lin.npz  118 MB
+EMCEE COMPLETE 13:56 exit=0
