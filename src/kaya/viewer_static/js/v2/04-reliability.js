@@ -22,7 +22,7 @@ async function loadV2Reliability() {
 // both are reachable: the old one is the evidence that the fix was needed.
 const V2_ARM_LABEL = {
   unmarginalized: 'every climber keeps their own ability offset (10,397 parameters)',
-  marginalized: 'single-observation offsets integrated out (4,241 parameters)',
+  marginalized: 'single-send climbers\' ability offsets integrated out (4,241 parameters)',
 };
 let V2_ARM = null;
 

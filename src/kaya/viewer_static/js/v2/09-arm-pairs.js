@@ -108,9 +108,12 @@ function renderV2ArmPairs(name) {
     const skipped = pairs.length - usable.length;
     const swatch = (arm, dash) => `<span style="color:${cssVar(V2_ARM_HUE[arm])};`
       + `font-weight:700">${dash}</span>`;
-    note.innerHTML = `${swatch('unmarginalized', '—')} <b>original</b> against `
-      + `${swatch('marginalized', '···')} <b>offsets integrated out</b>, `
-      + 'the same height form in each panel, on one shared horizontal scale. '
+    note.innerHTML = `${swatch('unmarginalized', '—')} <b>original</b> (every `
+      + 'climber keeps their own ability offset) against '
+      + `${swatch('marginalized', '···')} <b>climber offsets integrated out</b> `
+      + '(single-send climbers have no offset, because every ability they might '
+      + 'have has been averaged over instead). <b>The height form is identical '
+      + 'within each panel</b>, and all panels share one horizontal scale. '
       + '<b>Shifts are in units of the original fit&rsquo;s own posterior SD</b> '
       + '&mdash; a parameter that moves by less than its own uncertainty has not '
       + 'really moved. '
@@ -127,6 +130,10 @@ function renderV2ArmPairs(name) {
           + 'parameter in both versions and ' + (skipped === 1 ? 'is' : 'are')
           + ' not shown. '
         : '')
-      + 'Panels marked ⚠ contain a fit whose chains did not agree.';
+      + 'Panels marked ⚠ contain a fit with R&#770; (R-hat) above 1.01. '
+      + 'R&#770; compares how much the four chains differ from each other with '
+      + 'how much each one wanders on its own: at 1.00 they are exploring the '
+      + 'same distribution, and above 1.01 they settled in different places, so '
+      + 'that panel&rsquo;s posterior is not yet a measurement.';
   }
 }

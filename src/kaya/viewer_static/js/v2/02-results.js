@@ -230,16 +230,16 @@ function v2ScopedFitNames() {
 // silently recolours every curve and the reader thinks the fits moved.
 const v2FitHue = (n) => cssVar(V2_FIT_HUES[v2FitNames().indexOf(n) % V2_FIT_HUES.length]);
 
-// A fit's display name. The marginalized arm shares its height form with the
-// original, so it is labelled by that form plus which version it is -- a
-// legend that mixed "linear" with "v3_lin_marg" told the reader nothing about
-// how the two relate.
+// A fit's display name: the height form, plus which version of the model it
+// is. Two things vary across the fits and the label has to carry both, or a
+// legend entry cannot be placed. "offsets" alone was ambiguous -- they are the
+// per-climber ability offsets, so the label says climber offsets.
 function v2FitLabel(fn) {
   if (V2_FIT_LABEL[fn]) return V2_FIT_LABEL[fn];
   const f = v2Fit(fn);
   const base = (f && f.base) || (fn.endsWith('_marg') ? fn.slice(0, -5) : fn);
   const stem = V2_FIT_LABEL[base] || (f && f.height_form) || base;
-  return fn.endsWith('_marg') ? `${stem} · offsets integrated out` : stem;
+  return fn.endsWith('_marg') ? `${stem} · climber offsets integrated out` : stem;
 }
 
 // Gaussian KDE on a fixed grid. Silverman bandwidth; these posteriors are

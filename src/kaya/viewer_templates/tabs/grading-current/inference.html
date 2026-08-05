@@ -162,8 +162,8 @@
                 <label class="ctl">
                   <span>Which models</span>
                   <select id="gm-fit-scope">
-                    <option value="unmarginalized">Original model &mdash; 7 height forms</option>
-                    <option value="marginalized">Offsets integrated out &mdash; 7 height forms</option>
+                    <option value="unmarginalized">Original &mdash; every climber keeps an offset</option>
+                    <option value="marginalized">Climber offsets integrated out</option>
                     <option value="both">Both versions &mdash; 14 fits</option>
                   </select>
                 </label>
@@ -177,15 +177,27 @@
 
               <h3>The same height form, fitted both ways</h3>
               <p class="prose">
-                The plot above cannot separate two things that move together: a
-                curve labelled &ldquo;linear&rdquo; and one labelled &ldquo;linear
-                &middot; offsets integrated out&rdquo; differ in the height form
-                <i>and</i> in whether each climber kept a personal ability offset.
-                Pairing every form with its own marginalized twin holds the form
-                fixed, so whatever is left is the effect of the change described in
-                <a href="#gm-marginal">Integrating the climber out</a>. This grid
-                shows the parameter selected above, one panel per height form,
-                whatever the model selection is set to.
+                Two separate things vary across the fitted models, and the plot
+                above stacks them on one axis. The first is the <b>height
+                form</b> &mdash; straight line, curve, saturating curve. The
+                second is the <b>version of the model</b>: whether each climber
+                kept their own ability offset, or the offsets of single-send
+                climbers were integrated out, as described in
+                <a href="#gm-marginal">Integrating the climber out</a>. Any two
+                curves up there can differ in either, or both. With fourteen
+                overlapping densities in ten recycled colours a single pair
+                cannot be followed, and the summary underneath is worse than
+                unhelpful: it reports how far the posterior mean travels across
+                <i>all</i> the fits, which rolls both sources of variation into
+                one number and then attributes the total to the height form.
+              </p>
+              <p class="prose">
+                This grid answers that directly. <b>Every panel holds the height
+                form fixed</b> and shows only the two versions of it, so whatever
+                separates the two curves is the version and nothing else. It
+                follows the parameter selected above, and it ignores the model
+                selection &mdash; its whole subject is the difference between the
+                two versions, so narrowing to one would empty it.
               </p>
               <div id="gm-arm-pairs" class="pair-grid"></div>
               <p class="caption" id="gm-arm-pairs-note"></p>
