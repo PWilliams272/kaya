@@ -50,6 +50,7 @@ def main():
         os.environ.setdefault(v, '1')
 
     import emcee
+
     from kaya.grading_model_v2 import make_dataset
     from kaya.marginal_v2 import MarginalModel
 
@@ -89,13 +90,14 @@ def main():
                       flush=True)
     el = time.time() - t0
 
-    chain = sampler.get_chain()                       # (steps, walkers, ndim)
     try:
         # Integrated autocorrelation time: how many steps before a draw is
         # effectively independent. emcee raises rather than quietly returning
         # a number it does not trust, which is the useful behaviour.
         tau = sampler.get_autocorr_time(tol=0)
-        tau_ok = sampler.get_autocorr_time()
+        # Called for the exception, not the value: this is the strict call that
+        # raises when the chain is too short to trust its own estimate.
+        sampler.get_autocorr_time()
         tau_note = 'converged'
     except Exception as e:
         tau = sampler.get_autocorr_time(tol=0)

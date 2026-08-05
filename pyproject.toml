@@ -13,8 +13,11 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
 
-# Add your main dependencies here
-# Example:
+# Core = what the data pull and the deployed viewer actually import at runtime.
+# `deploy-viewer-app.yml` runs `pip install -e .` on the shared EC2 host, so
+# anything listed here lands on a host that is already resource-tight. The
+# sampling stack, the plotting stack, and the retired RDS driver are extras;
+# see `[project.optional-dependencies]` below.
 dependencies = [
     "requests>=2.25,<3.0",
     "tqdm>=4.60,<5.0",
@@ -24,15 +27,39 @@ dependencies = [
     "gender-guesser>=0.4,<1.0",
     "python-dotenv>=0.19,<2.0",
     "sqlalchemy>=1.4,<3.0",
-    "psycopg2-binary>=2.9,<3.0",
     "boto3>=1.17,<2.0",
-    "matplotlib",
     "fastapi>=0.115,<1.0",
     "uvicorn[standard]>=0.30,<1.0",
-    "pygam>=0.9,<1.0",
-    "pyarrow>=14,<19",
-    "pymc>=5.10,<6.0",
-    "arviz>=0.17,<1.0"
+    "pyarrow>=14,<19"
+]
+
+[project.optional-dependencies]
+# Building the precomputed viewer payloads offline. `viewer_payloads` imports
+# pygam lazily so the deployed viewer, which only serves prebuilt JSON, does not
+# need it. Matches lambda_deployment/viewer_cache_requirements.txt.
+payloads = ["pygam>=0.9,<1.0"]
+
+# Fitting the Bayesian grading model. Never imported by the viewer or by either
+# Lambda — sampling runs from scripts/ on its own cadence.
+modelling = ["pymc>=5.10,<6.0", "arviz>=0.17,<1.0"]
+
+# Plotting for notebooks/ and figs/. Nothing under src/ or scripts/ imports it.
+notebooks = ["matplotlib"]
+
+# The retired VPC+RDS write path. SQLAlchemy alone covers the local SQLite
+# mirror; this driver is only needed to talk to Postgres.
+rds = ["psycopg2-binary>=2.9,<3.0"]
+
+dev = [
+    "ruff>=0.6,<1.0",
+    "mypy>=1.11,<2.0",
+    "pytest>=8.0,<9.0",
+    "types-requests"
+]
+
+# Everything, for a local working environment.
+all = [
+    "kaya[payloads,modelling,notebooks,rds,dev]"
 ]
 
 [project.urls]
@@ -40,3 +67,72 @@ Homepage = "https://github.com/PWilliams272/kaya"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "scripts", "tests"]
+extend-exclude = ["notebooks", "docs/build", "runs", "data", "figs"]
+
+[tool.ruff.lint]
+# Deliberately a starting set, not the full catalogue. This codebase has never
+# been linted, so the rules here are the ones whose violations are always worth
+# fixing (real errors, unused names, import order) rather than a stylistic
+# rewrite of working analysis code. Widen it once this passes clean.
+select = ["E", "F", "I", "W"]
+ignore = [
+    # Long lines are mostly prose in docstrings explaining modelling decisions,
+    # and reflowing them would churn the part of the file worth reading.
+    "E501",
+    # `rho = theta[i]; i += 1` — the parameter-vector unpacking in
+    # grading_model_v2 and marginal_v2 is a deliberate columnar idiom. Splitting
+    # each pair onto two lines would double the length of the block that most
+    # needs to be read as a table.
+    "E702",
+    # `l`, `I`, `O` as locals. Used in the sampler-comparison scripts where they
+    # match the symbols in the surrounding maths.
+    "E741",
+    # Short lambdas assigned to a name, used as local formatters in the fit
+    # scripts.
+    "E731",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# The fit scripts intentionally set warning filters before importing the heavy
+# numerical stack, so their imports cannot all sit at the top.
+"scripts/*.py" = ["E402"]
+"src/kaya/backfill_gap_2026.py" = ["E402"]
+"docs/source/conf.py" = ["E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["kaya"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/kaya"]
+# Incremental adoption: this repo is mostly untyped analysis code, so the strict
+# flags stay off until modules are annotated one at a time. What is on catches
+# the errors that do not need annotations to find.
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+check_untyped_defs = false
+
+[[tool.mypy.overrides]]
+# Modules with public type hints already; hold these to a higher bar.
+module = ["kaya.viewer_app", "kaya.s3_storage", "kaya.viewer_payloads"]
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+# Not yet migrated. Each has real findings worth fixing — SQLAlchemy Column
+# typing in db_manager, a max(key=...) signature in grading_model_v2 — but
+# fixing them means touching the data and modelling paths, so they are a
+# backlog, not a blocker. Remove a module from this list when you annotate it.
+module = ["kaya.db_manager", "kaya.grading_model_v2", "kaya.data_puller"]
+ignore_errors = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra --strict-markers"

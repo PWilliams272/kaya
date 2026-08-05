@@ -4,15 +4,19 @@ Reads base_bouldering.pkl and networks.json from --data-dir, and writes
 idata_<name>.nc plus result_<name>.json to --out-dir. Both default to runs/,
 so this works unchanged on a laptop and on a rented box.
 """
-import argparse, json, pickle, time, warnings
+import argparse
+import json
+import pickle
+import time
+import warnings
 from pathlib import Path
 
 warnings.filterwarnings('ignore', category=FutureWarning)
-import numpy as np
 import arviz as az
+import numpy as np
 import pymc as pm
 
-from kaya.grading_model_v2 import make_dataset, build_model_v2
+from kaya.grading_model_v2 import build_model_v2, make_dataset
 
 ROOT = Path(__file__).resolve().parents[1]
 

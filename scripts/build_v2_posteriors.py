@@ -7,12 +7,16 @@ Draws are thinned with the SAME step for every parameter within a fit, so
 draw i of one parameter still corresponds to draw i of another -- that joint
 structure is what makes the corner plots meaningful. Do not thin per-parameter.
 """
-import argparse, glob, json, os, pickle, warnings
+import argparse
+import json
+import os
+import pickle
+import warnings
 from pathlib import Path
 
 warnings.filterwarnings('ignore')
-import numpy as np
 import arviz as az
+import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNS = ROOT / 'runs'
@@ -81,7 +85,8 @@ def prior_draws(fit_args, n=1500):
     the cheaper unmarginalized model gives the identical answer.
     """
     import pymc as pm
-    from kaya.grading_model_v2 import make_dataset, build_model_v2
+
+    from kaya.grading_model_v2 import build_model_v2, make_dataset
     base = pickle.load(open(data_file('base_bouldering.pkl'), 'rb'))
     nets = json.loads(data_file('networks.json').read_text())['networks']
     ds = make_dataset(base, nets[fit_args['network']],

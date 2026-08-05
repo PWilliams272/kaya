@@ -4,7 +4,10 @@ plus matching prior draws, and write a compact JSON the viewer can plot.
 Kept deliberately small: 200 draws/chain is plenty for a density curve or a
 trace plot at screen resolution, and keeps the payload well under a megabyte.
 """
-import argparse, json, numpy as np, arviz as az
+import argparse
+import json
+
+import arviz as az
 
 DEFAULT_TRACE = '/Users/peterwilliams/.claude/jobs/e4f1b508/tmp/idata_v3_conf.nc'
 DEFAULT_OUT = '/Users/peterwilliams/projects/kaya/src/kaya/viewer_static/v2_posterior.json'
@@ -76,5 +79,6 @@ out['sampling_minutes'] = None
 with open(OUT, 'w') as f:
     json.dump(out, f, separators=(',', ':'))
 import os
+
 print('wrote', OUT, round(os.path.getsize(OUT)/1024, 1), 'KB')
 print('params:', len(out['params']))

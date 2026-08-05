@@ -1,15 +1,12 @@
-import os
-import pandas as pd
-from sqlalchemy.engine import Engine
-from sqlalchemy import (
-    create_engine, Table, MetaData, inspect, text, Column, String
-)
-from sqlalchemy.types import Boolean, Integer, Float
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 import logging
+import os
 from pathlib import Path
 
+import pandas as pd
+from sqlalchemy import Column, MetaData, String, Table, create_engine, inspect, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.engine import Engine
+from sqlalchemy.types import Boolean, Float, Integer
 
 # Use /tmp in Lambda because the home directory is read-only there.
 if 'AWS_LAMBDA_FUNCTION_NAME' in os.environ:

@@ -437,7 +437,10 @@ def build_model_v2(
     # instead of the ~19k latents full imputation would add.
     h_miss = (~h_obs).astype(float)
     a_miss = (~a_obs).astype(float)
-    scales = {'h_sd': h_sd, 'a_sd': a_sd,
+    # Kept as an inline record of the standardization constants this fit used --
+    # the numbers quoted in the comment above are only meaningful next to them.
+    # Not currently returned; noqa rather than deleted so the record survives.
+    scales = {'h_sd': h_sd, 'a_sd': a_sd,  # noqa: F841
               'h_median': float(np.nanmedian(height)), 'a_median': float(np.nanmedian(ape)),
               'h_missing_frac': float(h_miss.mean()), 'a_missing_frac': float(a_miss.mean())}
     w_female = users['w_female'].fillna(0.5).to_numpy(float)

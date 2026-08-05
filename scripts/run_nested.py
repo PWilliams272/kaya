@@ -90,6 +90,7 @@ def main():
         os.environ.setdefault(v, '1')
 
     import dynesty
+
     from kaya.grading_model_v2 import make_dataset
     from kaya.marginal_v2 import MarginalModel
 

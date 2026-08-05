@@ -34,11 +34,25 @@ Lambda design is retired — do not treat it as current state.
 ```bash
 source .venv/bin/activate && PYTHONPATH=src python -m kaya.update_data_script   # data pull
 source .venv/bin/activate && python -m kaya.viewer_app                          # viewer locally
-source .venv/bin/activate && python -m compileall src                           # syntax check
+source .venv/bin/activate && python -m pytest                                   # tests
+source .venv/bin/activate && python -m ruff check .                             # lint
+source .venv/bin/activate && python -m mypy                                     # types
 ```
 
-No `tests/` directory yet — adding one is tracked cleanup work, so prefer verifying changes by
-running the affected entrypoint rather than assuming coverage exists.
+All three gates are green — keep them that way. Install them with `pip install -e ".[dev]"`.
+
+Coverage is **thin and deliberately scoped**: `tests/` covers the viewer's request surface and the
+payload builder's caching, i.e. the invariants that broke silently before (computing routes leaking
+into production, a cache that never cached). There is no coverage of the data pull, the S3 layer, or
+the model. For anything outside `tests/`, still verify by running the affected entrypoint.
+
+`mypy` passes because `db_manager`, `grading_model_v2`, and `data_puller` are on an
+`ignore_errors` list in `pyproject.toml` — they have real findings. Take a module off that list when
+you annotate it; don't add new ones.
+
+Dependencies are split: core is what the pull and the deployed viewer import. `pymc`/`arviz` are in
+the `modelling` extra, `pygam` in `payloads`, `matplotlib` in `notebooks`, `psycopg2-binary` in
+`rds`. `pip install -e ".[all]"` for a full local environment.
 
 ## Deploy
 

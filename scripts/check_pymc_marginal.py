@@ -26,7 +26,6 @@ from pathlib import Path
 
 warnings.filterwarnings('ignore')
 import numpy as np
-import pymc as pm
 
 from kaya.grading_model_v2 import build_model_v2, make_dataset
 from kaya.marginal_v2 import MarginalModel, exgaussian_logpdf

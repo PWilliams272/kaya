@@ -69,15 +69,14 @@ against a quadrature evaluation of the same quantity to machine precision.
 """
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 
 import numpy as np
 from numpy.polynomial.hermite_e import hermegauss
 from scipy.special import log_ndtr, logsumexp
 
-from kaya.grading_model_v2 import (DatasetV2, _design_columns,
-                                   PRIOR_SD as _PRIOR_SD)
+from kaya.grading_model_v2 import PRIOR_SD as _PRIOR_SD
+from kaya.grading_model_v2 import DatasetV2, _design_columns
 
 __all__ = ['MarginalModel', 'exgaussian_logpdf']
 

@@ -1,13 +1,16 @@
 """Run one grading-model-v2 fit and save summary + trace."""
-import argparse, json, pickle, time, warnings
+import argparse
+import json
+import pickle
+import time
+import warnings
 from pathlib import Path
 
 warnings.filterwarnings('ignore', category=FutureWarning)
-import numpy as np
 import arviz as az
 import pymc as pm
 
-from kaya.grading_model_v2 import make_dataset, build_model_v2
+from kaya.grading_model_v2 import build_model_v2, make_dataset
 
 OUT = Path('/Users/peterwilliams/.claude/jobs/e4f1b508/tmp')
 

@@ -213,7 +213,7 @@ def main():
                           else 'unmarginalized'}
     OUT.write_text(json.dumps(payload, separators=(',', ':')))
 
-    print(f'\nsubsets: ' + ', '.join(
+    print('\nsubsets: ' + ', '.join(
         f'>={s["k"]} rows -> {s["rows"]:,} rows / {s["climbers"]:,} climbers'
         for s in subsets))
     print(f'\nwrote {OUT}  {OUT.stat().st_size/1024:.0f} KB')

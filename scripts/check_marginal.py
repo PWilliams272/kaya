@@ -65,7 +65,7 @@ def check_single_obs_closed_form(mm, rng):
     numeric = np.log(dens * (grid[1] - grid[0]))
 
     err = np.abs(closed - numeric).max()
-    print(f'1. single-observation closed form vs dense numerical integration')
+    print('1. single-observation closed form vs dense numerical integration')
     print(f'   max abs difference in log density over {len(s)} rows: {err:.3e}')
     assert err < 1e-6, f'closed form disagrees with the integral it claims to be ({err:.2e})'
     print('   PASS\n')

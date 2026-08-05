@@ -24,7 +24,6 @@ thinned posterior draws are all kilobytes. Traces stay on the box unless
 --keep-traces pushes them to S3.
 """
 import argparse
-import json
 import os
 import shlex
 import subprocess

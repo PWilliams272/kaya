@@ -4,7 +4,10 @@ Reads every result_v3_*.json produced by run_grading_fit.py, plus the gym
 id -> name/brand mapping, and writes one JSON the viewer renders. Re-run this
 whenever a fit lands; nothing on the page should be hand-typed.
 """
-import argparse, csv, json, glob, os
+import argparse
+import csv
+import json
+import os
 from pathlib import Path
 
 import arviz as az
@@ -87,6 +90,7 @@ def pct_single_obs(prim):
     if 'pct_single_obs' in d:
         return float(d['pct_single_obs'])
     import pickle
+
     from kaya.grading_model_v2 import make_dataset
     base = pickle.load(open(data_file('base_bouldering.pkl'), 'rb'))
     nets = json.loads(data_file('networks.json').read_text())['networks']
@@ -218,7 +222,7 @@ def main():
     print(f'wrote {OUT}  {os.path.getsize(OUT)/1024:.1f} KB')
     print(f'  primary={args.primary}  gyms={len(gyms)} ({payload["n_sig"]} credible)'
           f'  spread={spread:.3f}')
-    print(f'  forms ranked: ' + ', '.join(f"{f['label']} {f['d_elpd']:+.1f}" for f in forms))
+    print('  forms ranked: ' + ', '.join(f"{f['label']} {f['d_elpd']:+.1f}" for f in forms))
     print(f'  still pending: {payload["pending"] or "none"}')
 
 

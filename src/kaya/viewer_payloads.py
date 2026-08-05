@@ -6,15 +6,14 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-from pygam import LinearGAM, s as gam_spline
 
 from kaya.data_access import (
     BOULDER_GRADE_TO_NUM,
     KayaDataAccessor,
     boulder_grade_ticks,
     normalize_climb_discipline,
-    route_grade_to_num,
     route_grade_ticks,
+    route_grade_to_num,
 )
 from kaya.s3_storage import get_s3_bucket, get_s3_client, get_s3_prefix, has_s3_storage_config
 
@@ -304,6 +303,18 @@ class ViewerPayloadBuilder:
         """
         if len(x_values) < GAM_MIN_POINTS:
             return None
+        # Imported here, not at module scope, so the deployed viewer can import
+        # this module without pygam installed. It serves prebuilt payloads and
+        # never reaches this function; the offline builders and the
+        # kaya-viewer-cache Lambda do, and both install the `payloads` extra.
+        try:
+            from pygam import LinearGAM
+            from pygam import s as gam_spline
+        except ImportError as exc:  # pragma: no cover - environment-dependent
+            raise ImportError(
+                'Fitting the body-metrics GAM curves needs pygam, which is an '
+                'optional dependency. Install it with: pip install -e ".[payloads]"'
+            ) from exc
         gam = LinearGAM(gam_spline(0, n_splines=10)).gridsearch(
             x_values.reshape(-1, 1),
             y_values,

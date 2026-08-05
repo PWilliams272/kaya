@@ -10,7 +10,6 @@ from fastapi.staticfiles import StaticFiles
 
 from kaya.viewer_payloads import VIEWER_ARTIFACTS_DIR, ViewerPayloadBuilder
 
-
 STATIC_DIR = Path(__file__).with_name('viewer_static')
 
 # kaya's assigned loopback port in the workspace registry; the systemd unit

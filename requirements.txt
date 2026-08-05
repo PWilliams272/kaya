@@ -1,3 +1,12 @@
+# Compatibility shim. pyproject.toml is the packaging source of truth.
+#
+# This mirrors the CORE dependencies only — what the data pull and the deployed
+# viewer import at runtime. The sampling stack (pymc, arviz), the payload
+# builder's pygam, matplotlib, and the retired RDS driver are optional extras.
+#
+# For a full local environment:      pip install -e ".[all]"
+# To fit the grading model:          pip install -e ".[modelling]"
+# To rebuild the viewer payloads:    pip install -e ".[payloads]"
 requests>=2.25,<3.0
 tqdm>=4.60,<5.0
 pandas>=1.3,<3.0
@@ -6,12 +15,7 @@ scipy>=1.7,<2.0
 gender-guesser>=0.4,<1.0
 python-dotenv>=0.19,<2.0
 sqlalchemy>=1.4,<3.0
-psycopg2-binary>=2.9,<3.0
 boto3>=1.17,<2.0
-matplotlib
 fastapi>=0.115,<1.0
 uvicorn[standard]>=0.30,<1.0
-pygam>=0.9,<1.0
 pyarrow>=14,<19
-pymc>=5.10,<6.0
-arviz>=0.17,<1.0

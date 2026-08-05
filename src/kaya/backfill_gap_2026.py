@@ -13,10 +13,10 @@ only retries ones that failed or were interrupted mid-gym.
 Writes to the LOCAL SQLite DB only (use_aws=False) -- never touches
 S3/AWS/production RDS.
 """
-import time
-import json
-import warnings
 import datetime as dt
+import json
+import time
+import warnings
 from pathlib import Path
 
 # Two known-harmless FutureWarnings about pandas' *future* version behavior,
@@ -36,8 +36,8 @@ warnings.filterwarnings(
 import pandas as pd
 from tqdm import tqdm
 
-from kaya.data_puller import get_data_for_gym, _prepare_batch_dataframe
-from kaya.db_manager import write_dataframe, get_engine
+from kaya.data_puller import _prepare_batch_dataframe, get_data_for_gym
+from kaya.db_manager import get_engine, write_dataframe
 
 GAP_START = dt.date(2026, 2, 21)
 GAP_END = dt.date(2026, 7, 24)

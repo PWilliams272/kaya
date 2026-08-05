@@ -84,7 +84,8 @@ def main():
 
     import arviz as az
     import pymc as pm
-    from kaya.grading_model_v2 import make_dataset, build_model_v2
+
+    from kaya.grading_model_v2 import build_model_v2, make_dataset
     from kaya.marginal_v2 import prepare_design
 
     data_dir = Path(args.data_dir) if args.data_dir else ROOT / 'runs'
@@ -150,6 +151,7 @@ def score_heldout(idata, ds_full, ds_train, test_rows, height_form, prepare_desi
     different and systematically smaller number.
     """
     from scipy.special import logsumexp
+
     from kaya.marginal_v2 import exgaussian_logpdf
 
     # The training fit's own scaling constants, reused for the held-out rows.

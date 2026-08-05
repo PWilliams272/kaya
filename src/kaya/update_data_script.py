@@ -1,10 +1,10 @@
 import json
-import os
-import pandas as pd
 import logging
-from typing import Any, Dict, List, Optional, Sequence
+import os
+from typing import Any, Dict, Optional, Sequence
 
 import boto3
+import pandas as pd
 
 from kaya.data_puller import update_gym_data
 from kaya.gym_config import load_gyms_config

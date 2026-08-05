@@ -1,6 +1,9 @@
+from typing import Optional
+
 import pandas as pd
-from . import db_manager
 from gender_guesser.detector import Detector
+
+from . import db_manager
 
 
 class ClimbingDataAnalyzer:
@@ -28,14 +31,14 @@ class ClimbingDataAnalyzer:
             self.data = self.read_data()
         else:
             self.data = data
-        
+
         if self.data is not None:
             self.clean_data()
             self.process_users()
 
     def read_data(
         self,
-        use_aws: bool = None
+        use_aws: Optional[bool] = None
     ) -> pd.DataFrame:
         """Read data from a source (local or AWS).
 
@@ -56,7 +59,7 @@ class ClimbingDataAnalyzer:
     @staticmethod
     def inches_to_ft_inches(
         inches: float
-    ) -> str:
+    ) -> Optional[str]:
         """Convert inches to format ft'in"
 
         Args:
@@ -98,7 +101,7 @@ class ClimbingDataAnalyzer:
         self
     ):
         """Build user profile DataFrame
-        
+
         """
         users = self.data.groupby('user_id', as_index=False).agg(
             height = ('height', 'first'),

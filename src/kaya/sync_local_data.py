@@ -1,10 +1,9 @@
 import argparse
 import json
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from kaya.data_access import KayaDataAccessor
-
 
 DEFAULT_LOCAL_S3_BUCKET = 'my-kaya-data-545009868532-us-east-2'
 DEFAULT_LOCAL_S3_PREFIX = 'kaya'

@@ -4,13 +4,16 @@ draws into v2_posterior.json so the viewer can overlay prior against posterior.
 This is the "did the data actually say this, or did my prior?" check. Prior
 sampling needs no NUTS, so it is seconds, not hours.
 """
-import json, pickle, warnings
+import json
+import pickle
+import warnings
 from pathlib import Path
+
 warnings.filterwarnings('ignore', category=FutureWarning)
 import numpy as np
 import pymc as pm
 
-from kaya.grading_model_v2 import make_dataset, build_model_v2
+from kaya.grading_model_v2 import build_model_v2, make_dataset
 
 TMP = Path('/Users/peterwilliams/.claude/jobs/e4f1b508/tmp')
 OUT = Path('/Users/peterwilliams/projects/kaya/src/kaya/viewer_static/v2_posterior.json')

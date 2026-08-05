@@ -15,7 +15,6 @@ from kaya.s3_storage import (
     write_recent_send_state,
 )
 
-
 DEFAULT_CHUNK_SIZE = 5000
 DEFAULT_STATE_LIMIT = 5000
 

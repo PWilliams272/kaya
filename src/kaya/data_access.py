@@ -10,8 +10,8 @@ from typing import Any, Dict, List, Literal, Optional, Sequence
 
 import pandas as pd
 from dotenv import load_dotenv
-from sqlalchemy import bindparam, inspect, text
 from gender_guesser.detector import Detector
+from sqlalchemy import bindparam, inspect, text
 
 from kaya.db_manager import BASE_DIR, get_engine, write_dataframe
 from kaya.s3_storage import (
@@ -21,7 +21,6 @@ from kaya.s3_storage import (
     has_s3_storage_config,
     list_recent_send_states,
 )
-
 
 load_dotenv(override=False)
 

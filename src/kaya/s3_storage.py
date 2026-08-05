@@ -9,7 +9,6 @@ import boto3
 import pandas as pd
 from botocore.exceptions import ClientError
 
-
 DEFAULT_PREFIX = "kaya"
 DEFAULT_STATE_MAX_SEND_IDS = 5000
 DEFAULT_HISTORICAL_EXPORT_NAME = "rds-backfill"

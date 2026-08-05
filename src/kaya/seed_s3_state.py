@@ -9,7 +9,6 @@ from kaya.data_puller import get_engine
 from kaya.gym_config import load_gyms_config
 from kaya.s3_storage import write_recent_send_state
 
-
 load_dotenv(override=False)
 
 
