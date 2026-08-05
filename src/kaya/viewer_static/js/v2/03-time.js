@@ -18,8 +18,11 @@ async function loadV2Time() {
   }
 }
 
-function renderV2Advancement() {
-  const el = document.getElementById('v2-adv-chart');
+// Takes an element id so the current Grading Model tab can render the same
+// figure into its own container. Default keeps the archived v2 page's
+// behaviour byte-for-byte; ids must be unique per document, the figure need not be.
+function renderV2Advancement(elId = v2Id('adv-chart'), noteId = v2Id('adv-note')) {
+  const el = document.getElementById(elId);
   if (!el || !V2_TIME || typeof Plotly === 'undefined') return;
   const a = V2_TIME.advancement;
   const gx = (rows) => rows.map((r) => r.v);
@@ -68,7 +71,7 @@ function renderV2Advancement() {
     x: 0, font: { size: 10 } };
   Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
 
-  const note = document.getElementById('v2-adv-note');
+  const note = document.getElementById(noteId);
   if (note) {
     const at = (rows, v) => rows.find((r) => r.v === v);
     // The worst naive value, whichever bin it lands in -- that is the
@@ -101,7 +104,7 @@ function renderV2Advancement() {
 }
 
 function renderV2Horizon() {
-  const el = document.getElementById('v2-horizon-chart');
+  const el = v2El('horizon-chart');
   if (!el || !V2_TIME || typeof Plotly === 'undefined') return;
   const byh = V2_TIME.advancement.by_horizon;
   if (!byh) return;
@@ -135,7 +138,7 @@ function renderV2Horizon() {
     x: 0, font: { size: 10 } };
   Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
 
-  const note = document.getElementById('v2-horizon-note');
+  const note = v2El('horizon-note');
   if (note) {
     const g = (h, v) => (byh[h] || []).find((r) => r.v === v);
     const a1 = g(hs[0], 1), b1 = g('1.0', 1);
@@ -156,12 +159,12 @@ function renderV2Horizon() {
     const n = document.getElementById(id);
     if (n && r) n.textContent = `V${r.l1.toFixed(1)}`;
   };
-  set('v2-start-lo', lo);
-  set('v2-start-hi', hi);
+  set(v2Id('start-lo'), lo);
+  set(v2Id('start-hi'), hi);
 }
 
 function renderV2Accrual() {
-  const el = document.getElementById('v2-accrual-chart');
+  const el = v2El('accrual-chart');
   if (!el || !V2_TIME || typeof Plotly === 'undefined') return;
   const acc = V2_TIME.advancement.accrual;
   if (!acc || !acc.length) return;
@@ -201,7 +204,7 @@ function renderV2Accrual() {
     x: 0, font: { size: 10 } };
   Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
 
-  const note = document.getElementById('v2-accrual-note');
+  const note = v2El('accrual-note');
   if (note) {
     const lo = acc[0], hiR = acc[acc.length - 1];
     note.innerHTML = 'Climbers between V3 and V8, measured over a ladder of '
@@ -214,14 +217,14 @@ function renderV2Accrual() {
       + `${Math.max(...acc.map((r) => r.rate)).toFixed(2)} band. Error bars are `
       + 'the standard error of the mean.';
   }
-  const gm = document.getElementById('v2-gap-median');
+  const gm = v2El('gap-median');
   if (gm && V2_TIME.advancement.gap_months) {
     gm.textContent = V2_TIME.advancement.gap_months.median.toFixed(0);
   }
 }
 
 function renderV2TimeChart() {
-  const el = document.getElementById('v2-time-chart');
+  const el = v2El('time-chart');
   if (!el || !V2_TIME || typeof Plotly === 'undefined') return;
   const gt = V2_TIME.gym_time;
   const brands = [...new Set(gt.gyms.map((r) => r.b))]
@@ -268,7 +271,7 @@ function renderV2TimeChart() {
     x: 0, font: { size: 10 } };
   Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
 
-  const note = document.getElementById('v2-time-note');
+  const note = v2El('time-note');
   if (note) {
     note.innerHTML = `Each point is one of the 29 gyms, positioned by the average `
       + `within-climber date of its rows. ${gt.n_multi.toLocaleString()} multi-gym `
@@ -282,7 +285,7 @@ function renderV2TimeChart() {
 }
 
 function renderV2TimeStats() {
-  const host = document.getElementById('v2-time-stats');
+  const host = v2El('time-stats');
   if (!host || !V2_TIME) return;
   const gt = V2_TIME.gym_time, a = V2_TIME.advancement;
   const d = a.debiased;
@@ -311,7 +314,7 @@ function renderV2TimeStats() {
       <div class="stat-sub">${t.s}</div>
     </div>`).join('');
 
-  const verdict = document.getElementById('v2-time-verdict');
+  const verdict = v2El('time-verdict');
   if (verdict) {
     verdict.innerHTML = 'The correlation is solid: <b>+' + gt.raw.r.toFixed(2)
       + '</b> raw, <b>+' + gt.within_brand.r.toFixed(2) + '</b> with company means '
@@ -341,20 +344,23 @@ function renderV2TimeStats() {
     const n = document.getElementById(id);
     if (n) n.textContent = s;
   };
-  set('v2-fix-slope', `+${gt.within_brand.slope.toFixed(2)}`);
-  set('v2-fix-rate', `+${typical.toFixed(2)}`);
-  set('v2-fix-ratio', (gt.within_brand.slope / typical).toFixed(0));
-  set('v2-fix-span', spread.toFixed(2));
-  set('v2-fix-shift', explained.toFixed(2));
-  set('v2-fix-spread', observed.toFixed(2));
+  set(v2Id('fix-slope'), `+${gt.within_brand.slope.toFixed(2)}`);
+  set(v2Id('fix-rate'), `+${typical.toFixed(2)}`);
+  set(v2Id('fix-ratio'), (gt.within_brand.slope / typical).toFixed(0));
+  set(v2Id('fix-span'), spread.toFixed(2));
+  set(v2Id('fix-shift'), explained.toFixed(2));
+  set(v2Id('fix-spread'), observed.toFixed(2));
   const f2 = (x) => (x === undefined ? '—'
     : (Math.abs(x) < 0.005 ? '0.00' : x.toFixed(2)));
-  set('v2-fix-lo', f2(at(3)));
-  set('v2-fix-hi', f2(at(9)));
+  set(v2Id('fix-lo'), f2(at(3)));
+  set(v2Id('fix-hi'), f2(at(9)));
 }
 
-function renderV2AdvTable() {
-  const el = document.getElementById('v2-adv-table');
+// Takes an element id so the current Grading Model tab can render the same
+// figure into its own container. Default keeps the archived v2 page's
+// behaviour byte-for-byte; ids must be unique per document, the figure need not be.
+function renderV2AdvTable(elId = v2Id('adv-table')) {
+  const el = document.getElementById(elId);
   if (!el || !V2_TIME) return;
   const a = V2_TIME.advancement;
   const byV = {};

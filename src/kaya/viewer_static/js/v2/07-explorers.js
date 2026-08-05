@@ -30,7 +30,7 @@ function v2ObservedDensity(xs, C, rate, sigma) {
 }
 
 function renderV2GapChart() {
-  const el = document.getElementById('v2-gap-chart');
+  const el = v2El('gap-chart');
   if (!el || typeof Plotly === 'undefined') return;
   const { C, visits, sigma, kappa, rho, rel } = V2_GAP_STATE;
   const rate = v2GapRate(visits, kappa, rho, rel);
@@ -63,7 +63,7 @@ function renderV2GapChart() {
   ];
   Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
 
-  const note = document.getElementById('v2-gap-note');
+  const note = v2El('gap-note');
   if (note) {
     note.textContent = `expected gap ${(1 / rate).toFixed(2)} grades `
       + `— a climber at V${C.toFixed(1)} logs V${mean.toFixed(2)} on average`;
@@ -71,7 +71,7 @@ function renderV2GapChart() {
 }
 
 function renderV2VisitsChart() {
-  const el = document.getElementById('v2-visits-chart');
+  const el = v2El('visits-chart');
   if (!el || typeof Plotly === 'undefined') return;
   const { kappa, rho, rel } = V2_GAP_STATE;
   const xs = [];
@@ -99,7 +99,7 @@ function renderV2VisitsChart() {
   }];
   Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
 
-  const note = document.getElementById('v2-visits-note');
+  const note = v2El('visits-note');
   if (note) {
     const g1 = 1 / v2GapRate(1, kappa, rho, rel), g30 = 1 / v2GapRate(30, kappa, rho, rel);
     note.textContent = `1 visit: ${g1.toFixed(2)} grades below — 30 visits: ${g30.toFixed(2)}`;
@@ -107,43 +107,43 @@ function renderV2VisitsChart() {
 }
 
 const V2_GAP_SLIDERS = [
-  { host: 'v2-gap-controls', id: 'C', tex: 'C', label: 'true ceiling', min: 3, max: 10, step: 0.1 },
-  { host: 'v2-gap-controls', id: 'visits', tex: 'n', label: 'visits', min: 1, max: 40, step: 1 },
-  { host: 'v2-gap-controls', id: 'sigma', tex: '\\sigma_{\\text{link}}', label: 'rounding noise', min: 0.05, max: 1.5, step: 0.05 },
-  { host: 'v2-visits-controls', id: 'kappa', tex: '\\kappa', label: 'visit effect', min: 0, max: 0.8, step: 0.01 },
-  { host: 'v2-visits-controls', id: 'rho', tex: '\\rho', label: 'reliability effect', min: -0.5, max: 0.5, step: 0.01 },
-  { host: 'v2-visits-controls', id: 'rel', tex: '\\tilde r', label: 'how completely they log', min: -1.5, max: 1.5, step: 0.05 },
+  { host: 'gap-controls', id: 'C', tex: 'C', label: 'true ceiling', min: 3, max: 10, step: 0.1 },
+  { host: 'gap-controls', id: 'visits', tex: 'n', label: 'visits', min: 1, max: 40, step: 1 },
+  { host: 'gap-controls', id: 'sigma', tex: '\\sigma_{\\text{link}}', label: 'rounding noise', min: 0.05, max: 1.5, step: 0.05 },
+  { host: 'visits-controls', id: 'kappa', tex: '\\kappa', label: 'visit effect', min: 0, max: 0.8, step: 0.01 },
+  { host: 'visits-controls', id: 'rho', tex: '\\rho', label: 'reliability effect', min: -0.5, max: 0.5, step: 0.01 },
+  { host: 'visits-controls', id: 'rel', tex: '\\tilde r', label: 'how completely they log', min: -1.5, max: 1.5, step: 0.05 },
 ];
 
 function bindV2GapExplorer() {
-  const hosts = { 'v2-gap-controls': [], 'v2-visits-controls': [] };
+  const hosts = { 'gap-controls': [], 'visits-controls': [] };
   V2_GAP_SLIDERS.forEach((sl) => hosts[sl.host]?.push(sl));
   Object.entries(hosts).forEach(([hostId, sliders]) => {
-    const host = document.getElementById(hostId);
+    const host = v2El(hostId);
     if (!host) return;
-    const noteId = hostId === 'v2-gap-controls' ? 'v2-gap-note' : 'v2-visits-note';
+    const noteId = v2Id(hostId === 'gap-controls' ? 'gap-note' : 'visits-note');
     host.innerHTML = sliders.map((sl) => `
       <label class="form-slider wide">
         <span class="form-slider-tex">\\(${sl.tex}\\)</span>
-        <input type="range" id="v2-gs-${sl.id}" data-k="${sl.id}"
+        <input type="range" id="${v2Id(`gs-${sl.id}`)}" data-k="${sl.id}"
                min="${sl.min}" max="${sl.max}" step="${sl.step}" value="${V2_GAP_STATE[sl.id]}" />
-        <output id="v2-gs-val-${sl.id}" class="form-slider-val"></output>
+        <output id="${v2Id(`gs-val-${sl.id}`)}" class="form-slider-val"></output>
         <span class="form-slider-label">${sl.label}</span>
       </label>`).join('')
       + `<div class="form-card-foot"><span class="form-card-note" id="${noteId}"></span></div>`;
   });
-  document.querySelectorAll('[id^="v2-gs-"]').forEach((inp) => {
+  document.querySelectorAll(`[id^="${v2Id('gs-')}"]`).forEach((inp) => {
     if (inp.tagName !== 'INPUT') return;
-    inp.addEventListener('input', () => {
+    inp.addEventListener('input', v2Bound(() => {
       V2_GAP_STATE[inp.dataset.k] = parseFloat(inp.value);
       renderV2GapExplorer();
-    });
+    }));
   });
 }
 
 function renderV2GapExplorer() {
   V2_GAP_SLIDERS.forEach((sl) => {
-    const out = document.getElementById(`v2-gs-val-${sl.id}`);
+    const out = document.getElementById(v2Id(`gs-val-${sl.id}`));
     if (out) out.textContent = V2_GAP_STATE[sl.id].toFixed(sl.step < 0.1 ? 2 : 1);
   });
   renderV2GapChart();
@@ -153,7 +153,7 @@ function renderV2GapExplorer() {
 // ---- one interactive card per functional form ----
 
 function renderV2FormCard(spec) {
-  const chart = document.getElementById(`v2-fc-chart-${spec.key}`);
+  const chart = document.getElementById(v2Id(`fc-chart-${spec.key}`));
   if (!chart || typeof Plotly === 'undefined') return;
   const vals = v2FormState[spec.key];
   const { inches, z } = v2HeightGrid();
@@ -189,15 +189,15 @@ function renderV2FormCard(spec) {
 
   // Readouts: current value beside each slider, plus the derived note.
   spec.params.forEach((prm) => {
-    const out = document.getElementById(`v2-fc-val-${spec.key}-${prm.id}`);
+    const out = document.getElementById(v2Id(`fc-val-${spec.key}-${prm.id}`));
     if (out) out.textContent = vals[prm.id].toFixed(prm.step < 0.01 ? 3 : 2);
   });
-  const noteEl = document.getElementById(`v2-fc-note-${spec.key}`);
+  const noteEl = document.getElementById(v2Id(`fc-note-${spec.key}`));
   if (noteEl) noteEl.textContent = spec.note ? spec.note(vals) : '';
 }
 
 function renderV2FormCards() {
-  const host = document.getElementById('v2-form-cards');
+  const host = v2El('form-cards');
   if (!host) return;
   host.innerHTML = V2_FORM_SPECS.map((spec) => {
     const badge = spec.fitted
@@ -207,10 +207,10 @@ function renderV2FormCards() {
       ? spec.params.map((p) => `
           <label class="form-slider">
             <span class="form-slider-tex">\\(${p.tex}\\)</span>
-            <input type="range" id="v2-fc-in-${spec.key}-${p.id}"
+            <input type="range" id="${v2Id(`fc-in-${spec.key}-${p.id}`)}"
                    data-form="${spec.key}" data-param="${p.id}"
                    min="${p.min}" max="${p.max}" step="${p.step}" value="${p.def}" />
-            <output id="v2-fc-val-${spec.key}-${p.id}" class="form-slider-val"></output>
+            <output id="${v2Id(`fc-val-${spec.key}-${p.id}`)}" class="form-slider-val"></output>
           </label>`).join('')
       : '<p class="form-noparams">No parameters &mdash; there is nothing to adjust. That is the point.</p>';
     return `
@@ -220,11 +220,11 @@ function renderV2FormCards() {
         </header>
         <div class="form-card-eq">\\[${spec.eq}\\]</div>
         <p class="form-card-claim">${spec.claim}</p>
-        <div id="v2-fc-chart-${spec.key}" class="form-card-chart"></div>
+        <div id="${v2Id(`fc-chart-${spec.key}`)}" class="form-card-chart"></div>
         <div class="form-card-controls">
           ${sliders}
           <div class="form-card-foot">
-            <span class="form-card-note" id="v2-fc-note-${spec.key}"></span>
+            <span class="form-card-note" id="${v2Id(`fc-note-${spec.key}`)}"></span>
             ${spec.params.length ? `<button type="button" class="ghost-button form-reset" data-form="${spec.key}">Reset</button>` : ''}
           </div>
         </div>
@@ -232,33 +232,35 @@ function renderV2FormCards() {
   }).join('');
 
   host.querySelectorAll('input[type="range"]').forEach((inp) => {
-    inp.addEventListener('input', () => {
+    inp.addEventListener('input', v2Bound(() => {
       const spec = V2_FORM_BY_KEY[inp.dataset.form];
       v2FormState[spec.key][inp.dataset.param] = parseFloat(inp.value);
       renderV2FormCard(spec);
-    });
+    }));
   });
   host.querySelectorAll('.form-reset').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', v2Bound(() => {
       const spec = V2_FORM_BY_KEY[btn.dataset.form];
       spec.params.forEach((p) => {
         v2FormState[spec.key][p.id] = p.def;
-        const inp = document.getElementById(`v2-fc-in-${spec.key}-${p.id}`);
+        const inp = document.getElementById(v2Id(`fc-in-${spec.key}-${p.id}`));
         if (inp) inp.value = p.def;
       });
       renderV2FormCard(spec);
-    });
+    }));
   });
 
   setV2FormGridWidth();
   V2_FORM_SPECS.forEach(renderV2FormCard);
   sizeV2FormGrid();
-  if (!renderV2FormCards.resizeBound) {
-    renderV2FormCards.resizeBound = true;
+  renderV2FormCards.resizeBound = renderV2FormCards.resizeBound || new Set();
+  if (!renderV2FormCards.resizeBound.has(V2_NS)) {
+    renderV2FormCards.resizeBound.add(V2_NS);
+    const resize = v2Bound(sizeV2FormGrid);
     let t;
     window.addEventListener('resize', () => {
       clearTimeout(t);
-      t = setTimeout(sizeV2FormGrid, 150);
+      t = setTimeout(resize, 150);
     });
   }
 }
@@ -267,8 +269,8 @@ function renderV2FormCards() {
 // How much room there is depends on whether the symbols panel is reserving its
 // gutter, which CSS can't see -- so measure the pane and hand CSS the number.
 function setV2FormGridWidth() {
-  const host = document.getElementById('v2-form-cards');
-  const pane = document.getElementById('tab-grading-v2');
+  const host = v2El('form-cards');
+  const pane = v2Pane();
   if (!host || !pane) return;
   const cs = getComputedStyle(pane);
   const usable = pane.clientWidth
@@ -283,8 +285,11 @@ function setV2FormGridWidth() {
 }
 
 function sizeV2FormGrid() {
+  // Charts in a hidden pane measure zero and will be resized again when that
+  // pane is shown, so this is wasted work at best.
+  if (!v2Pane()?.classList.contains('active')) return;
   setV2FormGridWidth();
-  const corner = document.getElementById('v2-corner');
+  const corner = v2El('corner');
   // The everything plot pins its own width, so resizing it is not enough --
   // it has to be redrawn against the new pane width.
   const cornerWide = corner?.classList.contains('chart-bleed-wide');
@@ -295,11 +300,11 @@ function sizeV2FormGrid() {
     if (Math.abs(corner.clientWidth - before) > 4) renderV2Corner();
   }
   if (typeof Plotly === 'undefined') return;
-  const ids = V2_FORM_SPECS.map((spec) => `v2-fc-chart-${spec.key}`)
-    .concat(['v2-gap-chart', 'v2-visits-chart', 'v2-param-dens', 'v2-param-trace',
-             'v2-across-fits', 'v2-fitted-height', 'v2-fitted-ape'],
-            cornerWide ? [] : ['v2-corner'])
-    .concat(Object.keys(v2Fit(v2SelectedFit())?.params || {}).map((n) => `v2-pt-${n}`));
+  const ids = V2_FORM_SPECS.map((spec) => v2Id(`fc-chart-${spec.key}`))
+    .concat(['gap-chart', 'visits-chart', 'param-dens', 'param-trace',
+             'across-fits', 'fitted-height', 'fitted-ape'].map(v2Id),
+            cornerWide ? [] : [v2Id('corner')])
+    .concat(Object.keys(v2Fit(v2SelectedFit())?.params || {}).map((n) => v2Id(`pt-${n}`)));
   ids.forEach((id) => {
     const el = document.getElementById(id);
     // _fullLayout is only set once Plotly has actually drawn into the node.
@@ -342,12 +347,19 @@ function bindInfoDots() {
 }
 
 
-async function renderV2Tab() {
+// Both tabs go through withV2Ns, which serialises them: the archived tab's
+// render cannot start midway through the current tab's and swap the namespace
+// under an awaiting renderer.
+function renderV2Tab() {
+  return renderV2TabOnce('v2-', 'tab-grading-v2', renderV2TabInner);
+}
+
+async function renderV2TabInner() {
   // Gyms, headline numbers and the LOO table all come from the fits on disk,
   // so nothing gym-shaped can render until that file has loaded.
   const ok = await loadV2Results();
   if (!ok) {
-    const host = document.getElementById('v2-stats');
+    const host = v2El('stats');
     if (host) {
       host.innerHTML = '<p class="form-noparams">Fitted results could not be '
         + 'loaded (/static/v2_results.json). Regenerate with '
@@ -365,8 +377,8 @@ async function renderV2Tab() {
   bindV2GapExplorer();
   renderV2GapExplorer();
   renderV2Inference();
-  renderV2Table('v2-gg-table', V2_GG);
-  renderV2Table('v2-diag-table', V2_DIAG);
+  renderV2Table(v2Id('gg-table'), V2_GG);
+  renderV2Table(v2Id('diag-table'), V2_DIAG);
   renderV2GymChart();
   renderV2BrandChart();
   renderV2DiscardChart();
@@ -378,8 +390,8 @@ async function renderV2Tab() {
   // auto-render already ran on DOMContentLoaded, so their \( ... \) spans
   // would otherwise stay as literal source. Typeset them explicitly.
   if (typeof window.renderMathInElement === 'function') {
-    ['v2-symbols', 'v2-forms-table', 'v2-form-cards', 'v2-gap-controls', 'v2-visits-controls'].forEach((id) => {
-      const el = document.getElementById(id);
+    ['symbols', 'forms-table', 'form-cards', 'gap-controls', 'visits-controls'].forEach((id) => {
+      const el = v2El(id);
       if (el) {
         window.renderMathInElement(el, {
           delimiters: [

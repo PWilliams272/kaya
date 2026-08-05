@@ -1,3 +1,84 @@
+// --- which pane these renderers are drawing into -------------------------
+//
+// The same renderers now serve two panes: the archived `Archive - v2 Notes`
+// tab, which owns the `v2-*` element ids, and the current `Grading Model`
+// tab, which owns `gm-*`. Element ids must be unique per document, so nothing
+// below may hardcode a prefix -- ids resolve through `v2El` / `v2Id` instead.
+//
+// V2_NS is switched by the tab renderers and read synchronously. Several
+// renderers are async, so `withV2Ns` serialises whole renders: a tab render
+// waits for the previous one to finish rather than flipping the namespace out
+// from under an awaiting renderer.
+let V2_NS = 'v2-';
+let V2_PANE = 'tab-grading-v2';
+let v2RenderChain = Promise.resolve();
+
+const v2Id = (name) => V2_NS + name;
+const v2El = (name) => document.getElementById(V2_NS + name);
+const v2Pane = () => document.getElementById(V2_PANE);
+const v2Sel = (sel) => `#${V2_PANE} ${sel}`;
+
+// Wraps an event handler so the interaction re-enters the namespace the
+// handler was bound in. Without this a slider on the current Grading Model tab
+// would, on input, look up `v2-*` ids and silently redraw the archived pane.
+function v2Bound(fn) {
+  const ns = V2_NS;
+  const pane = V2_PANE;
+  return (...args) => withV2Ns(ns, pane, () => fn(...args));
+}
+
+function withV2Ns(ns, paneId, fn) {
+  const run = async () => {
+    V2_NS = ns;
+    V2_PANE = paneId;
+    try {
+      return await fn();
+    } finally {
+      V2_NS = 'v2-';
+      V2_PANE = 'tab-grading-v2';
+    }
+  };
+  v2RenderChain = v2RenderChain.then(run, run);
+  return v2RenderChain;
+}
+
+// Coalesce the post-slide resize.
+//
+// Opening or closing the symbols panel changes the pane's usable width by the
+// gutter, so anything that measured its own width has to be told. That pass
+// includes the corner plot, which is N x N subplots -- so toggling the panel a
+// few times in a second would queue one full pass per toggle and wedge the
+// renderer. One pass per burst, aimed at the pane the toggle happened in.
+const v2SizeTimers = new Map();
+
+function v2SizeSoon(delay = 240) {
+  const ns = V2_NS;
+  const pane = V2_PANE;
+  clearTimeout(v2SizeTimers.get(ns));
+  v2SizeTimers.set(ns, setTimeout(() => withV2Ns(ns, pane, sizeV2FormGrid), delay));
+}
+
+// A tab renders once, on first activation.
+//
+// Every figure on both explainer pages is a redraw of a static payload, so
+// re-rendering on each activation buys nothing -- and it costs ~40 Plotly
+// rebuilds per pane. Switching between the two tabs faster than a render
+// completes used to queue them faster than they could drain, which wedged the
+// renderer outright. Interactions still redraw their own figures; only the
+// bulk build is skipped.
+const v2TabRendered = new Set();
+
+function renderV2TabOnce(ns, paneId, fn) {
+  if (v2TabRendered.has(ns)) return v2RenderChain;
+  v2TabRendered.add(ns);
+  return withV2Ns(ns, paneId, fn).catch((e) => {
+    // A failed build must be retryable -- otherwise a transient payload error
+    // leaves the tab permanently blank.
+    v2TabRendered.delete(ns);
+    throw e;
+  });
+}
+
 // KaTeX + its auto-render extension load with `defer`, so they aren't
 // guaranteed to exist yet when this (non-deferred) script runs -- waiting
 // for DOMContentLoaded (which fires only after all deferred scripts have
@@ -142,7 +223,7 @@ function renderV2InlineFigures() {
 
 function renderV2Stats() {
   renderV2InlineFigures();
-  const host = document.getElementById('v2-stats');
+  const host = v2El('stats');
   if (!host) return;
   host.innerHTML = v2Stats().map((s) => `
     <div class="stat-tile">
@@ -153,7 +234,7 @@ function renderV2Stats() {
 }
 
 function renderV2Decisions() {
-  const host = document.getElementById('v2-decisions-grid');
+  const host = v2El('decisions-grid');
   if (!host) return;
   host.innerHTML = V2_DECISIONS.map((d) => `
     <div class="decision-card">
@@ -171,8 +252,11 @@ function renderV2Table(id, rows) {
     + `<tbody>${body.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>`;
 }
 
-function renderV2GymChart() {
-  const el = document.getElementById('v2-gym-chart');
+// Takes an element id so the current Grading Model tab can render the same
+// figure into its own container. Default keeps the archived v2 page's
+// behaviour byte-for-byte; ids must be unique per document, the figure need not be.
+function renderV2GymChart(elId = v2Id('gym-chart')) {
+  const el = document.getElementById(elId);
   if (!el || typeof Plotly === 'undefined') return;
   const rows = V2_GYMS;
   // One trace per company, so Plotly's own legend does the show/hide. The row
@@ -231,8 +315,11 @@ function renderV2GymChart() {
   Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
 }
 
-function renderV2BrandChart() {
-  const el = document.getElementById('v2-brand-chart');
+// Takes an element id so the current Grading Model tab can render the same
+// figure into its own container. Default keeps the archived v2 page's
+// behaviour byte-for-byte; ids must be unique per document, the figure need not be.
+function renderV2BrandChart(elId = v2Id('brand-chart')) {
+  const el = document.getElementById(elId);
   if (!el || typeof Plotly === 'undefined') return;
   const brands = ['Touchstone', 'Bouldering Project', 'Stronghold', 'Movement'];
   const traces = brands.map((b) => {
@@ -257,7 +344,7 @@ function renderV2BrandChart() {
 }
 
 function renderV2DiscardChart() {
-  const el = document.getElementById('v2-discard-chart');
+  const el = v2El('discard-chart');
   if (!el || typeof Plotly === 'undefined') return;
   const trace = {
     type: 'bar',
@@ -280,7 +367,7 @@ function renderV2DiscardChart() {
 }
 
 function renderV2GenderValidation() {
-  const el = document.getElementById('v2-gender-validation');
+  const el = v2El('gender-validation');
   if (!el || typeof Plotly === 'undefined') return;
   const trace = {
     type: 'scatter', mode: 'lines+markers',
@@ -298,7 +385,7 @@ function renderV2GenderValidation() {
 }
 
 function renderV2HeightHist() {
-  const el = document.getElementById('v2-height-hist');
+  const el = v2El('height-hist');
   if (!el || typeof Plotly === 'undefined') return;
   // Illustrative shape: real distribution is ~N(67,4) with junk at the edges.
   const xs = [], ys = [];
@@ -480,8 +567,11 @@ const V2_HEIGHT_BANDS = [
   { label: 'Female users', mid: 64.2, sd: 2.83, tok: '--lg-highlight', anchor: 'left' },
 ];
 
-function renderV2Symbols() {
-  const el = document.getElementById('v2-symbols');
+// Element id is a parameter so the current Grading Model tab can render the
+// same symbol table into its own docked panel. V2_SYMBOLS already carries
+// units for every row, so there is nothing to restate.
+function renderV2Symbols(elId = v2Id('symbols')) {
+  const el = document.getElementById(elId);
   if (!el) return;
   const sc = v2Scales();
   const sub = (t) => String(t)

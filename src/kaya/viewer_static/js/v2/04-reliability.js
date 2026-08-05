@@ -33,7 +33,7 @@ function v2Arm() {
 }
 
 function renderV2ArmPicker() {
-  const host = document.getElementById('v2-arm-picker');
+  const host = v2El('arm-picker');
   if (!host || !V2_REL) return;
   const keys = Object.keys(V2_REL.arms);
   const cur = v2Arm();
@@ -54,7 +54,7 @@ function renderV2ArmPicker() {
 }
 
 function renderV2Noise() {
-  const el = document.getElementById('v2-noise-chart');
+  const el = v2El('noise-chart');
   const arm = v2Arm();
   if (!el || !arm || typeof Plotly === 'undefined') return;
   const subs = V2_REL.subsets, ks = subs.map((s) => String(s.k));
@@ -103,7 +103,7 @@ function renderV2Noise() {
     yanchor: 'top', x: 0, font: { size: 10 } };
   Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
 
-  const note = document.getElementById('v2-noise-note');
+  const note = v2El('noise-note');
   if (note) {
     const n1 = arm.noise['1'] || {}, n3 = arm.noise['3'] || {};
     const s3 = subs.find((s) => s.k === 3) || {};
@@ -134,7 +134,7 @@ function renderV2Noise() {
 }
 
 function renderV2SubsetTable() {
-  const el = document.getElementById('v2-subset-table');
+  const el = v2El('subset-table');
   const arm = v2Arm();
   if (!el || !arm) return;
   const subs = V2_REL.subsets;
@@ -156,7 +156,7 @@ function renderV2SubsetTable() {
 }
 
 function renderV2ArmCompare() {
-  const el = document.getElementById('v2-arm-compare');
+  const el = v2El('arm-compare');
   if (!el || !V2_REL) return;
   const a = V2_REL.arms.unmarginalized, b = V2_REL.arms.marginalized;
   if (!a || !b) {
@@ -218,7 +218,7 @@ const V2_PARAM_LABEL = {
 };
 
 async function renderV2ArmParams() {
-  const host = document.getElementById('v2-armparam-chart');
+  const host = v2El('armparam-chart');
   if (!host) return;
   if (!V2_ARMP) {
     try {
@@ -229,9 +229,9 @@ async function renderV2ArmParams() {
   const forms = (V2_ARMP && V2_ARMP.forms) || {};
   const ready = Object.keys(forms).filter((k) => forms[k].gyms && forms[k].gyms.length);
   const key = ready.includes(V2_ARMP_FORM) ? V2_ARMP_FORM : ready[0];
-  const note = document.getElementById('v2-armparam-note');
-  const tbl = document.getElementById('v2-armparam-table');
-  const pick = document.getElementById('v2-armparam-picker');
+  const note = v2El('armparam-note');
+  const tbl = v2El('armparam-table');
+  const pick = v2El('armparam-picker');
   if (!key) {
     host.style.display = 'none';
     if (pick) pick.style.display = 'none';
@@ -350,7 +350,7 @@ let V2_VSNULL = null;
 let V2_VSNULL_ARM = 'marginalized';
 
 async function renderV2VsNull() {
-  const tbl = document.getElementById('v2-vsnull-table');
+  const tbl = v2El('vsnull-table');
   if (!tbl) return;
   if (!V2_VSNULL) {
     try {
@@ -358,8 +358,8 @@ async function renderV2VsNull() {
       if (r.ok) V2_VSNULL = await r.json();
     } catch (e) { /* not built yet */ }
   }
-  const note = document.getElementById('v2-vsnull-note');
-  const pick = document.getElementById('v2-vsnull-picker');
+  const note = v2El('vsnull-note');
+  const pick = v2El('vsnull-picker');
   const arms = (V2_VSNULL && V2_VSNULL.arms) || {};
   const keys = Object.keys(arms);
   if (!keys.length) {
@@ -433,8 +433,8 @@ async function renderV2Samplers() {
   // renderers the diagnostics elements. This function is async and resolved
   // last, so its "not run yet" branch hid the diagnostics table and replaced
   // its caption with the cross-sampler placeholder text.
-  const el = document.getElementById('v2-crosssampler-table');
-  const note = document.getElementById('v2-crosssampler-note');
+  const el = v2El('crosssampler-table');
+  const note = v2El('crosssampler-note');
   if (!el) return;
   let d = null;
   try {
@@ -488,8 +488,8 @@ async function renderV2Samplers() {
 // renderV2Samplers above.
 
 async function renderV2Kfold() {
-  const el = document.getElementById('v2-kfold-table');
-  const note = document.getElementById('v2-kfold-note');
+  const el = v2El('kfold-table');
+  const note = v2El('kfold-note');
   if (!el) return;
   let d = null;
   try {
@@ -552,6 +552,7 @@ async function renderV2Kfold() {
 async function renderV2Reliability() {
   renderV2Samplers();
   renderV2Kfold();
+  renderV2Psis();
   renderV2ArmParams();
   renderV2VsNull();
   if (!(await loadV2Reliability())) return;
@@ -571,3 +572,124 @@ async function renderV2Time() {
   renderV2TimeStats();
 }
 
+
+// ---- how leave-one-out is really computed, and where it breaks ----
+//
+// v2_psis.json is written by scripts/build_v2_psis.py. The chart answers one
+// question directly from the draws: rank a row's 2,000 importance weights
+// largest-first, and what share of the estimate do the top few carry? An even
+// spread is healthy; a steep climb means the answer rests on a handful of
+// draws, which is what Pareto k is measuring.
+
+let V2_PSIS = null;
+let V2_PSIS_GROUP = 1;
+
+async function renderV2Psis() {
+  const host = v2El('psis-chart');
+  if (!host) return;
+  if (!V2_PSIS) {
+    try {
+      const r = await fetch('/static/v2_psis.json', { cache: 'no-cache' });
+      if (r.ok) V2_PSIS = await r.json();
+    } catch (e) { /* not built yet */ }
+  }
+  const note = v2El('psis-note');
+  const pick = v2El('psis-picker');
+  const tbl = v2El('psis-table');
+  if (!V2_PSIS || !V2_PSIS.groups) {
+    host.style.display = 'none';
+    if (pick) pick.style.display = 'none';
+    if (note) note.textContent = 'Built by scripts/build_v2_psis.py.';
+    return;
+  }
+  host.style.display = '';
+  const groups = V2_PSIS.groups;
+  const xs = V2_PSIS.curve_x;
+  const cur = groups.find((g) => g.k === V2_PSIS_GROUP) || groups[0];
+
+  if (pick) {
+    pick.style.display = '';
+    pick.innerHTML = '<span class="muted seg-note" style="margin:0 10px 0 0">'
+      + 'climber has:</span>'
+      + groups.map((g) => `<button type="button" class="seg-btn`
+        + `${g.k === cur.k ? ' on' : ''}" data-psis="${g.k}">${g.label} `
+        + `${g.k === 1 ? 'row' : 'rows'}</button>`).join('');
+    pick.querySelectorAll('[data-psis]').forEach((b) => {
+      b.onclick = () => { V2_PSIS_GROUP = +b.dataset.psis; renderV2Psis(); };
+    });
+  }
+
+  // Every group at once, with the selected one emphasised: the point is the
+  // gradient between them, which a single curve cannot show.
+  const traces = groups.map((g) => {
+    const on = g.k === cur.k;
+    return {
+      type: 'scatter', mode: 'lines+markers',
+      name: `${g.label} ${g.k === 1 ? 'row' : 'rows'}`,
+      x: xs, y: g.curve.map((v) => v * 100),
+      line: { width: on ? 3 : 1.4, color: cssVar(on ? '--lg-cat-1' : '--lg-text-2'),
+        dash: on ? 'solid' : 'dot' },
+      marker: { size: on ? 7 : 4 },
+      opacity: on ? 1 : 0.5,
+      hovertemplate: `%{x} draws carry %{y:.1f}%<extra>${g.label}</extra>`,
+    };
+  });
+  // What an evenly-spread row would look like: 2,000 draws, no concentration.
+  traces.push({
+    type: 'scatter', mode: 'lines', name: 'perfectly even',
+    x: xs, y: xs.map((v) => (100 * v) / V2_PSIS.n_draws),
+    line: { color: cssVar('--lg-text-3'), width: 1.4, dash: 'dash' },
+    hovertemplate: 'even: %{x} draws carry %{y:.1f}%<extra></extra>',
+  });
+
+  const layout = chartLayout('');
+  layout.height = 420;
+  layout.margin = { l: 66, r: 20, t: 12, b: 96 };
+  // Plotly's default log minor ticks read "1 2 5 10 2 5 100 2", which looks
+  // like a mistake. Label only the decades and the points actually plotted.
+  const ticks = [1, 10, 100, 1000, V2_PSIS.n_draws];
+  layout.xaxis = { ...layout.xaxis, automargin: false, type: 'log',
+    tickmode: 'array', tickvals: ticks,
+    ticktext: ticks.map((v) => v.toLocaleString()),
+    title: { text: 'number of draws, ranked by weight (log scale)', standoff: 10 } };
+  layout.yaxis = { ...layout.yaxis, automargin: false, range: [0, 100],
+    ticksuffix: '%',
+    title: { text: 'share of the estimate they carry', standoff: 6 } };
+  layout.legend = { ...layout.legend, orientation: 'h', y: -0.22,
+    yanchor: 'top', x: 0, font: { size: 10 } };
+  Plotly.react(host, traces, layout, { displayModeBar: false, responsive: true });
+
+  if (note) {
+    const top10 = cur.curve[xs.indexOf(10)];
+    note.innerHTML = `Each line is a typical row from climbers with that many `
+      + `observations, using all ${V2_PSIS.n_draws.toLocaleString()} posterior `
+      + 'draws. <b>The dashed line is what perfect health looks like</b> '
+      + '&mdash; every draw contributing equally. The further a curve sits '
+      + `above it, the more the answer depends on a few draws. For climbers `
+      + `with <b>${cur.label} ${cur.k === 1 ? 'row' : 'rows'}</b>, the top 10 `
+      + `draws out of ${V2_PSIS.n_draws.toLocaleString()} carry `
+      + `<b>${(top10 * 100).toFixed(1)}%</b> of the estimate, and the single `
+      + `largest weight is <b>${cur.max_over_median.toLocaleString()}&times;</b> `
+      + 'a typical one.';
+  }
+
+  if (tbl) {
+    tbl.innerHTML = '<thead><tr><th>climber has</th><th>rows</th>'
+      + '<th>largest weight<br /><span class="muted">&times; a typical one</span></th>'
+      + '<th>top 10 draws carry<br /><span class="muted">of the estimate</span></th>'
+      + '<th>median Pareto k<br /><span class="muted">lower is better</span></th>'
+      + '<th>rows over 0.7<br /><span class="muted">unreliable</span></th>'
+      + '</tr></thead><tbody>'
+      + groups.map((g) => {
+        const t10 = g.curve[xs.indexOf(10)];
+        const bad = g.bad_k > 0.1;
+        return `<tr${g.k === cur.k ? ' style="font-weight:600"' : ''}>`
+          + `<td class="label-cell">${g.label} ${g.k === 1 ? 'row' : 'rows'}</td>`
+          + `<td class="unit">${g.n_rows.toLocaleString()}</td>`
+          + `<td class="unit">${g.max_over_median.toLocaleString()}&times;</td>`
+          + `<td class="unit">${(t10 * 100).toFixed(1)}%</td>`
+          + `<td class="unit">${g.k_median.toFixed(2)}</td>`
+          + `<td class="unit${bad ? '' : ' muted'}">${(g.bad_k * 100).toFixed(1)}%</td></tr>`;
+      }).join('') + '</tbody>';
+  }
+}

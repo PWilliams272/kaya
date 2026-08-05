@@ -1,0 +1,231 @@
+<section class="article-section" id="gm-inference">
+              <h2>The data, not the priors, did the work &mdash; and here is the evidence for that claim</h2>
+              <p class="prose">
+                Every number on this page is a <b>posterior mean</b>: the average of the
+                values a parameter took across the draws the sampler kept. That is only
+                worth anything if two things hold. First, the posterior has to come from
+                the data rather than from the prior &mdash; a parameter the data cannot
+                see just reports its prior back at you. Second, the sampler that produced
+                it has to have converged. Both are checkable, so both are checked here,
+                for every parameter, rather than asserted.
+              </p>
+              <p class="prose">
+                A <b>prior</b> is what the model believed before seeing any data; the
+                <b>posterior</b> is what it believes after. Defaults below are the
+                <code>v3_conf</code> fit (the 29-gym net50 network, confident subset,
+                4&nbsp;chains &times; 500 draws after 600 tuning iterations), but every
+                fitted model version is selectable.
+              </p>
+              <div class="controls-inline">
+                <label class="ctl">
+                  <span>Model version</span>
+                  <select id="gm-fit-pick"></select>
+                </label>
+              </div>
+              <div id="gm-post-grid" class="post-grid"></div>
+              <p class="caption">
+                Prior in grey, posterior in blue, on a common horizontal scale per
+                parameter (each parameter&rsquo;s own units &mdash; see the Symbols
+                panel). <b>Where the blue is much narrower than the grey and sits
+                somewhere the grey did not concentrate, the data did the work.</b> Where
+                the two overlap closely, the parameter is barely identified and the prior
+                is carrying it. Click any parameter for its chains and full statistics.
+              </p>
+
+              <h3>Four chains started apart and agreed &mdash; per parameter, not on average</h3>
+              <p class="prose">
+                Pick a parameter to see its prior against its posterior, and what the four
+                chains did while sampling it. A <b>chain</b> is one independent run of the
+                sampler; four of them start from different random points, and if they all
+                end up describing the same distribution, that is evidence the answer is a
+                property of the model rather than of where the sampler happened to begin.
+              </p>
+              <div class="param-detail">
+                <div class="controls-inline">
+                  <label class="ctl">
+                    <span>Parameter</span>
+                    <select id="gm-param-pick"></select>
+                  </label>
+                  <label class="ctl ctl-check">
+                    <input type="checkbox" id="gm-param-wide" />
+                    <span>Zoom out to the full prior</span>
+                  </label>
+                  <span class="param-verdict" id="gm-param-verdict"></span>
+                </div>
+                <div class="param-detail-grid">
+                  <div>
+                    <h4 class="chart-label">Prior vs posterior</h4>
+                    <div id="gm-param-dens" class="chart-mid"></div>
+                  </div>
+                  <div>
+                    <div class="chart-head">
+                      <h4 class="chart-label">Chain mixing</h4>
+                      <div class="chart-head-tools">
+                        <select id="gm-trace-mode" class="mini-select">
+                          <option value="trace">Trace</option>
+                          <option value="rank">Rank plot</option>
+                        </select>
+                        <div class="infowrap">
+                          <button type="button" class="infodot"
+                                  aria-label="How to read a trace plot">i</button>
+                          <div class="infopop" role="tooltip">
+                            <h5>How to read a trace plot</h5>
+                            <p>
+                              Four chains start from different random points and wander
+                              around the posterior. Each line is one chain&rsquo;s value
+                              for the parameter at each draw. What you are looking for is
+                              <b>boring</b>:
+                            </p>
+                            <table class="data-table read-guide">
+                              <thead><tr><th>what you see</th><th>what it means</th></tr></thead>
+                              <tbody>
+                                <tr><td><b>Fuzzy caterpillar</b> &mdash; dense, even, no pattern</td>
+                                    <td><span class="ok">Good.</span> The chain is bouncing
+                                    around the same region draw after draw, which is what
+                                    sampling a settled distribution looks like.</td></tr>
+                                <tr><td><b>All four lines on top of each other</b></td>
+                                    <td><span class="ok">Good.</span> Chains that started in
+                                    different places agree about where the answer is. This is
+                                    what R&#770; (R-hat) measures numerically.</td></tr>
+                                <tr><td><b>Chains on visibly different levels</b> (watch the
+                                    dashed per-chain means)</td>
+                                    <td><span class="bad">Bad.</span> They disagree. The
+                                    posterior mean is then an average over chains that never
+                                    reconciled &mdash; this is R&#770; above 1.01.</td></tr>
+                                <tr><td><b>Slow drift or a trend across the plot</b></td>
+                                    <td><span class="bad">Bad.</span> Still moving, so it has
+                                    not settled. Needs longer warm-up or a better
+                                    parameterisation.</td></tr>
+                                <tr><td><b>Flat stretches where a line sticks</b></td>
+                                    <td><span class="bad">Bad.</span> Proposals are being
+                                    rejected repeatedly; the sampler is stuck against a
+                                    difficult bit of geometry.</td></tr>
+                                <tr><td><b>Wide excursions to far-off values</b></td>
+                                    <td>Usually heavy tails, sometimes a second mode. Worth
+                                    checking against the density plot beside it.</td></tr>
+                              </tbody>
+                            </table>
+                            <p>
+                              <b>Where the warm-up went.</b> PyMC discards tuning draws by
+                              default, so for the earlier fits the 600 warm-up iterations
+                              were thrown away before the trace was written and cannot be
+                              recovered. Fits run after this was noticed keep theirs, and
+                              show it shaded at the left with x&nbsp;=&nbsp;0 marking the
+                              handover. Warm-up is where the dramatic convergence happens
+                              &mdash; chains starting far apart and pulling together
+                              &mdash; which is exactly why it is worth keeping.
+                            </p>
+                            <p>
+                              <b>The rank plot option</b> asks the same question a
+                              different way, useful because good traces all look alike and
+                              the eye is bad at judging four overlapping squiggles. Pool
+                              every draw from every chain, sort them, and ask where each
+                              chain&rsquo;s draws landed in that ordering. If the chains
+                              explored the same distribution, each contributes evenly
+                              across the whole range and its bars sit flat on the dashed
+                              line. A chain parked somewhere the others never went piles
+                              up at one end.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div id="gm-param-trace" class="chart-mid"></div>
+                  </div>
+                </div>
+                <div class="data-table-wrap">
+                  <table class="data-table" id="gm-param-stats"></table>
+                </div>
+              </div>
+
+              <h3>Most parameters land in the same place whichever height form is bolted on beside them</h3>
+              <p class="prose">
+                Each height form is a different model, but most parameters appear in all
+                of them. Overlaying their posteriors answers something no single fit can:
+                is this number a property of the <b>data</b>, or of the height form that
+                happened to be fitted alongside it? Pick any parameter above to change
+                this plot.
+              </p>
+              <div id="gm-across-fits" class="chart-mid"></div>
+              <p class="caption" id="gm-across-note"></p>
+
+              <h3>The fitted height curves disagree about shape but agree the effect is small</h3>
+              <p class="prose">
+                The parameters above are the model&rsquo;s internal knobs; these are the
+                curves they add up to. Every fitted height form is drawn on the same axes
+                with its <b>89% credible band</b> &mdash; the range holding 89% of the
+                posterior &mdash; and beside it the ape-index curve, which every model
+                shares. Each curve is pinned to zero at the median climber, so what is
+                being read off is the <b>shape</b>, and how much of the vertical axis the
+                band covers. Click a model in the legend to isolate it.
+              </p>
+              <div class="param-detail">
+                <div class="controls-inline">
+                  <label class="ctl">
+                    <span>Curves for</span>
+                    <select id="gm-fitted-gender">
+                      <option value="male">Male users</option>
+                      <option value="female">Female users</option>
+                    </select>
+                  </label>
+                  <label class="ctl ctl-check">
+                    <input type="checkbox" id="gm-fitted-band" checked />
+                    <span>Show credible bands</span>
+                  </label>
+                </div>
+                <div class="param-detail-grid">
+                  <div>
+                    <h4 class="chart-label">Height</h4>
+                    <div id="gm-fitted-height" class="chart-mid"></div>
+                  </div>
+                  <div>
+                    <h4 class="chart-label">Ape index</h4>
+                    <div id="gm-fitted-ape" class="chart-mid"></div>
+                  </div>
+                </div>
+                <p class="caption" id="gm-fitted-note"></p>
+              </div>
+
+              <h3>The parameters trade off along narrow ridges, which is exactly why the sampler struggles</h3>
+              <p class="prose">
+                A <b>corner plot</b> shows every pair of parameters plotted against one
+                another, using the same draws. Round blobs mean the parameters are being
+                pinned down independently. <b>Tilted, narrow ridges mean they are trading
+                off</b> &mdash; the data constrain their combination much better than
+                either one alone, and the sampler has to crawl along that ridge instead of
+                moving freely. That geometry is the cause of every convergence complaint
+                further down this page, and it is visible here rather than merely asserted.
+              </p>
+              <p class="prose">
+                Overlaying every model asks the same question the posterior overlays above
+                do, but in two dimensions: if two models draw the same tilted ridge, that
+                ridge is a property of the data rather than of the height form fitted
+                beside it. Contours read better than points once several models are
+                stacked; points show the tails and any stragglers the contours smooth
+                away. <b>Everything (full width)</b> puts every parameter in one plot
+                across the whole pane.
+              </p>
+              <div class="controls-inline">
+                <label class="ctl">
+                  <span>Parameter group</span>
+                  <select id="gm-corner-group"></select>
+                </label>
+                <label class="ctl">
+                  <span>Models</span>
+                  <select id="gm-corner-overlay">
+                    <option value="one">Selected fit only</option>
+                    <option value="all">All models overlaid</option>
+                  </select>
+                </label>
+                <label class="ctl">
+                  <span>Draw as</span>
+                  <select id="gm-corner-style">
+                    <option value="both">Contours + points</option>
+                    <option value="contour">Contours</option>
+                    <option value="points">Points</option>
+                  </select>
+                </label>
+              </div>
+              <div id="gm-corner" class="chart-tall"></div>
+              <p class="caption" id="gm-corner-note"></p>
+            </section>

@@ -1,0 +1,234 @@
+<section class="article-section" id="gm-model">
+              <h2>Kaya records only sends, so the standard model is not identified &mdash; everything else follows from working around that</h2>
+              <p class="prose">
+                This is an <b>item-response-theory (IRT) model</b>. IRT is the family
+                of models behind standardised testing: it estimates a test-taker&rsquo;s
+                latent ability and a question&rsquo;s difficulty at the same time, from
+                nothing but who got what right. Here climbs are the questions, climbers
+                are the test-takers, and a send is a correct answer.
+              </p>
+              <p class="prose">
+                The wrinkle is that Kaya logs <i>only</i> sends &mdash; never failed
+                attempts. A standard IRT likelihood needs both, so it is not identified
+                on this data. Every structural choice below exists to work around that
+                one missing piece.
+              </p>
+
+              <h3>Ability sits on the grade scale, so a correction reads directly in grades</h3>
+              <p class="prose">
+                Each climber \(u\) has a latent ability, where \(\beta_0\) is baseline
+                ability (the grade an average climber sends at an average gym),
+                \(\mathbf{x}_u\) is that climber&rsquo;s covariate row, and
+                \(\sigma_{\text{user}}\) is the spread of natural ability between
+                climbers:
+              </p>
+              <div class="eqn" data-syms="beta0 sigma_user eps x u" tabindex="0">$$\text{ability}_u = \beta_0 + \mathbf{x}_u^{\top}\boldsymbol{\beta} + \sigma_{\text{user}}\,\tilde\epsilon_u,
+                \qquad \tilde\epsilon_u \sim \mathcal{N}(0,1)$$</div>
+              <p class="prose">
+                \(\mathbf{x}_u\) holds gender, height terms, ape-index terms and two
+                missingness indicators, <b>each column centred to mean zero</b>, which
+                makes \(\beta_0\) orthogonal to every slope. Ability, grades and gym
+                corrections all live on the <b>same scale</b> &mdash; V-grades &mdash;
+                which is what makes a correction of &ldquo;+0.4&rdquo; readable as
+                &ldquo;four tenths of a grade stiffer.&rdquo;
+              </p>
+
+              <h3>Gym corrections are forced to sum to zero, because otherwise the model can slide</h3>
+              <p class="prose">
+                Ability and correction are identified only up to an additive shift
+                &mdash; add a grade to every climber and subtract one from every gym and
+                the data look identical. Constraining the corrections to sum to zero
+                <i>exactly</i> pins it down, and makes &ldquo;relative to the average
+                gym&rdquo; true by construction rather than by convention.
+                \(\sigma_{\text{gym}}\) is the spread of grading style across gyms:
+              </p>
+              <div class="eqn" data-syms="gym sigma_gym delta_g g" tabindex="0">$$\text{gym}_g = \sigma_{\text{gym}}\,\tilde\delta_g,
+                \qquad \tilde\delta \sim \text{ZeroSumNormal}(0,1)$$</div>
+              <p class="prose">
+                A climber&rsquo;s ceiling at a gym, \(C_{u,g}\), is then just the two
+                added:
+              </p>
+              <div class="eqn" data-syms="C gym u g" tabindex="0">$$C_{u,g} = \text{ability}_u + \text{gym}_g$$</div>
+
+              <h3>Nobody sends their limit every session, so the logged max is a biased view of the ceiling</h3>
+              <p class="prose">
+                The hardest grade someone logged at a gym sits at or below their true
+                ceiling by a non-negative <i>gap</i>. The gap&rsquo;s rate
+                \(\lambda_{u,g}\) rises with how many chances they have had to find
+                their limit &mdash; \(\tilde n_{u,g}\) is their visit count and
+                \(\tilde r_u\) their reliability signal, both standardised:
+              </p>
+              <div class="eqn" data-syms="lambda lambda0 kappa n rho r" tabindex="0">$$\log \lambda_{u,g} = \log\lambda_0 + \kappa\,\tilde n_{u,g} + \rho\,\tilde r_u$$</div>
+              <div class="eqn" data-syms="gap lambda m C sigma_link" tabindex="0">$$\text{gap}_{u,g}\sim\text{Exponential}(\lambda_{u,g}),
+                \qquad m_{u,g} = C_{u,g} - \text{gap}_{u,g} + \varepsilon,\ \ \varepsilon\sim\mathcal{N}(0,\sigma_{\text{link}})$$</div>
+              <p class="prose">
+                A Normal minus an Exponential is an <b>Exponentially Modified Gaussian
+                (ExGaussian)</b>, so the gap integrates out in closed form and never has
+                to be sampled:
+              </p>
+              <div class="eqn" data-syms="m C sigma_link lambda" tabindex="0">$$-m_{u,g} \;\sim\; \text{ExGaussian}\!\left(-C_{u,g},\ \sigma_{\text{link}},\ 1/\lambda_{u,g}\right)$$</div>
+              <p class="prose">
+                That removes one latent variable per observation &mdash; <b>32,501</b> of
+                them on this network &mdash; and turns the likelihood into an ordinary
+                observed node, so LOO (leave-one-out cross-validation) and posterior
+                predictive checks work natively. The closed form was verified against
+                numerical integration of the original formulation to
+                <b>1&times;10<sup>&minus;8</sup></b>.
+              </p>
+
+              <h3>See the gap for yourself</h3>
+              <p class="prose">
+                This is the least intuitive part of the model and the part worth arguing
+                with, so here it is as a picture. <b>Left:</b> for a climber whose true
+                ceiling is fixed, what we actually observe is a smeared distribution
+                sitting <i>below</i> it &mdash; that offset is the whole problem, and it
+                shrinks as they visit more. <b>Right:</b> how fast it shrinks, as a
+                function of visits.
+              </p>
+              <div class="explorer-grid">
+                <section class="form-card">
+                  <header class="form-card-head">
+                    <h4>What we observe vs the true ceiling</h4>
+                    <span class="form-badge">interactive</span>
+                  </header>
+                  <div id="gm-gap-chart" class="form-card-chart"></div>
+                  <div class="form-card-controls" id="gm-gap-controls"></div>
+                </section>
+                <section class="form-card">
+                  <header class="form-card-head">
+                    <h4>How the gap shrinks with visits</h4>
+                    <span class="form-badge fitted">fitted &middot; v3_conf</span>
+                  </header>
+                  <div id="gm-visits-chart" class="form-card-chart"></div>
+                  <div class="form-card-controls" id="gm-visits-controls"></div>
+                </section>
+              </div>
+              <p class="caption">
+                Left: the dashed line is the climber&rsquo;s true ceiling \(C\), in
+                V-grades; the filled curve is the distribution of the grade we actually
+                log. The distance between the ceiling and the bulk of that curve is the
+                bias the model has to undo. Turn \(\sigma_{\text{link}}\) down and it
+                becomes a hard edge with an exponential tail; turn it up and the edge
+                blurs, which is why \(\sigma_{\text{link}}\) and the gap rate compete to
+                explain the same spread. Right: with \(\rho\) fitted at essentially zero,
+                the reliability slider does nothing &mdash; that flat line <i>is</i> the
+                finding.
+              </p>
+
+              <h3>Height enters as one curve per gender, blended by probability rather than by label</h3>
+              <p class="prose">
+                Height and ape index (wingspan minus height) are near-independent here
+                (\(r = +0.137\)), so their shapes are specified separately. \(\tilde h\)
+                and \(\tilde a\) are centred at the median and scaled to standard
+                deviations. \(G\) is the probability the climber is female, so \(1-G\)
+                and \(G\) are the weights:
+              </p>
+              <div class="eqn" data-syms="h G gM gF" tabindex="0">$$f_{\text{height}}(\tilde h,\ G) \;=\;
+                \underbrace{(1-G)\left(\gamma_1^{M}\tilde h + \gamma_2^{M}\tilde h^{2}\right)}_{\text{male users}}
+                \;+\;
+                \underbrace{G\left(\gamma_1^{F}\tilde h + \gamma_2^{F}\tilde h^{2}\right)}_{\text{female users}}$$</div>
+              <p class="prose">
+                \(G\) is a <b>probability, not a hard label</b>. A climber whose name is
+                70% female contributes 0.7 of a row to the female curve and 0.3 to the
+                male one, so uncertainty about the name propagates into the height
+                estimate instead of being silently rounded away.
+              </p>
+              <div class="methodology-note">
+                <b>What is actually fitted.</b> The sampler does not see \(\gamma^{M}\)
+                and \(\gamma^{F}\) as two free pairs. It fits a baseline and a
+                <i>difference</i> &mdash; \(\gamma^{M}_{k}=\gamma_k\) and
+                \(\gamma^{F}_{k}=\gamma_k+\gamma_k^{\times}\) &mdash; which is the same
+                function, but lets the prior sit on the thing under test. A tight
+                \(\gamma_k^{\times}\sim\mathcal{N}(0,\,\text{small})\) shrinks the two
+                curves toward <i>each other</i>, so a gender difference has to be earned
+                from the data rather than appearing by default.
+              </div>
+
+              <p class="prose">
+                Ape index enters on its own, with the same quadratic shape but no gender
+                split &mdash; \(\delta_1\) and \(\delta_2\) are its linear and curvature
+                coefficients, in grades per standard deviation of ape index:
+              </p>
+              <div class="eqn" data-syms="a delta" tabindex="0">$$f_{\text{ape}}(\tilde a) \;=\; \delta_1\tilde a + \delta_2\tilde a^{2}$$</div>
+
+              <h3>Six height shapes are fitted, because they encode different claims about the world</h3>
+              <p class="prose">
+                The gender-blended quadratic above is one candidate of six. The others are
+                a plain quadratic, a straight line, zero (no height term at all), a
+                <b>monotone saturating</b> form &mdash; &ldquo;reach helps until you have
+                enough of it, then stops paying&rdquo; &mdash; and a <b>vertex
+                quadratic</b> that estimates the best height \(p\) directly rather than
+                implying it through a ratio. \(A\) is the total height a saturating curve
+                can buy in grades, \(h_0\) the height at which it is halfway there, \(s\)
+                how sharply it turns over, and \(\kappa_h\) the curvature of the vertex
+                form:
+              </p>
+              <div class="eqn" data-syms="h sat kappa_h p" tabindex="0">$$f_{\text{sat}}(\tilde h) \;=\; A\,\operatorname{logistic}\!\left(\frac{\tilde h - h_0}{s}\right)
+                \qquad
+                f_{\text{vtx}}(\tilde h) \;=\; -\kappa_h\left(\tilde h - p\right)^{2}$$</div>
+              <p class="prose">
+                All six are compared by LOO (leave-one-out cross-validation) on identical
+                data. <a href="#gm-height">What that comparison concluded</a> is its own
+                section; this one is about what each form is capable of saying.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gm-forms-table"></table>
+              </div>
+
+              <h3>Play with the parameters &mdash; each form has things it cannot say</h3>
+              <p class="prose">
+                One card per form: the equation, the shape it produces, and a slider for
+                every parameter in it. The point is to see what each form <b>can</b> and
+                <b>cannot</b> say &mdash; no setting of the linear sliders will produce a
+                peak, and no setting of the saturating sliders will produce a decline.
+                Where a fit has landed, the sliders start at the fitted values; the rest
+                start at illustrative ones and are labelled as such.
+              </p>
+              <div id="gm-form-cards" class="form-card-grid"></div>
+              <p class="caption">
+                Vertical axis is the height contribution to ability, in <b>V-grades</b>
+                relative to the median climber &mdash; higher is better. Horizontal axis
+                is height in inches. In every card the <b>left band</b> is where female
+                users sit (64.2 &plusmn; 2.8 in) and the <b>right band</b> is male users
+                (69.2 &plusmn; 3.3 in), each one standard deviation wide. All six cards
+                share a vertical scale so their shapes are directly comparable; drag a
+                slider to an extreme and the axis grows rather than clipping the curve.
+              </p>
+
+              <div class="callout">
+                <div>
+                  <b>Does centring height at the median force the peak to sit there?</b>
+                  No &mdash; worth being explicit about, because it looks like it should.
+                  Centring only fixes where \(\tilde h=0\) falls; it says nothing about
+                  where the curve turns over. For
+                  \(f(\tilde h)=\gamma_1\tilde h+\gamma_2\tilde h^2\) the vertex sits at
+                  \(\tilde h^{*}=-\gamma_1/2\gamma_2\), which the data are free to put
+                  anywhere &mdash; v1&rsquo;s own fitted coefficients implied a peak
+                  roughly 10 inches <i>below</i> the median.
+                  <br /><br />
+                  What centring does change is the <i>implied prior</i> on that peak. A
+                  ratio of two normals is Cauchy-like &mdash; heavy-tailed and piled up
+                  near zero &mdash; so the plain quadratic quietly favours a peak near the
+                  median, and gives a badly-behaved interval whenever \(\gamma_2\) is
+                  close to zero. The vertex quadratic makes the peak \(p\) a parameter
+                  with a prior of its own, so it reports a credible interval directly
+                  instead of propagating error through a division. Both forms are fitted;
+                  if they disagree about where the best height is, that disagreement is
+                  itself the finding.
+                </div>
+              </div>
+
+              <h3>Every symbol is defined in the panel, with its units</h3>
+              <p class="prose">
+                <b>Hover any equation</b> to light up just the symbols it uses, or
+                <b>click it</b> to open the panel on those symbols &mdash; clicking the
+                same equation again closes it. The panel is docked to the right so it
+                stays in view while you read, and the article shifts over rather than
+                sliding underneath it.
+              </p>
+              <p class="prose">
+                <button type="button" class="ghost-button" id="gm-gloss-open">
+                  Open the symbols panel
+                </button>
+              </p>
+            </section>

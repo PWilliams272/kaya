@@ -1,0 +1,74 @@
+<section id="tab-grading-current" class="tab-pane">
+          <div class="article-shell embedded">
+            <header class="masthead">
+              <div class="eyebrow">Research &middot; Bayesian Hierarchical Modeling</div>
+              <h1>How Hard Is That Gym, Really?</h1>
+              <p class="dek">
+                A V5 at one gym is not a V5 at another. This model separates a
+                climber's ability from the gym's grading style, using nothing but the
+                grades climbers already log &mdash; across
+                <b>29 gyms and four companies</b>.
+              </p>
+              <div class="meta-row">
+                <span id="gm-updated">Updated 2026-08-05</span>
+                <span class="dot">&middot;</span>
+                <span>PyMC / NUTS (No-U-Turn Sampler) &middot; 20,014 observations &middot; 10,357 climbers</span>
+              </div>
+            </header>
+
+            <nav class="toc" aria-label="Contents">
+              <div class="toc-label">Contents</div>
+              <ol>
+                <li><a href="#gm-headline">Gyms differ by more than a full V-grade</a></li>
+                <li><a href="#gm-model">The model, and the data it works around</a></li>
+                <li><a href="#gm-gyms">Which gyms sit where</a></li>
+                <li><a href="#gm-height">What height buys</a></li>
+                <li><a href="#gm-time">How fast climbers improve</a></li>
+                <li><a href="#gm-negatives">What did not survive</a></li>
+                <li><a href="#gm-inference">Priors, posteriors, and how the parameters trade off</a></li>
+                <li><a href="#gm-diagnostics">What the sampler did</a></li>
+                <li><a href="#gm-provenance">Where the numbers come from</a></li>
+              </ol>
+            </nav>
+
+            {% include 'tabs/grading-current/headline.html' %}
+            {% include 'tabs/grading-current/model.html' %}
+            {% include 'tabs/grading-current/gyms.html' %}
+            {% include 'tabs/grading-current/height.html' %}
+            {% include 'tabs/grading-current/time.html' %}
+            {% include 'tabs/grading-current/negatives.html' %}
+            {% include 'tabs/grading-current/inference.html' %}
+            {% include 'tabs/grading-current/diagnostics.html' %}
+            {% include 'tabs/grading-current/provenance.html' %}
+
+            <footer class="article-footer">
+              All estimates from real Kaya send logs on the 29-gym connected network,
+              fitted with PyMC/NUTS (the No-U-Turn Sampler). Every number is traceable
+              to a script &mdash; see
+              <a href="#gm-provenance">Where every number on this page comes from</a>.
+              The full working record, including every approach that was tried and
+              rejected, is on <b>Archive &mdash; v2 Notes</b>.
+            </footer>
+          </div>
+
+          <!-- Docked symbol glossary, per docs/docked-reference-panel.md. Its own
+               ids because the archived v2 page still owns the v2-* ones and element
+               ids must be unique per document. -->
+          <aside id="gm-glossary" class="glossary" data-open="false"
+                 aria-label="Parameter definitions">
+            <button type="button" class="glossary-handle" id="gm-gloss-toggle"
+                    aria-expanded="false" aria-controls="gm-glossary-body">
+              <span class="glossary-handle-text">Symbols</span>
+            </button>
+            <div class="glossary-body" id="gm-glossary-body">
+              <div class="glossary-head">
+                <h4>Parameter definitions</h4>
+                <p id="gm-gloss-hint">Hover an equation to highlight the symbols it uses; click it to
+                  keep them highlighted, and click again to close this panel.</p>
+              </div>
+              <div class="glossary-scroll">
+                <table class="sym-table" id="gm-symbols"></table>
+              </div>
+            </div>
+          </aside>
+        </section>

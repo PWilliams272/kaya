@@ -8,7 +8,8 @@ function renderAll() {
   renderUserSegmentation();
 }
 
-const TAB_NAMES = ['gym-comparison', 'body-morphology', 'user-segmentation', 'data-overview', 'grading-model', 'grading-v2'];
+const TAB_NAMES = ['gym-comparison', 'body-morphology', 'user-segmentation', 'data-overview',
+  'grading-current', 'grading-model', 'grading-v2'];
 
 function getSavedTab() {
   const saved = localStorage.getItem('kaya-viewer-tab');
@@ -42,6 +43,10 @@ async function activateTab(tabName) {
     // Ability Explorer (client-side calculator, no API data needed).
     bindExplorerControls();
     refreshExplorer();
+  } else if (tabName === 'grading-current') {
+    // The current write-up. Shares every payload with the archived v2 notes,
+    // so switching between them refetches nothing.
+    renderCurrentTab();
   } else if (tabName === 'grading-v2') {
     renderV2Tab();
   } else {
@@ -244,10 +249,28 @@ async function bootstrapWithFallback() {
   }
 }
 
-bootstrapWithFallback().catch((error) => {
-  window.__kayaViewerError = error?.message || String(error);
-  window.__kayaViewerStatus = 'bootstrap-error';
-  console.error(error);
-  alert(`Failed to load Kaya viewer: ${error.message}`);
-});
+// Wait for every script in the document before starting.
+//
+// The bootstrap restores the last-used tab, which calls that tab's renderer --
+// and the explainer renderers (`renderV2Tab`, `renderCurrentTab`) live in
+// scripts that load AFTER this one. In the original single app.js they were
+// function declarations in the same file, so hoisting made them visible here.
+// Across separate classic scripts it does not, and restoring a saved explainer
+// tab threw `renderCurrentTab is not defined` before the later scripts had been
+// evaluated. DOMContentLoaded fires once they all have, which is exactly the
+// guarantee the file split lost.
+function startViewer() {
+  bootstrapWithFallback().catch((error) => {
+    window.__kayaViewerError = error?.message || String(error);
+    window.__kayaViewerStatus = 'bootstrap-error';
+    console.error(error);
+    alert(`Failed to load Kaya viewer: ${error.message}`);
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', startViewer, { once: true });
+} else {
+  startViewer();
+}
 

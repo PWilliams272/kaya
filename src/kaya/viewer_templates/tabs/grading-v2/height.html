@@ -147,32 +147,9 @@
                 from. The score for those rows is not a prediction; it is a
                 guess.
               </p>
-              <p class="prose">
-                Which suggests a test that costs nothing. Cross-validation
-                already produces a <i>separate score for every observation</i>,
-                so the totals can be re-added over any subset without refitting
-                anything &mdash; the same subset for every model, so the
-                comparison stays fair. If the single-observation climbers are
-                the problem, dropping them should collapse the noise.
-              </p>
-              <div class="head-row">
-                <div id="v2-arm-picker" class="chart-head-tools"></div>
-              </div>
-              <div id="v2-noise-chart" class="chart-mid"></div>
-              <p class="caption" id="v2-noise-note"></p>
-              <div class="data-table-wrap">
-                <table class="data-table" id="v2-subset-table"></table>
-              </div>
-              <p class="caption">
-                Each model&rsquo;s score relative to the best model in the same
-                column. <b>0 is best; more negative predicts held-out climbers
-                worse.</b> Compare only <i>down</i> a column &mdash; a narrower
-                subset adds up fewer rows, so its totals are smaller for
-                reasons that have nothing to do with the models. The rows
-                labelled &ldquo;refit&rdquo; are the <i>same model</i> fitted
-                again; the spread among them is the noise floor, and any gap
-                smaller than it is not a result.
-              </p>
+
+{% include 'tabs/grading-v2/psis.html' %}
+
               <p class="prose">
                 It collapses. Restricted to climbers with three or more
                 observations &mdash; still half the data &mdash; two runs of

@@ -1,0 +1,162 @@
+<!-- How leave-one-out is actually computed: importance sampling, why a
+     single-observation climber breaks it, and what Pareto k measures.
+     Split out of height.html to keep templates under the 700-line cap. -->
+              <h4 class="sub-head">How leave-one-out is really computed</h4>
+              <p class="prose">
+                That claim deserves backing up, and doing so means opening up
+                what cross-validation is actually doing here, because it is not
+                the obvious thing.
+              </p>
+              <p class="prose">
+                The obvious thing would be: hide a row, refit the model,
+                predict the hidden row, repeat. That is 20,014 refits at about
+                85 minutes each &mdash; roughly three years of computing. Nobody
+                does that. The model is fitted <b>once</b>, and what would have
+                happened without each row is <i>estimated</i> from that single
+                fit by <b>importance sampling</b>.
+              </p>
+              <div class="callout">
+                <div>
+                  <b>Importance sampling in one sentence.</b> If you want the
+                  average height in Norway but your sample is Swedish, you are
+                  not stuck &mdash; provided you know how the two populations
+                  differ, you count each Swede more or less heavily to match
+                  Norway. Samples from the wrong distribution, re-weighted to
+                  answer a question about the right one.
+                </div>
+              </div>
+              <p class="prose">
+                Here the &ldquo;wrong distribution&rdquo; is the posterior
+                fitted on <i>all</i> the data, and the right one is the
+                posterior that would have been fitted <i>without row i</i>.
+                Bayes&rsquo; rule connects them: removing an observation means
+                dividing out its likelihood. So the weight on posterior draw
+                <span>\(s\)</span> is simply
+              </p>
+              <div class="eqn-block">
+                $$w_s \;=\; \frac{1}{p\!\left(y_i \mid \theta_s\right)}$$
+              </div>
+              <p class="prose">
+                <b>One over how well that draw explained the row being held
+                out.</b> The logic is neat: a draw that fits row
+                <span>\(i\)</span> unusually well is over-represented
+                <i>precisely because</i> row <span>\(i\)</span> was in the fit,
+                so to pretend it was absent you push that draw back down.
+              </p>
+
+              <h4 class="sub-head">The objection that makes this click</h4>
+              <div class="callout warn">
+                <div>
+                  <b>&ldquo;But a one-row climber&rsquo;s ability is fitted
+                  almost perfectly to that row. So the likelihood is
+                  <i>large</i>, and the weight is <i>tiny</i>. Where is the
+                  problem?&rdquo;</b>
+                  <br /><br />
+                  Correct, and beside the point. Importance weights are
+                  <b>normalised</b> &mdash; they are divided by their own total
+                  &mdash; so their absolute size never matters. Only their
+                  <b>spread</b> does. A uniformly tiny set of weights is
+                  perfectly healthy. What destroys the estimate is a handful of
+                  draws hundreds of times larger than the rest, because then the
+                  answer rests on those few draws instead of on all 2,000.
+                </div>
+              </div>
+              <p class="prose">
+                And that is exactly what one observation produces. With the row
+                in the fit, that climber&rsquo;s ability is pinned to a spread
+                of about half a grade. Take the row away and there is nothing
+                left to pin it, so it falls back to the prior &mdash; a spread
+                of <b>1.63 grades</b>, more than three
+                times wider. <b>The distribution being aimed at is far wider
+                than the one that was sampled</b>, so its bulk sits where the
+                draws almost never went, and the few that strayed out there have
+                to carry all of it.
+              </p>
+              <figure class="figure diagram">
+                <svg viewBox="0 0 760 250" role="img"
+                     aria-label="Two overlaid curves. A narrow peak marks the
+                     posterior for a climber's ability while their single row is
+                     in the fit. A much wider curve marks where that ability
+                     could be once the row is removed. Shaded regions on both
+                     flanks show where the wider target has mass but the narrow
+                     sample supplied almost no draws.">
+                  <g fill="none" stroke="currentColor" stroke-linejoin="round">
+                    <path d="M60,200 L200,200 L240,199 L270,196 L300,186 L320,172 L340,146 L360,110 L380,70 L400,110 L420,146 L440,172 L460,186 L490,196 L520,199 L560,200 L700,200"
+                          stroke-width="2.4" />
+                    <path d="M60,199 L100,197 L140,192 L180,185 L220,175 L260,164 L300,154 L340,147 L380,144 L420,147 L460,154 L500,164 L540,175 L580,185 L620,192 L660,197 L700,199"
+                          stroke-width="1.8" stroke-dasharray="6 4" opacity="0.75" />
+                    <line x1="60" y1="200" x2="700" y2="200" stroke-width="1" opacity="0.5" />
+                  </g>
+                  <g fill="var(--lg-warning, currentColor)" opacity="0.16">
+                    <rect x="60" y="120" width="240" height="80" />
+                    <rect x="460" y="120" width="240" height="80" />
+                  </g>
+                  <g fill="currentColor" font-size="12">
+                    <text x="330" y="52" text-anchor="middle" font-weight="600">with the row: ability pinned</text>
+                    <text x="640" y="140" text-anchor="end" opacity="0.75">without it: back to the prior</text>
+                    <text x="180" y="228" text-anchor="middle" font-size="11" opacity="0.85">target has mass here,</text>
+                    <text x="180" y="242" text-anchor="middle" font-size="11" opacity="0.85">the draws do not</text>
+                    <text x="580" y="228" text-anchor="middle" font-size="11" opacity="0.85">target has mass here,</text>
+                    <text x="580" y="242" text-anchor="middle" font-size="11" opacity="0.85">the draws do not</text>
+                  </g>
+                </svg>
+                <figcaption>
+                  Importance sampling works when the sampled distribution covers
+                  the target. Here it is three times too narrow, and the shaded
+                  flanks are where the estimate has to come from draws that
+                  barely exist.
+                </figcaption>
+              </figure>
+
+              <h4 class="sub-head">What that looks like in the actual draws</h4>
+              <p class="prose">
+                None of this has to be taken on trust &mdash; the weights can
+                just be counted. Rank the 2,000 posterior draws for one row from
+                largest weight to smallest, and ask how much of the answer the
+                top few carry. A perfectly healthy row spreads the load evenly.
+              </p>
+              <div id="v2-psis-picker" class="seg-picker"></div>
+              <div id="v2-psis-chart" class="chart-mid"></div>
+              <p class="caption" id="v2-psis-note"></p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-psis-table"></table>
+              </div>
+              <p class="caption">
+                <b>Pareto&nbsp;k</b> is where this diagnosis becomes a number.
+                The fix for heavy-tailed weights is to fit a generalised Pareto
+                distribution to the largest ~20% of them and cap the wild ones;
+                <span>\(k\)</span> is that distribution&rsquo;s shape parameter,
+                so it falls out of the repair for free, one value per row.
+                Below&nbsp;0.5 the weights have finite variance and everything
+                behaves. Above <b>0.7</b> the estimate converges too slowly to
+                trust at any realistic number of draws. <b>Lower is better.</b>
+                The threshold is an empirical convention from simulation, not a
+                theorem &mdash; more draws buy tolerance for a slightly heavier
+                tail.
+              </p>
+              <p class="prose">
+                Which suggests a test that costs nothing. Cross-validation
+                already produces a <i>separate score for every observation</i>,
+                so the totals can be re-added over any subset without refitting
+                anything &mdash; the same subset for every model, so the
+                comparison stays fair. If the single-observation climbers are
+                the problem, dropping them should collapse the noise.
+              </p>
+              <div class="head-row">
+                <div id="v2-arm-picker" class="chart-head-tools"></div>
+              </div>
+              <div id="v2-noise-chart" class="chart-mid"></div>
+              <p class="caption" id="v2-noise-note"></p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="v2-subset-table"></table>
+              </div>
+              <p class="caption">
+                Each model&rsquo;s score relative to the best model in the same
+                column. <b>0 is best; more negative predicts held-out climbers
+                worse.</b> Compare only <i>down</i> a column &mdash; a narrower
+                subset adds up fewer rows, so its totals are smaller for
+                reasons that have nothing to do with the models. The rows
+                labelled &ldquo;refit&rdquo; are the <i>same model</i> fitted
+                again; the spread among them is the noise floor, and any gap
+                smaller than it is not a result.
+              </p>

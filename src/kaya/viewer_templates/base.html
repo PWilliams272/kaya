@@ -7,7 +7,7 @@
     <meta name="kaya-viewer-data-mode" content="static" />
     <link rel="stylesheet" href="/static/tokens.css" />
     <link rel="stylesheet" href="/static/app.css?v=6" />
-    <link rel="stylesheet" href="/static/research.css?v=33" />
+    <link rel="stylesheet" href="/static/research.css?v=34" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -32,15 +32,19 @@
           <button class="tab-button" type="button" data-tab="body-morphology">Height and Wingspan</button>
           <button class="tab-button" type="button" data-tab="user-segmentation">User Analysis</button>
           <button class="tab-button" type="button" data-tab="data-overview">Data Overview</button>
-          <button class="tab-button" type="button" data-tab="grading-model">Grading Model</button>
-          <button class="tab-button" type="button" data-tab="grading-v2">Grading Model v2</button>
+          <button class="tab-button" type="button" data-tab="grading-current">Grading Model</button>
+          <button class="tab-button tab-archived" type="button" data-tab="grading-model">Archive &mdash; v1 Model</button>
+          <button class="tab-button tab-archived" type="button" data-tab="grading-v2">Archive &mdash; v2 Notes</button>
         </div>
 
         {% include 'tabs/gym-comparison.html' %}
         {% include 'tabs/body-morphology.html' %}
         {% include 'tabs/user-segmentation.html' %}
         {% include 'tabs/data-overview.html' %}
-        {% include 'tabs/grading-model.html' %}        {% include 'tabs/grading-v2.html' %}      </main>
+        {% include 'tabs/grading-current.html' %}
+        {% include 'tabs/grading-model.html' %}
+        {% include 'tabs/grading-v2.html' %}
+      </main>
     </div>
     <!-- Split from one 6,074-line app.js. These are CLASSIC scripts, not ES
          modules, and they share one global scope exactly as the single file
@@ -48,11 +52,14 @@
          file is a verbatim slice: concatenating them in this order reproduces
          the original app.js byte for byte.
 
-         ORDER IS LOAD-BEARING. 09-shell.js calls bootstrapWithFallback() at
-         top level, before the v2 files are evaluated, exactly as the single
-         file did. The numeric prefixes exist so the order cannot be shuffled
-         by accident; keep them, and add a new file at the position its
-         dependencies require rather than at the end. -->
+         ORDER IS LOAD-BEARING. The numeric prefixes exist so it cannot be
+         shuffled by accident; keep them, and add a new file at the position
+         its dependencies require rather than at the end.
+
+         What the split does NOT preserve is hoisting across files: a function
+         declared in a later script is not visible to top-level code in an
+         earlier one, though it was inside the single file. 09-shell.js waits
+         for DOMContentLoaded before bootstrapping for exactly that reason. -->
     <script src="/static/js/01-core.js?v=1"></script>
     <script src="/static/js/02-ability-explorer.js?v=1"></script>
     <script src="/static/js/03-data.js?v=1"></script>
@@ -61,13 +68,14 @@
     <script src="/static/js/06-body-morphology.js?v=1"></script>
     <script src="/static/js/07-user-segmentation.js?v=1"></script>
     <script src="/static/js/08-gym-comparison.js?v=1"></script>
-    <script src="/static/js/09-shell.js?v=1"></script>
-    <script src="/static/js/v2/01-constants.js?v=1"></script>
-    <script src="/static/js/v2/02-results.js?v=1"></script>
-    <script src="/static/js/v2/03-time.js?v=1"></script>
-    <script src="/static/js/v2/04-reliability.js?v=1"></script>
-    <script src="/static/js/v2/05-body-forms.js?v=1"></script>
-    <script src="/static/js/v2/06-diagnostics.js?v=1"></script>
-    <script src="/static/js/v2/07-explorers.js?v=1"></script>
+    <script src="/static/js/09-shell.js?v=2"></script>
+    <script src="/static/js/v2/01-constants.js?v=6"></script>
+    <script src="/static/js/v2/02-results.js?v=6"></script>
+    <script src="/static/js/v2/03-time.js?v=6"></script>
+    <script src="/static/js/v2/04-reliability.js?v=6"></script>
+    <script src="/static/js/v2/05-body-forms.js?v=6"></script>
+    <script src="/static/js/v2/06-diagnostics.js?v=6"></script>
+    <script src="/static/js/v2/07-explorers.js?v=6"></script>
+    <script src="/static/js/current/01-grading-current.js?v=6"></script>
   </body>
 </html>

@@ -1,0 +1,52 @@
+<section class="article-section" id="gm-diagnostics">
+              <h2>The sampler hits its tree-depth cap on essentially every iteration, and that is structural</h2>
+              <p class="prose">
+                Reported per parameter block, because some of this model mixes well and
+                some does not &mdash; and the difference decides which numbers on this
+                page can be trusted.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table read-guide" id="gm-sampler-guide"></table>
+              </div>
+              <p class="caption">
+                Plain-language guide to each diagnostic and what you want it to say. The
+                numbers for the selected fit are below.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gm-sampler-table"></table>
+              </div>
+              <p class="caption" id="gm-sampler-note"></p>
+
+              <p class="prose">
+                The sampler reaches maximum tree depth (1,023 leapfrog steps per draw)
+                on essentially every iteration. The cause is structural rather than
+                something reparameterisation fixes:
+                <b><span data-v2="pct_single">59%</span> of climbers appear at only one
+                gym</b>, so for those climbers the personal ability offset, the
+                observation noise and the gap all compete to explain a single residual.
+                <b>Four separate reparameterisations were tried; none moved it.</b>
+              </p>
+
+              <div class="callout">
+                <div>
+                  <b>Zero divergences with tree depth at the cap is a specific
+                  diagnosis, not a clean bill of health.</b> Divergences say the sampler
+                  fell off the surface; hitting the depth cap says it never did, but had
+                  to inch along to stay on. Together they describe a posterior that is
+                  extremely elongated rather than sharply curved &mdash; hard, not
+                  broken. The cost is wall-clock time and effective sample size, not
+                  correctness.
+                </div>
+              </div>
+
+              <div class="methodology-note">
+                <b>Reproducibility.</b> Model in
+                <code>src/kaya/grading_model_v2.py</code>. Network selected as the
+                largest set of gyms connected by &ge;50 shared climbers. Body
+                measurements outside 4&prime;0&Prime;&ndash;7&prime;0&Prime; and
+                |ape index| &gt; 12 in are treated as missing, not believed. The
+                likelihood was implemented twice &mdash; once in PyTensor for PyMC,
+                once in plain NumPy &mdash; and the two agree to
+                <b>1.3&times;10<sup>&minus;9</sup></b>.
+              </div>
+            </section>

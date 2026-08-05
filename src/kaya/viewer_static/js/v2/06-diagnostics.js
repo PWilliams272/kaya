@@ -11,9 +11,9 @@ const V2_SAMPLER_GUIDE = [
 ];
 
 function renderV2Sampler() {
-  const tbl = document.getElementById('v2-sampler-table');
-  const note = document.getElementById('v2-sampler-note');
-  const guide = document.getElementById('v2-sampler-guide');
+  const tbl = v2El('sampler-table');
+  const note = v2El('sampler-note');
+  const guide = v2El('sampler-guide');
   const fit = v2Fit(v2SelectedFit());
 
   if (guide) {
@@ -69,10 +69,12 @@ function renderV2Sampler() {
 // ---- wiring ----
 
 function bindV2Inference() {
-  if (bindV2Inference.done || !V2_POST) return;
-  bindV2Inference.done = true;
+  // Per-namespace: each pane owns its own controls and binds them once.
+  bindV2Inference.done = bindV2Inference.done || new Set();
+  if (bindV2Inference.done.has(V2_NS) || !V2_POST) return;
+  bindV2Inference.done.add(V2_NS);
 
-  const fitSel = document.getElementById('v2-fit-pick');
+  const fitSel = v2El('fit-pick');
   if (fitSel && !fitSel.options.length) {
     // Two arms of the same model, so the list is grouped rather than flat:
     // "v3_lin" and "v3_lin_marg" are the same height form fitted two ways, and
@@ -99,7 +101,7 @@ function bindV2Inference() {
     });
     if (v2FitNames().includes('v3_conf')) fitSel.value = 'v3_conf';
   }
-  const paramSel = document.getElementById('v2-param-pick');
+  const paramSel = v2El('param-pick');
   const fillParams = () => {
     if (!paramSel) return;
     const keep = paramSel.value;
@@ -113,7 +115,7 @@ function bindV2Inference() {
   };
   fillParams();
 
-  const groupSel = document.getElementById('v2-corner-group');
+  const groupSel = v2El('corner-group');
   if (groupSel && !groupSel.options.length) {
     Object.entries(V2_CORNER_GROUPS).forEach(([k, g]) => {
       const o = document.createElement('option');
@@ -125,23 +127,22 @@ function bindV2Inference() {
     groupSel.appendChild(o);
   }
 
-  fitSel?.addEventListener('change', () => {
+  fitSel?.addEventListener('change', v2Bound(() => {
     fillParams();
     renderV2PostGrid();
     renderV2ParamDetail(paramSel.value);
     renderV2Corner();
     renderV2Sampler();
+  }));
+  paramSel?.addEventListener('change', v2Bound(() => renderV2ParamDetail(paramSel.value)));
+  ['param-wide', 'trace-mode'].forEach((id) => {
+    v2El(id)?.addEventListener('change', v2Bound(() => renderV2ParamDetail(paramSel.value)));
   });
-  paramSel?.addEventListener('change', () => renderV2ParamDetail(paramSel.value));
-  ['v2-param-wide', 'v2-trace-mode'].forEach((id) => {
-    document.getElementById(id)?.addEventListener('change',
-      () => renderV2ParamDetail(paramSel.value));
+  ['corner-group', 'corner-overlay', 'corner-style'].forEach((id) => {
+    v2El(id)?.addEventListener('change', v2Bound(renderV2Corner));
   });
-  ['v2-corner-group', 'v2-corner-overlay', 'v2-corner-style'].forEach((id) => {
-    document.getElementById(id)?.addEventListener('change', renderV2Corner);
-  });
-  ['v2-fitted-gender', 'v2-fitted-band'].forEach((id) => {
-    document.getElementById(id)?.addEventListener('change', renderV2FittedForms);
+  ['fitted-gender', 'fitted-band'].forEach((id) => {
+    v2El(id)?.addEventListener('change', v2Bound(renderV2FittedForms));
   });
 }
 
@@ -152,7 +153,7 @@ async function loadV2Posterior() {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     V2_POST = await r.json();
   } catch (e) {
-    const host = document.getElementById('v2-post-grid');
+    const host = v2El('post-grid');
     if (host) {
       host.innerHTML = '<p class="form-noparams">Posterior draws could not be loaded, '
         + 'so this section is empty. Regenerate with scripts/build_v2_posteriors.py. '
@@ -169,14 +170,14 @@ async function renderV2Inference() {
   // The glossary quotes the height/ape SDs, which only arrive with the fits.
   renderV2Symbols();
   if (typeof window.renderMathInElement === 'function') {
-    const el = document.getElementById('v2-symbols');
+    const el = v2El('symbols');
     if (el) window.renderMathInElement(el, { delimiters: [{ left: '\\(', right: '\\)', display: false }] });
   }
   renderV2PostGrid();
   renderV2Sampler();
   renderV2FittedForms();
   renderV2Corner();
-  const sel = document.getElementById('v2-param-pick');
+  const sel = v2El('param-pick');
   renderV2ParamDetail(sel?.value || Object.keys(v2Fit(v2SelectedFit()).params)[0]);
 }
 
@@ -186,15 +187,15 @@ async function renderV2Inference() {
 const V2_GLOSS_KEY = 'kaya.v2.glossary.open';
 
 function setV2GlossaryOpen(open, persist = true) {
-  const panel = document.getElementById('v2-glossary');
-  const btn = document.getElementById('v2-gloss-toggle');
+  const panel = v2El('glossary');
+  const btn = v2El('gloss-toggle');
   if (!panel) return;
   panel.dataset.open = open ? 'true' : 'false';
   // Reserve the gutter so the centred article re-centres beside the panel
   // instead of running underneath it.
-  document.getElementById('tab-grading-v2')?.classList.toggle('gloss-open', open);
+  v2Pane()?.classList.toggle('gloss-open', open);
   // The grid's usable width just changed by the width of the panel gutter.
-  setTimeout(sizeV2FormGrid, 240);
+  v2SizeSoon();
   if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
   if (persist) {
     try { localStorage.setItem(V2_GLOSS_KEY, open ? '1' : '0'); } catch (e) { /* private mode */ }
@@ -204,7 +205,7 @@ function setV2GlossaryOpen(open, persist = true) {
 // Dim every row except the ones this equation actually uses, and bring the
 // first match into view if the panel has scrolled past it.
 function highlightV2Symbols(keys) {
-  const panel = document.getElementById('v2-glossary');
+  const panel = v2El('glossary');
   if (!panel) return;
   const rows = panel.querySelectorAll('[data-sym]');
   if (!keys) {
@@ -234,34 +235,34 @@ function highlightV2Symbols(keys) {
   }
 }
 
-let v2GlossaryBound = false;
+const v2GlossaryBound = new Set();
 
 function bindV2Glossary() {
-  if (v2GlossaryBound) return;
-  const panel = document.getElementById('v2-glossary');
+  if (v2GlossaryBound.has(V2_NS)) return;
+  const panel = v2El('glossary');
   if (!panel) return;
-  v2GlossaryBound = true;
+  v2GlossaryBound.add(V2_NS);
 
-  const toggle = document.getElementById('v2-gloss-toggle');
+  const toggle = v2El('gloss-toggle');
   if (toggle) {
-    toggle.addEventListener('click', () => {
+    toggle.addEventListener('click', v2Bound(() => {
       setV2GlossaryOpen(panel.dataset.open !== 'true');
-    });
+    }));
   }
-  const opener = document.getElementById('v2-gloss-open');
+  const opener = v2El('gloss-open');
   if (opener) {
-    opener.addEventListener('click', () => {
+    opener.addEventListener('click', v2Bound(() => {
       setV2GlossaryOpen(true);
       panel.querySelector('.glossary-scroll')?.scrollTo({ top: 0 });
-    });
+    }));
   }
 
   // Hovering an equation filters the panel. Opening it on hover would be
   // jarring, so a shut panel just pulses the handle instead.
-  document.querySelectorAll('#tab-grading-v2 .eqn').forEach((eq) => {
+  document.querySelectorAll(v2Sel('.eqn')).forEach((eq) => {
     const keys = (eq.dataset.syms || '').split(/\s+/).filter(Boolean);
-    const on = () => { if (panel.dataset.open === 'true') highlightV2Symbols(keys); };
-    const off = () => highlightV2Symbols(null);
+    const on = v2Bound(() => { if (panel.dataset.open === 'true') highlightV2Symbols(keys); });
+    const off = v2Bound(() => highlightV2Symbols(null));
     eq.addEventListener('mouseenter', on);
     eq.addEventListener('mouseleave', off);
     eq.addEventListener('focus', on);
@@ -272,15 +273,16 @@ function bindV2Glossary() {
     // the first hit into view, but only once the panel has actually widened.
     // Click is a toggle: open the panel onto this equation's symbols, or shut
     // it again if it is already open.
-    const openTo = () => {
+    const openTo = v2Bound(() => {
       if (panel.dataset.open === 'true') {
         highlightV2Symbols(null);
         setV2GlossaryOpen(false);
         return;
       }
       setV2GlossaryOpen(true);
-      setTimeout(() => highlightV2Symbols(keys), 220);
-    };
+      const show = v2Bound(() => highlightV2Symbols(keys));
+      setTimeout(show, 220);
+    });
     eq.setAttribute('role', 'button');
     eq.setAttribute('title', 'Show these symbols in the reference panel (click again to close it)');
     eq.addEventListener('click', openTo);
@@ -290,25 +292,25 @@ function bindV2Glossary() {
   });
 
   // Reverse direction: hovering a definition marks the equations that use it.
-  panel.addEventListener('mouseover', (ev) => {
+  panel.addEventListener('mouseover', v2Bound((ev) => {
     const row = ev.target.closest('[data-sym]');
     if (!row) return;
-    document.querySelectorAll('#tab-grading-v2 .eqn').forEach((eq) => {
+    document.querySelectorAll(v2Sel('.eqn')).forEach((eq) => {
       const keys = (eq.dataset.syms || '').split(/\s+/);
       eq.classList.toggle('eqn-active', keys.includes(row.dataset.sym));
     });
-  });
-  panel.addEventListener('mouseleave', () => {
-    document.querySelectorAll('#tab-grading-v2 .eqn.eqn-active')
+  }));
+  panel.addEventListener('mouseleave', v2Bound(() => {
+    document.querySelectorAll(v2Sel('.eqn.eqn-active'))
       .forEach((eq) => eq.classList.remove('eqn-active'));
-  });
+  }));
 
-  document.addEventListener('keydown', (ev) => {
+  document.addEventListener('keydown', v2Bound((ev) => {
     if (ev.key === 'Escape' && panel.dataset.open === 'true'
-        && document.getElementById('tab-grading-v2')?.classList.contains('active')) {
+        && v2Pane()?.classList.contains('active')) {
       setV2GlossaryOpen(false);
     }
-  });
+  }));
 
   // Default open where there is a gutter to open into; remember the choice.
   let stored = null;
@@ -320,7 +322,7 @@ function bindV2Glossary() {
   // see the .is-animated note in the CSS. rAF is the clean signal but never
   // fires while the tab is in the background, so a timer backs it up;
   // whichever lands first wins and the other is a no-op.
-  const pane = document.getElementById('tab-grading-v2');
+  const pane = v2Pane();
   const enableAnim = () => {
     if (panel.classList.contains('is-animated')) return;
     panel.getAnimations().forEach((a) => a.cancel());
@@ -333,7 +335,7 @@ function bindV2Glossary() {
 }
 
 function renderV2FormsTable() {
-  const el = document.getElementById('v2-forms-table');
+  const el = v2El('forms-table');
   if (!el) return;
   const [h, ...body] = V2_FORMS;
   el.innerHTML = `<thead><tr>${h.map((x) => `<th>${x}</th>`).join('')}</tr></thead><tbody>`

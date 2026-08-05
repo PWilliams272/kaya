@@ -1,0 +1,50 @@
+<section class="article-section" id="gm-gyms">
+              <h2>Nineteen of 29 gyms differ from the network average by more than noise</h2>
+              <p class="prose">
+                Each gym&rsquo;s correction says how its labels sit relative to the
+                network average, in grade units. <b>Positive is stiffer</b> &mdash; a
+                climb labelled V5 there plays harder than V5 elsewhere; <b>negative is
+                softer</b>. Bars show the 89% credible interval, the range the
+                correction falls in with 89% posterior probability; hollow markers are
+                gyms whose interval still contains zero, meaning the data cannot
+                distinguish them from average.
+              </p>
+              <div id="gm-gym-chart" class="chart-tall"></div>
+              <p class="caption">
+                Per-gym grading correction in grades relative to the network average
+                &mdash; positive is stiffer, higher is harder. 29-gym network, 89%
+                credible intervals. Colour is the operating company; click a company in
+                the legend to fade it out. Hover for exact values. Built by
+                <code>scripts/build_v2_results.py</code>.
+              </p>
+
+              <div class="finding borderline">
+                <div class="finding-head">
+                  <span class="finding-title">Grading runs in the family, but house style is nowhere near the whole story</span>
+                  <span class="verdict-pill verdict-borderline">Partly</span>
+                </div>
+                <p>
+                  Movement grades about <b data-v2="movement_gap">0.40 grades stiffer</b>
+                  than Touchstone on average. But the spread <i>within</i> Touchstone
+                  (<span data-v2="touchstone_range">&minus;0.82 to +0.34</span>) is as
+                  wide as the gap between the brands. So knowing the operator tells you
+                  something real and does not tell you much &mdash; the gym still
+                  dominates.
+                </p>
+              </div>
+              <div id="gm-brand-chart" class="chart-mid"></div>
+              <p class="caption">
+                Distribution of gym corrections within each operating company, in grades
+                relative to the network average &mdash; positive is stiffer. Each dot is
+                one gym.
+              </p>
+
+              <div class="methodology-note">
+                <b>Which gyms, and why these.</b> The network is the largest set of gyms
+                connected by <b>&ge;50 shared climbers</b>. Connectivity is not a
+                convenience &mdash; a gym nobody visits alongside another gym has no
+                identifiable correction at all, because the only way to separate
+                &ldquo;this gym grades hard&rdquo; from &ldquo;this gym has weak
+                climbers&rdquo; is climbers who appear at both.
+              </div>
+            </section>

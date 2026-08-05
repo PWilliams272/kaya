@@ -1,0 +1,143 @@
+<section class="article-section" id="gm-negatives">
+              <h2>What was measured and did not survive</h2>
+              <p class="prose">
+                These are results, not caveats. Each one was measured, each one changed
+                what the model does or how its numbers may be read, and each is here
+                with the number that settled it. The full working record is on
+                <b>Archive &mdash; v2 Notes</b>.
+              </p>
+
+              <div class="finding null-result">
+                <div class="finding-head">
+                  <span class="finding-title">Two runs of the identical model scored 31.1 elpd apart, so most of the model comparison could not hear itself</span>
+                  <span class="verdict-pill verdict-null">Settled &mdash; fixed</span>
+                </div>
+                <p>
+                  Refitting the <i>same</i> model on the <i>same</i> data and scoring it
+                  twice gave answers <b>31.1</b> elpd apart. That run-to-run noise was
+                  larger than most of the effects being compared, which means the
+                  original height-form ranking was largely measuring the sampler.
+                  Integrating out the per-climber offsets brought it to <b>2.9</b> on
+                  the all-climbers column &mdash; the column that was unusable is now
+                  usable.
+                </p>
+                <p>
+                  On well-observed climbers only, the two versions sit at
+                  <b>0.5</b> and <b>3.3</b> and cannot be separated: there are only
+                  <b>two converged refits per version</b>, far too few to rank two small
+                  numbers. Restricting the score and integrating out the offsets turn
+                  out to fix the same problem; doing both is not measurably better than
+                  doing either.
+                </p>
+              </div>
+
+              <div class="finding null-result">
+                <div class="finding-head">
+                  <span class="finding-title">The all-climbers column is unusable and should not be read</span>
+                  <span class="verdict-pill verdict-null">Settled &mdash; parked</span>
+                </div>
+                <p>
+                  Two fits of the identical model score <b>+45.0</b> and <b>+14.0</b>
+                  there. A 31-point spread between identical fits is larger than most of
+                  the effects in the column. The cause is structural: the model carried
+                  <b>10,397</b> ability offsets, and a majority of climbers appear at
+                  only one gym, so those offsets are pinned by a single data point each.
+                  Integrating out the singletons drops that to <b>4,241</b>. Read the
+                  three-or-more-sends column; ignore the first one.
+                </p>
+              </div>
+
+              <div class="finding null-result">
+                <div class="finding-head">
+                  <span class="finding-title">The reliability signal buys nothing &mdash; &rho; fits at essentially zero</span>
+                  <span class="verdict-pill verdict-null">Settled &mdash; null</span>
+                </div>
+                <p>
+                  \(\rho\) scales how much a climber&rsquo;s logging reliability changes
+                  the rate at which their logged max approaches their true ceiling. It
+                  fits at essentially zero, so moving it does nothing to the predicted
+                  gap. The term is kept because its being zero is informative &mdash;
+                  how completely someone logs does not, on this data, tell you how close
+                  their logged max sits to their limit.
+                </p>
+              </div>
+
+              <div class="finding open">
+                <div class="finding-head">
+                  <span class="finding-title">One refit in three did not converge at all, so any single fit needs its diagnostics checked before it is quoted</span>
+                  <span class="verdict-pill verdict-open">Open &mdash; live risk</span>
+                </div>
+                <p>
+                  One refit reached <b>R-hat 1.44</b> with an effective sample size of
+                  <b>8</b>. It is excluded from the noise band above, because a broken
+                  chain is not a measure of sampling noise &mdash; but the failure
+                  itself is the finding: <b>this model does not fit dependably on every
+                  seed</b>. R-hat compares variation between chains to variation within
+                  one; 1.00 is perfect agreement and anything above about 1.01 means the
+                  chains did not explore the same distribution.
+                </p>
+                <p>
+                  This is why the payload builders now gate on convergence rather than
+                  merely reporting it &mdash; see
+                  <code>src/kaya/convergence.py</code>. A fit above R-hat 1.2 cannot
+                  become the reference other models are scored against, and
+                  <code>scripts/build_v2_results.py</code> refuses to publish at all if
+                  the primary fit fails.
+                </p>
+              </div>
+
+              <div class="finding confirmed">
+                <div class="finding-head">
+                  <span class="finding-title">Body measurements had to be filtered before any of this &mdash; under 1% of rows carried 10.3% of the leverage</span>
+                  <span class="verdict-pill verdict-confirmed">Settled</span>
+                </div>
+                <p>
+                  The height field contains values of 12 inches and a stack of exactly
+                  96 inches (a slider hitting its cap); ape index reaches &plusmn;30.
+                  Under 1% of rows &mdash; invisible in a mean, <b>decisive in a
+                  quadratic</b>: the 50 most extreme users carried <b>10.3%</b> of all
+                  squared-height leverage. <b>The entire v1 height investigation ran
+                  with these in.</b> Values outside 4&prime;0&Prime;&ndash;7&prime;0&Prime;
+                  and |ape index| &gt; 12 in are now treated as missing, not believed.
+                </p>
+              </div>
+
+              <div class="finding confirmed">
+                <div class="finding-head">
+                  <span class="finding-title">Inferring gender from names leaks into the height coefficient unless height is used to sharpen it</span>
+                  <span class="verdict-pill verdict-confirmed">Settled</span>
+                </div>
+                <p>
+                  Kaya has no gender field. Misclassification is <b>not random with
+                  respect to height</b>: a tall person with a female-leaning name is
+                  probably male &mdash; P(female) falls from 0.89 at 62 in to
+                  <b>0.11 at 74 in</b> for the same name. Because gender carries a
+                  ~1.6-grade main effect, that leaks straight into the height
+                  coefficient and can manufacture a &ldquo;height helps women&rdquo;
+                  finding out of nothing.
+                </p>
+                <p>
+                  v2 uses <code>nomquamgender</code>, which aggregates 30+ name sources
+                  into a calibrated probability with a sample size behind it &mdash;
+                  <b>94.6%</b> coverage against v1&rsquo;s <b>83.6%</b> &mdash; and
+                  sharpens it with height via Bayes. Deliberately <i>never</i> with the
+                  climbing data, which would let the model reassign someone&rsquo;s
+                  gender to explain their ability and make the two effects mutually
+                  reinforcing.
+                </p>
+              </div>
+
+              <div class="callout">
+                <div>
+                  <b>One comparison that is NOT valid: the two versions&rsquo; scores
+                  against each other.</b> They answer different questions. The original
+                  predicts an observation <i>given</i> that climber&rsquo;s fitted
+                  ability &mdash; and for a climber with one observation, that ability
+                  was fitted using the very row being predicted, which flatters it. The
+                  marginalized version predicts <i>averaging over</i> an unknown
+                  climber&rsquo;s ability, which is honest and therefore scores lower. A
+                  lower number here is the more trustworthy number, not a worse model.
+                  Compare scores within a version, never across.
+                </div>
+              </div>
+            </section>

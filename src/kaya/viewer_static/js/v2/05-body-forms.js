@@ -154,14 +154,14 @@ function v2GroupBands(kind, selected) {
 
 function renderV2FittedForms() {
   if (typeof Plotly === 'undefined' || !V2_POST) return;
-  const hEl = document.getElementById('v2-fitted-height');
-  const aEl = document.getElementById('v2-fitted-ape');
+  const hEl = v2El('fitted-height');
+  const aEl = v2El('fitted-ape');
   if (!hEl || !aEl) return;
   // The card bleeds past the prose column; set that width before drawing or
   // Plotly measures the narrow column and the second panel overhangs.
   setV2FormGridWidth();
-  const G = document.getElementById('v2-fitted-gender')?.value === 'female' ? 1 : 0;
-  const showBand = document.getElementById('v2-fitted-band')?.checked !== false;
+  const G = v2El('fitted-gender')?.value === 'female' ? 1 : 0;
+  const showBand = v2El('fitted-band')?.checked !== false;
   const sc = v2Scales();
   // This panel compares model *forms*, so every curve on it has to come from
   // the same data. v3_all is fitted on all first names rather than the
@@ -279,7 +279,7 @@ function renderV2FittedForms() {
   Plotly.react(aEl, build('ape', aIn, aZ), aLayout,
     { displayModeBar: false, responsive: true });
 
-  const note = document.getElementById('v2-fitted-note');
+  const note = v2El('fitted-note');
   if (note) {
     // The honest summary number: how far the best curve travels across the
     // middle 98% of climbers, compared with how wide its band is there.
@@ -357,11 +357,11 @@ function v2Corr(a, b) {
 }
 
 function renderV2Corner() {
-  const el = document.getElementById('v2-corner');
+  const el = v2El('corner');
   if (!el || typeof Plotly === 'undefined' || !V2_POST) return;
-  const groupKey = document.getElementById('v2-corner-group')?.value || 'height';
-  let overlay = document.getElementById('v2-corner-overlay')?.value || 'one';
-  let style = document.getElementById('v2-corner-style')?.value || 'both';
+  const groupKey = v2El('corner-group')?.value || 'height';
+  let overlay = v2El('corner-overlay')?.value || 'one';
+  let style = v2El('corner-style')?.value || 'both';
   const primaryName = v2SelectedFit();
 
   // The everything plot bleeds out past the prose column; the grouped ones
@@ -371,7 +371,7 @@ function renderV2Corner() {
   if (wide) setV2CornerWidth();
 
   // Say it in the control, not only in the caption underneath the plot.
-  const ovSel = document.getElementById('v2-corner-overlay');
+  const ovSel = v2El('corner-overlay');
   const ovAll = ovSel?.querySelector('option[value="all"]');
   if (ovAll) {
     ovAll.disabled = wide;
@@ -388,7 +388,7 @@ function renderV2Corner() {
     Plotly.purge(el);
     el.innerHTML = '<p class="form-noparams">This fit does not contain enough of '
       + 'these parameters to draw a corner plot.</p>';
-    const n0 = document.getElementById('v2-corner-note');
+    const n0 = v2El('corner-note');
     if (n0) n0.innerHTML = '';
     return;
   }
@@ -603,7 +603,7 @@ function renderV2Corner() {
   // frame of the glossary panel's slide.
   Plotly.react(el, traces, layout, { displayModeBar: false, responsive: !wide });
 
-  const note = document.getElementById('v2-corner-note');
+  const note = v2El('corner-note');
   if (!note) return;
   const primary = v2Fit(chosen.includes(primaryName) ? primaryName : chosen[0]);
   const pName = v2FitLabel(chosen.includes(primaryName) ? primaryName : chosen[0]);
@@ -640,8 +640,8 @@ function renderV2Corner() {
 // The everything-at-once corner plot wants the whole pane, not the 920px prose
 // column. Same trick as setV2FormGridWidth, but without its 1240px cap.
 function setV2CornerWidth() {
-  const el = document.getElementById('v2-corner');
-  const pane = document.getElementById('tab-grading-v2');
+  const el = v2El('corner');
+  const pane = v2Pane();
   if (!el || !pane) return;
   const cs = getComputedStyle(pane);
   const usable = pane.clientWidth

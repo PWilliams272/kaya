@@ -1,0 +1,189 @@
+<section class="article-section" id="gm-time">
+              <h2>Climbers improve fastest at the bottom of the scale and barely at all near the top</h2>
+              <p class="prose">
+                This matters to the gym result, not just as a curiosity. The model
+                treats a climber as a fixed quantity &mdash; there is no \(t\) anywhere
+                in \(C_{u,g}\). So if someone logged at one gym in 2022 and another in
+                2025, <b>three years of getting better is charged to the second gym</b>.
+                The model has no other place to put it.
+              </p>
+
+              <div class="finding confirmed">
+                <div class="finding-head">
+                  <span class="finding-title">Advancement is a steady rate that falls with grade &mdash; about <span data-gm="adv_v1">+0.28</span> grades/year at V1, <span data-gm="adv_v9">+0.04</span> at V9</span>
+                  <span class="verdict-pill verdict-confirmed">Measured</span>
+                </div>
+                <p>
+                  Fitted across every watching period rather than read off a single
+                  window. The rate is positive and decreasing all the way up, and the
+                  top bin is consistent with zero rather than negative
+                  (<span data-gm="adv_v11">&minus;0.05</span> &plusmn;
+                  <span data-gm="adv_v11_sem">0.13</span> at V11).
+                </p>
+              </div>
+
+              <div class="head-row">
+                <h3>The advancement rate, by starting grade</h3>
+                <div class="infowrap">
+                  <button type="button" class="infodot"
+                          aria-label="How the advancement rate is measured">i</button>
+                  <div class="infopop" role="tooltip">
+                    <h5>How this is measured</h5>
+                    <p>
+                      Each climber&rsquo;s sends are bucketed into <b>90-day
+                      windows</b>. A window with at least <b>5 sends</b> gets a
+                      <b>level</b>: the hardest grade sent in it. Windowed, not
+                      cumulative &mdash; a running max-so-far only ever goes up, which
+                      would manufacture improvement out of noise. A windowed max can
+                      fall.
+                    </p>
+                    <p>
+                      Consecutive windows up to <b>15 months</b> apart then give a rate
+                      in grades per year.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gm-adv-table"></table>
+              </div>
+              <div id="gm-adv-chart" class="chart-mid"></div>
+              <p class="caption" id="gm-adv-note"></p>
+              <p class="caption">
+                Grades gained per year, by current grade &mdash; higher is faster
+                improvement. Dashed is the naive estimator, dotted the one-year window
+                shown for contrast, solid the three-month window the model uses. The
+                vertical scale is pinned to keep the useful curves readable, so the naive
+                one leaves the frame in both directions; that it does not fit is the
+                point, and its values are in the table above. The <b>shape</b> survives
+                every correction &mdash; what the corrections change is the
+                <b>magnitude</b>.
+              </p>
+
+              <h3>The rate depends on how long you watch, which is why it is fitted across every window at once</h3>
+              <p class="prose">
+                Nothing about the measurement says how long the watching period
+                \(\Delta t\) <i>should</i> be, and that turns out to matter more than any
+                of the arithmetic. Hold everything else fixed and change only the window:
+              </p>
+              <div id="gm-horizon-chart" class="chart-mid"></div>
+              <p class="caption" id="gm-horizon-note"></p>
+              <p class="prose">
+                At V1 the answer moves from <b>+0.88</b> grades a year to <b>+0.22</b>
+                depending on nothing but how long you look. The high bins barely move at
+                all. A number that swings by a factor of four on an arbitrary choice is
+                not a measurement of anything.
+              </p>
+              <div class="callout warn">
+                <div>
+                  <b>A rate has to compound, and at the bottom of the scale this one does
+                  not.</b> Saying V1 climbers improve at 0.88 grades a year is a
+                  prediction: watch for a year and they should gain 0.88 grades. They gain
+                  <b>0.22</b>, which is 4.8 standard errors away. The V1 group gains about
+                  a fifth of a grade after three months &mdash; and still about a fifth of
+                  a grade after twelve. That is a <b>one-time step</b>, not a rate, and
+                  dividing a step by the window you happened to pick just reports your
+                  choice back to you.
+                </div>
+              </div>
+              <p class="prose">
+                So the estimator stops picking a window and uses them all. A genuine rate
+                means the gain grows <b>in proportion</b> to elapsed time, so the fit is a
+                line through the origin across all six horizons at once, weighted by
+                \(w_h = 1/\mathrm{SE}_h^2\), and the fit reports whether that
+                proportionality actually holds:
+              </p>
+              <div class="eqn-block">
+                $$\overline{\Delta \ell}(h) = f(v)\cdot h \ ,\qquad
+                  \hat f(v) = \frac{\sum_h w_h\, h\, \overline{\Delta \ell}(h)}
+                                   {\sum_h w_h\, h^2}$$
+              </div>
+              <p class="prose">
+                This is the one estimator here that can be <i>wrong</i> in a way you can
+                see. If a bin were really a step rather than a rate, its points would not
+                lie on a line through the origin and the \(\chi^2\) would say so. It comes
+                out near one in almost every bin.
+              </p>
+              <div id="gm-accrual-chart" class="chart-small"></div>
+              <p class="caption" id="gm-accrual-note"></p>
+              <div class="callout warn">
+                <div>
+                  <b>The bin labels are lying, and always toward the middle.</b> The
+                  starting level \(\ell_{w_0}\) is itself a noisy max, so each bin is
+                  stocked with climbers whose real level sits closer to the population
+                  average. Measured at the start of the window, the &ldquo;V1&rdquo; bin
+                  averages <b id="gm-start-lo">V2.0</b> and the &ldquo;V9&rdquo; bin
+                  averages <b id="gm-start-hi">V8.6</b>. The horizontal axis is compressed
+                  by about a grade at each end, so <b>every slope here understates the
+                  real grade dependence</b> &mdash; the safe direction to err when the
+                  claim is that advancement slows down.
+                </div>
+              </div>
+
+              <div class="finding null-result">
+                <div class="finding-head">
+                  <span class="finding-title">The obvious estimator is broken by regression to the mean, and says V11 climbers lose grades</span>
+                  <span class="verdict-pill verdict-null">Settled &mdash; discarded</span>
+                </div>
+                <p>
+                  Binning the change \(\ell_2-\ell_1\) by the starting level
+                  \(\ell_1\) asks <b>one measurement to do two jobs</b>: decide which
+                  bin the climber goes in, <i>and</i> serve as the baseline that gets
+                  subtracted. A lucky window inflates \(\ell_1\), which files the
+                  climber a grade too high <i>and</i> makes the measured change come out
+                  a grade too low. The estimator tilts the curve by construction.
+                </p>
+                <p>
+                  The tell is that it returns a physically impossible number at one end:
+                  the naive estimator has V11 climbers losing
+                  <span data-gm="naive_v11">3.5</span> grades a year. Nobody does that.
+                  The fix is to hand the binning job to a <b>third window</b>
+                  \(w_0\) that takes no part in the subtraction, so the luck that landed
+                  someone in the V8 bin cannot tilt their measured change.
+                </p>
+              </div>
+
+              <div class="callout">
+                <div>
+                  <b>The same trap outside climbing.</b> Suppose you want to know whether
+                  shorter children grow faster, and your tape measure is sloppy. If one
+                  measurement both decides who counts as short <i>and</i> serves as the
+                  baseline you subtract, every child accidentally measured too short is
+                  filed as short <i>and</i> appears to grow extra. You will
+                  &ldquo;discover&rdquo; that short children grow faster &mdash; with a
+                  clean, monotone curve &mdash; even if every child grows at exactly the
+                  same rate. Measure on Monday to decide who is short, measure growth
+                  from Tuesday to Friday, and Monday&rsquo;s slop cannot manufacture
+                  Tuesday-to-Friday growth.
+                </div>
+              </div>
+
+              <div class="finding open">
+                <div class="finding-head">
+                  <span class="finding-title">Date and gym correction really do correlate &mdash; the mechanism is not settled</span>
+                  <span class="verdict-pill verdict-open">Open</span>
+                </div>
+                <p>
+                  Across the network, a gym&rsquo;s mean observation date and its fitted
+                  correction correlate at <b>r = <span data-gm="gt_r">0.61</span></b>,
+                  a slope of <b><span data-gm="gt_slope">0.83</span> grades per year</b>
+                  of mean date. Within a single brand it is
+                  <b>r = <span data-gm="gt_r_wb">0.55</span></b>, so it is not just an
+                  artefact of brands entering the data at different times.
+                </p>
+                <div id="gm-time-chart" class="chart-mid"></div>
+                <p class="caption" id="gm-time-note"></p>
+                <div id="gm-time-stats" class="kpi-grid"></div>
+                <p id="gm-time-verdict"></p>
+                <p>
+                  Measured climber advancement is far too small to explain that on its
+                  own &mdash; at <span data-gm="adv_v5">+0.14</span> grades/year around
+                  the middle of the scale against an observed
+                  <span data-gm="gt_slope">0.83</span>. So the correlation is real and
+                  the mechanism is <b>not</b> established: advancement is one
+                  contributor, not the explanation. This is the largest known open
+                  question in the model, and the reason advancement enters as a
+                  <b>fixed interpolated offset</b> rather than as a fitted time term.
+                </p>
+              </div>
+            </section>

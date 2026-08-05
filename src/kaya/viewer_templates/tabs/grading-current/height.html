@@ -1,0 +1,92 @@
+<section class="article-section" id="gm-height">
+              <h2>Height buys something real, at two to three standard errors &mdash; but not a settled shape</h2>
+              <p class="prose">
+                Six candidate height shapes were compared by <b>LOO &mdash;
+                leave-one-out cross-validation</b>, which scores a model by how well it
+                predicts each observation with that observation held out. The score is
+                <b>elpd</b> (expected log pointwise predictive density): the
+                model&rsquo;s total log-probability for data it did not see, so higher
+                is better and only <i>differences</i> between models carry meaning.
+              </p>
+
+              <div class="finding borderline">
+                <div class="finding-head">
+                  <span class="finding-title">Height matters &mdash; at two to three standard errors, which is a real effect and not an overwhelming one</span>
+                  <span class="verdict-pill verdict-borderline">Real, small</span>
+                </div>
+                <p>
+                  Among climbers with three or more sends, adding a height term is worth
+                  about <b>+25 &plusmn; 9</b> elpd in the original version and
+                  <b>+17 to +22 &plusmn; 8</b> once the per-climber offsets are
+                  integrated out. That is the column where two <i>identical</i> refits
+                  agree almost exactly (+25.4 and +25.0), which is what makes it
+                  trustworthy. It is not the overwhelming result an unlabelled
+                  &ldquo;25 points&rdquo; would suggest.
+                </p>
+              </div>
+
+              <div class="finding open">
+                <div class="finding-head">
+                  <span class="finding-title">Which shape height takes is not settled, and the shape used elsewhere is the weakest of them</span>
+                  <span class="verdict-pill verdict-open">Open</span>
+                </div>
+                <p>
+                  The saturating curve sits near the bottom in the original version and
+                  at the top once the offsets are integrated out. That swing is about
+                  <b>1.5&times;</b> the error on it, so the two are not in contradiction
+                  &mdash; they simply do not pin the shape down. Any claim of a specific
+                  functional form is reading past what the data supports.
+                </p>
+                <p>
+                  More awkwardly: the curved, gender-split form used elsewhere in this
+                  work <b>fails to beat no height term at all</b> in three of the four
+                  columns once the offsets are integrated out, and its best column is
+                  well inside the error. Both versions agree it belongs near the bottom,
+                  so this is not an artefact of the change. <b>The headline model should
+                  most likely be a straight line.</b>
+                </p>
+              </div>
+
+              <div class="head-row">
+                <h3>The comparison, scored against a fixed reference rather than a moving one</h3>
+              </div>
+              <p class="prose">
+                Scoring every model against <i>whichever model won</i> is a poor
+                yardstick: the winner is picked using the same data it is then scored on,
+                so its score is flattered, and the winner changes from column to column
+                so the zero point moves. Scoring against a <b>fixed</b> reference &mdash;
+                the model with no height term at all &mdash; fixes both, and asks the
+                question the comparison exists to ask.
+              </p>
+              <div class="head-row">
+                <div id="gm-vsnull-picker" class="chart-head-tools"></div>
+              </div>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gm-vsnull-table"></table>
+              </div>
+              <p class="caption" id="gm-vsnull-note"></p>
+
+              <div class="callout">
+                <div>
+                  <b>A gap needs an error bar, and these never had one.</b> The two
+                  models being compared score the <i>same rows</i>, and their per-row
+                  scores are strongly correlated &mdash; both find the same climbers hard
+                  to predict. Subtracting row by row <i>before</i> adding up cancels that
+                  shared difficulty, and the uncertainty collapses: <b>from about
+                  &plusmn;145 on either model&rsquo;s total to &plusmn;8&ndash;19 on the
+                  difference between them</b>. That smaller number is the one that says
+                  whether a gap is real.
+                </div>
+              </div>
+
+              <h3>The full model comparison, with its convergence gate</h3>
+              <p class="prose">
+                Every height form fitted, ranked by held-out score. R-hat and effective
+                sample size are shown alongside, because a fit whose chains disagreed is
+                not a measurement regardless of where it ranks.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gm-loo-table"></table>
+              </div>
+              <p class="caption" id="gm-loo-note"></p>
+            </section>

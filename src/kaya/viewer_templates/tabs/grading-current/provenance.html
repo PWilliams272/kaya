@@ -1,0 +1,72 @@
+<section class="article-section" id="gm-provenance">
+              <h2>Where every number on this page comes from</h2>
+              <p class="prose">
+                Nothing here is hand-typed into the markup. Each section reads a
+                precomputed JSON payload, and each payload is written by one
+                script in this repo. If a number on this page looks wrong, the
+                script named beside it is the thing to re-run &mdash; and if a
+                script is re-run, the page changes with it, which is the point.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Payload</th>
+                      <th>Written by</th>
+                      <th>Feeds</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="label-cell"><code>v2_results.json</code></td>
+                      <td><code>scripts/build_v2_results.py</code></td>
+                      <td>height-form comparison, posterior summaries, sampling statistics</td>
+                    </tr>
+                    <tr>
+                      <td class="label-cell"><code>v2_posterior.json</code></td>
+                      <td><code>scripts/build_v2_posteriors.py</code></td>
+                      <td>posterior distributions, trace plots, corner plots, sampler diagnostics</td>
+                    </tr>
+                    <tr>
+                      <td class="label-cell"><code>v2_vs_null.json</code></td>
+                      <td><code>scripts/build_v2_vs_null.py</code></td>
+                      <td>scores against a fixed no-height reference, with per-row error bars</td>
+                    </tr>
+                    <tr>
+                      <td class="label-cell"><code>v2_reliability.json</code></td>
+                      <td><code>scripts/build_v2_reliability.py</code></td>
+                      <td>refit-to-refit noise floor, per-subset scores, unreliable-row counts</td>
+                    </tr>
+                    <tr>
+                      <td class="label-cell"><code>v2_arm_params.json</code></td>
+                      <td><code>scripts/build_v2_arm_params.py</code></td>
+                      <td>original vs. offsets-integrated-out parameter comparison</td>
+                    </tr>
+                    <tr>
+                      <td class="label-cell"><code>v2_time.json</code></td>
+                      <td><code>scripts/build_v2_time.py</code></td>
+                      <td>climber advancement rate, date/correction confound</td>
+                    </tr>
+                    <tr>
+                      <td class="label-cell"><code>v2_kfold.json</code></td>
+                      <td><code>scripts/build_v2_kfold.py</code></td>
+                      <td>grouped k-fold held-out scores <span class="muted">(pending the fold refits)</span></td>
+                    </tr>
+                    <tr>
+                      <td class="label-cell"><code>v2_samplers.json</code></td>
+                      <td><code>scripts/compare_samplers.py</code></td>
+                      <td>cross-sampler agreement <span class="muted">(pending the independent runs)</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="caption">
+                The fits themselves come from <code>scripts/run_fit.py</code> and
+                <code>scripts/run_batch.py</code>, which write traces and a
+                per-run results JSON under <code>runs/</code>. Both fit inputs
+                &mdash; <code>runs/networks.json</code> (the gym-network
+                definitions) and <code>runs/base_bouldering.pkl</code> (the send
+                snapshot) &mdash; are documented in
+                <code>DATA_STORAGE_NOTES.md</code>.
+              </p>
+            </section>

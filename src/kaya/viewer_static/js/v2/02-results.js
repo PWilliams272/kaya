@@ -18,8 +18,8 @@ async function loadV2Results() {
 // because the absolute elpd is meaningless on its own and only the gaps
 // between models on identical data carry information.
 function renderV2FormsLoo() {
-  const el = document.getElementById('v2-loo-table');
-  const note = document.getElementById('v2-loo-note');
+  const el = v2El('loo-table');
+  const note = v2El('loo-note');
   if (!el || !V2_RESULTS) return;
   const forms = V2_RESULTS.forms || [];
   if (!forms.length) { el.innerHTML = ''; return; }
@@ -91,7 +91,7 @@ function renderV2FormsLoo() {
 // forms is the strongest evidence available here that a number is real and
 // not an artefact of one model specification.
 function renderV2Replication() {
-  const el = document.getElementById('v2-repl-table');
+  const el = v2El('repl-table');
   if (!el || !V2_RESULTS) return;
   const rep = V2_RESULTS.replication || {};
   const SHOW = [
@@ -188,7 +188,7 @@ const V2_CORNER_GROUPS = {
 
 const v2Fit = (n) => V2_POST?.fits?.[n];
 const v2FitNames = () => Object.keys(V2_POST?.fits || {});
-const v2SelectedFit = () => document.getElementById('v2-fit-pick')?.value || v2FitNames()[0];
+const v2SelectedFit = () => v2El('fit-pick')?.value || v2FitNames()[0];
 
 // A fit's display name. The marginalized arm shares its height form with the
 // original, so it is labelled by that form plus which version it is -- a
@@ -239,19 +239,19 @@ function v2SharedRange(post, prior) {
 // ---- overview grid: every parameter of the selected fit ----
 
 function renderV2PostGrid() {
-  const host = document.getElementById('v2-post-grid');
+  const host = v2El('post-grid');
   const fit = v2Fit(v2SelectedFit());
   if (!host || !fit) return;
   const names = Object.keys(fit.params);
   host.innerHTML = names.map((n) => `
     <button type="button" class="post-tile" data-param="${n}">
       <span class="post-tile-name">\\(${V2_PARAM_TEX[n] || n}\\)</span>
-      <span class="post-tile-chart" id="v2-pt-${n}"></span>
+      <span class="post-tile-chart" id="${v2Id(`pt-${n}`)}"></span>
       <span class="post-tile-rhat ${fit.params[n].rhat > 1.01 ? 'bad' : 'ok'}">R&#770; ${fit.params[n].rhat.toFixed(2)}</span>
     </button>`).join('');
 
   names.forEach((n) => {
-    const el = document.getElementById(`v2-pt-${n}`);
+    const el = document.getElementById(v2Id(`pt-${n}`));
     if (!el || typeof Plotly === 'undefined') return;
     const p = fit.params[n];
     const post = p.chains.flat();
@@ -278,7 +278,7 @@ function renderV2PostGrid() {
 
   host.querySelectorAll('.post-tile').forEach((b) => {
     b.addEventListener('click', () => {
-      const sel = document.getElementById('v2-param-pick');
+      const sel = v2El('param-pick');
       if (sel) sel.value = b.dataset.param;
       renderV2ParamDetail(b.dataset.param);
       document.querySelector('.param-detail')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -301,9 +301,9 @@ function renderV2ParamDetail(name) {
   const post = p.chains.flat();
 
   // prior vs posterior
-  const dens = document.getElementById('v2-param-dens');
+  const dens = v2El('param-dens');
   if (dens && typeof Plotly !== 'undefined') {
-    const wide = document.getElementById('v2-param-wide')?.checked;
+    const wide = v2El('param-wide')?.checked;
     const pri = fit.prior?.[name];
     const [lo, hi] = wide && pri
       ? v2SharedRange(post, pri)
@@ -332,10 +332,10 @@ function renderV2ParamDetail(name) {
   }
 
   // chains
-  const tr = document.getElementById('v2-param-trace');
+  const tr = v2El('param-trace');
   if (tr && typeof Plotly !== 'undefined') {
     const hues = ['--lg-info', '--lg-highlight', '--lg-success', '--lg-danger'];
-    const mode = document.getElementById('v2-trace-mode')?.value || 'trace';
+    const mode = v2El('trace-mode')?.value || 'trace';
     const layout = chartLayout('');
     layout.height = 280;
     layout.margin = { l: 56, r: 16, t: 10, b: 76 };
@@ -419,7 +419,7 @@ function renderV2ParamDetail(name) {
 }
 
 function renderV2ParamStats(name, p) {
-  const tbl = document.getElementById('v2-param-stats');
+  const tbl = v2El('param-stats');
   if (!tbl) return;
   const converged = p.rhat <= 1.01;
   tbl.innerHTML = '<thead><tr><th>statistic</th><th>value</th><th>reading</th></tr></thead><tbody>'
@@ -438,7 +438,7 @@ function renderV2ParamStats(name, p) {
         ? 'below 400 — interval edges are noisy' : 'adequate'],
     ].map((r) => `<tr><td class="sym">${r[0]}</td><td class="unit">${r[1]}</td><td>${r[2]}</td></tr>`).join('')
     + '</tbody>';
-  const verdict = document.getElementById('v2-param-verdict');
+  const verdict = v2El('param-verdict');
   if (verdict) {
     verdict.textContent = converged
       ? `converged — R-hat ${p.rhat.toFixed(2)}, ESS ${p.ess_bulk}`
@@ -453,9 +453,31 @@ function renderV2ParamStats(name, p) {
 // question no single fit can: is this number a property of the data, or of the
 // height form that happened to be bolted on beside it?
 
+// Geometry for the across-fits overlay. The plot area is fixed; the legend
+// grows downward from it.
+const V2_ACROSS_PLOT_H = 300;   // drawing area for the densities, px
+const V2_ACROSS_AXIS_H = 46;    // x tick labels + axis title, px
+
+// Give the legend exactly the room it turned out to need.
+//
+// Plotly lays a horizontal legend out in uniform-width columns sized by its
+// widest entry, so how many rows N model versions take is not predictable from
+// the label lengths -- and guessing low puts the legend on top of the curves.
+// Draw once, measure the rendered legend, then correct the margin. The row
+// count depends on the chart's width, which this pass does not change, so one
+// correction converges.
+function v2SizeAcrossLegend(el) {
+  const legend = el.querySelector('.legend');
+  if (!legend || !el._fullLayout) return;
+  const legendH = Math.ceil(legend.getBoundingClientRect().height) + 10;
+  const want = 10 + V2_ACROSS_PLOT_H + V2_ACROSS_AXIS_H + legendH;
+  if (Math.abs(el._fullLayout.height - want) < 4) return;
+  Plotly.relayout(el, { height: want, 'margin.b': V2_ACROSS_AXIS_H + legendH });
+}
+
 function renderV2AcrossFits(name) {
-  const el = document.getElementById('v2-across-fits');
-  const note = document.getElementById('v2-across-note');
+  const el = v2El('across-fits');
+  const note = v2El('across-note');
   if (!el || typeof Plotly === 'undefined') return;
   const have = v2FitNames().filter((f) => v2Fit(f).params[name]);
   if (have.length < 2) {
@@ -485,14 +507,29 @@ function renderV2AcrossFits(name) {
     };
   });
   const layout = chartLayout('value');
-  layout.height = 380;
   layout.xaxis = { ...layout.xaxis, title: { text: 'value', standoff: 8 }, range: [lo, hi] };
   layout.yaxis = { ...layout.yaxis, title: { text: 'density', standoff: 6 }, showticklabels: false };
-  // One legend entry per fit wraps to three rows; give it room below the
-  // axis title rather than letting it land on top of the plot.
-  layout.margin = { l: 48, r: 16, t: 10, b: 150 };
-  layout.legend = { ...layout.legend, orientation: 'h', y: -0.42, x: 0 };
+
+  // The legend carries one entry per fitted model version, and there are
+  // currently 22. A fixed bottom margin cannot serve that -- too small and the
+  // legend climbs over the curves, too large and it wastes the pane -- so the
+  // margin is sized from the legend instead. The plot area itself stays a
+  // constant V2_ACROSS_PLOT_H: adding or removing a model version must change
+  // the legend's height, never the height of the curves.
+  layout.height = 10 + V2_ACROSS_PLOT_H + V2_ACROSS_AXIS_H + 120;   // provisional
+  layout.margin = { l: 48, r: 16, t: 10, b: V2_ACROSS_AXIS_H + 120 };
+  layout.legend = {
+    ...layout.legend,
+    orientation: 'h',
+    x: 0,
+    xanchor: 'left',
+    // y is in plot-area units, so this puts the legend's top edge exactly
+    // AXIS_H below the axis: clear of the tick labels, clear of the curves.
+    y: -(V2_ACROSS_AXIS_H / V2_ACROSS_PLOT_H),
+    yanchor: 'top',
+  };
   Plotly.react(el, traces, layout, { displayModeBar: false, responsive: true });
+  v2SizeAcrossLegend(el);
 
   if (note) {
     const means = have.map((f) => v2Fit(f).params[name].mean);
