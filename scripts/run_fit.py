@@ -7,6 +7,7 @@ so this works unchanged on a laptop and on a rented box.
 import argparse
 import json
 import pickle
+import sys
 import time
 import warnings
 from pathlib import Path
@@ -16,6 +17,7 @@ import arviz as az
 import numpy as np
 import pymc as pm
 
+from kaya.convergence import assess_result
 from kaya.grading_model_v2 import build_model_v2, make_dataset
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -108,6 +110,17 @@ def main():
            'elapsed_min': elapsed / 60, 'divergences': ndiv,
            'max_rhat': float(summ['r_hat'].max()), 'min_ess': float(summ['ess_bulk'].min()),
            'params': summ.to_dict('index')}
+
+    # Convergence is a gate, not a report. The trace is still written above --
+    # sampling is far too expensive to throw away, and a failed fit is itself a
+    # finding worth showing -- but the verdict travels with the result so no
+    # downstream builder has to re-derive it, and so nothing can quote these
+    # numbers as a measurement without seeing that they are not one.
+    verdict = assess_result(res)
+    res['convergence'] = verdict.as_dict()
+    if not verdict.converged:
+        print(f'\n[{args.name}] *** {verdict.describe()} ***', file=sys.stderr, flush=True)
+        print(f'[{args.name}] {verdict.describe()}', flush=True)
     if args.gender_mode == 'point':
         try:
             if args.marginalize_singles:

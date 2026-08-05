@@ -12,6 +12,8 @@ from pathlib import Path
 
 import arviz as az
 
+from kaya.convergence import assess_result
+
 ROOT = Path(__file__).resolve().parents[1]
 RUNS = ROOT / 'runs'
 # The job scratch directory is deleted when the job is; runs/ is the durable
@@ -108,6 +110,10 @@ def main():
                     help='which model version the height-form table covers')
     ap.add_argument('--primary', default='v3_conf',
                     help='fit whose gym corrections the page reports')
+    ap.add_argument('--allow-unconverged', action='store_true',
+                    help='publish even if the primary fit failed its convergence '
+                         'gate. For inspecting a broken fit deliberately; the '
+                         'resulting page states numbers that are not measurements.')
     args = ap.parse_args()
 
     names = gym_lookup()
@@ -125,6 +131,22 @@ def main():
     if args.primary not in fits:
         raise SystemExit(f'primary fit {args.primary} not found; have {sorted(fits)}')
     prim = fits[args.primary]
+
+    # The primary fit supplies the gym corrections, sigma_gym, and the headline
+    # numbers at the top of the page. If it did not converge those are not
+    # measurements, so this refuses outright rather than publishing them.
+    # --allow-unconverged exists for deliberately inspecting a broken fit.
+    primary_verdict = assess_result(prim)
+    if not primary_verdict.usable:
+        message = (f'primary fit {args.primary} {primary_verdict.describe()}\n'
+                   f'Its gym corrections and headline numbers would be published as '
+                   f'measurements. Fix the fit, pick another --primary, or pass '
+                   f'--allow-unconverged to override deliberately.')
+        if not args.allow_unconverged:
+            raise SystemExit(f'REFUSING TO BUILD: {message}')
+        print(f'WARNING (--allow-unconverged): {message}')
+    elif not primary_verdict.converged:
+        print(f'  primary fit {args.primary} {primary_verdict.describe()}')
 
     # --- gym corrections, read from the trace ------------------------------
     # run_grading_fit.py only summarises KEY_PARAMS into its result JSON; the
@@ -154,16 +176,32 @@ def main():
         if name in NOT_A_FORM_ARM or not d.get('loo'):
             continue
         hf = d['args']['height_form']
+        verdict = assess_result(d)
         forms.append({
             'fit': name, 'form': hf, 'label': FORM_LABEL.get(hf, hf),
             'k': FORM_NPARAM.get(hf), 'elpd': round(d['loo']['elpd_loo'], 1),
             'se': round(d['loo']['se'], 1), 'p_loo': round(d['loo']['p_loo'], 1),
             'rhat': round(d['max_rhat'], 2), 'ess': int(d['min_ess']),
             'div': d['divergences'], 'min': round(d['elapsed_min']),
+            'converged': verdict.converged, 'usable': verdict.usable,
+            'convergence_reasons': verdict.reasons,
         })
     forms.sort(key=lambda r: -r['elpd'])
-    if forms:
-        best = forms[0]['elpd']
+
+    # Convergence gates the ranking. A fit above RHAT_GATE is not a measurement,
+    # so it must not become the reference every other model is scored against --
+    # that would put a broken chain at the zero point of the whole table. Such
+    # fits stay in the payload and are flagged, because "this model does not fit
+    # dependably" is a finding the page reports; they just cannot be the yardstick.
+    unusable = [f for f in forms if not f['usable']]
+    if unusable:
+        print('  EXCLUDED from the ranking (did not converge):')
+        for f in unusable:
+            print(f"    {f['label']:<32} R-hat {f['rhat']:.2f}  "
+                  + '; '.join(f['convergence_reasons']))
+    rankable = [f for f in forms if f['usable']]
+    if rankable:
+        best = rankable[0]['elpd']
         for f in forms:
             f['d_elpd'] = round(f['elpd'] - best, 1)
         # The standard error of the *difference*, from paired pointwise LOO.
@@ -216,7 +254,8 @@ def main():
         'sampling': {'max_rhat': round(prim['max_rhat'], 2),
                      'min_ess': int(prim['min_ess']),
                      'divergences': prim['divergences'],
-                     'minutes': round(prim['elapsed_min'])},
+                     'minutes': round(prim['elapsed_min']),
+                     **primary_verdict.as_dict()},
     }
     OUT.write_text(json.dumps(payload, separators=(',', ':'), default=float))
     print(f'wrote {OUT}  {os.path.getsize(OUT)/1024:.1f} KB')

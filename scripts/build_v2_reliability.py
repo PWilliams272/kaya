@@ -30,6 +30,7 @@ import arviz as az
 import numpy as np
 import xarray as xr
 
+from kaya.convergence import RHAT_GATE
 from kaya.grading_model_v2 import make_dataset
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -65,9 +66,10 @@ MARGINALIZED = {
 }
 ARMS = {'unmarginalized': UNMARGINALIZED, 'marginalized': MARGINALIZED}
 SUBSETS = [1, 2, 3, 5]
-# A fit above this R-hat did not converge, so its score measures a broken chain
-# rather than sampling noise; it is kept out of the noise floor and named.
-RHAT_GATE = 1.2
+# RHAT_GATE (imported from kaya.convergence, the one place it is defined) is
+# the bar below which a fit is not evidence: above it a score measures a broken
+# chain rather than sampling noise, so the fit is kept out of the noise floor
+# and named in `noise_excluded`.
 
 
 def _merged(idata):

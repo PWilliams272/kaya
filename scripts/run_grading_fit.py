@@ -2,6 +2,7 @@
 import argparse
 import json
 import pickle
+import sys
 import time
 import warnings
 from pathlib import Path
@@ -10,6 +11,7 @@ warnings.filterwarnings('ignore', category=FutureWarning)
 import arviz as az
 import pymc as pm
 
+from kaya.convergence import assess_result
 from kaya.grading_model_v2 import build_model_v2, make_dataset
 
 OUT = Path('/Users/peterwilliams/.claude/jobs/e4f1b508/tmp')
@@ -90,6 +92,16 @@ def main():
            'elapsed_min': elapsed / 60, 'divergences': ndiv,
            'max_rhat': float(summ['r_hat'].max()), 'min_ess': float(summ['ess_bulk'].min()),
            'params': summ.to_dict('index')}
+
+    # Convergence is a gate, not a report. The trace is kept either way -- a
+    # failed fit is itself a finding -- but the verdict travels with the result
+    # so nothing downstream can quote these numbers without seeing that they
+    # are not a measurement.
+    verdict = assess_result(res)
+    res['convergence'] = verdict.as_dict()
+    if not verdict.converged:
+        print(f'\n[{args.name}] *** {verdict.describe()} ***', file=sys.stderr, flush=True)
+        print(f'[{args.name}] {verdict.describe()}', flush=True)
     if args.gender_mode == 'point':
         try:
             loo = az.loo(idata, pointwise=False)

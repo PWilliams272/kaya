@@ -18,6 +18,8 @@ warnings.filterwarnings('ignore')
 import arviz as az
 import numpy as np
 
+from kaya.convergence import assess_result
+
 ROOT = Path(__file__).resolve().parents[1]
 RUNS = ROOT / 'runs'
 # The job scratch directory is deleted when the job is; runs/ is the durable
@@ -194,6 +196,11 @@ def main():
                'zero_sum_users': bool(res['args'].get('zero_sum_users', False)),
                'max_rhat': round(res['max_rhat'], 3),
                'minutes': round(res['elapsed_min']),
+               # The page shows failed fits deliberately -- an unreliable refit
+               # is one of its findings -- so this flags rather than drops them.
+               # What it prevents is a reader taking a broken chain's posterior
+               # for a measurement because nothing on the figure said otherwise.
+               'convergence': assess_result(res).as_dict(),
                'params': {}}
         for p in present:
             r = summ.loc[p]
