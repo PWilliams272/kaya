@@ -168,8 +168,13 @@ function renderV2FittedForms() {
   // confident-name subset, so it belongs to a different comparison -- and it
   // is the arm that never converged, whose female curve alone doubled the
   // y-range everything else had to share.
-  const names = v2FitNames().filter((f) => v2Fit(f)?.name_filter === sc.name_filter);
-  const dropped = v2FitNames().filter((f) => !names.includes(f));
+  const inScope = v2ScopedFitNames();
+  const names = inScope.filter((f) => v2Fit(f)?.name_filter === sc.name_filter);
+  // Two different exclusions, and conflating them would misexplain both: these
+  // are dropped because their data differs, while `hidden` is the reader's own
+  // narrowing of which models to show.
+  const dropped = inScope.filter((f) => !names.includes(f));
+  const hidden = v2FitNames().length - inScope.length;
 
   const grid = (lo, hi, n = 55) => {
     const step = (hi - lo) / (n - 1), out = [];
@@ -206,9 +211,8 @@ function renderV2FittedForms() {
 
   const build = (kind, xs, zs) => {
     const traces = [];
-    const allNames = v2FitNames();
     names.forEach((fn) => {
-      const c = cssVar(V2_FIT_HUES[allNames.indexOf(fn) % V2_FIT_HUES.length]);
+      const c = v2FitHue(fn);
       const label = v2FitLabel(fn);
       const band = v2CurveBand(fn, kind, zs, G);
       if (!band) return;
@@ -304,11 +308,15 @@ function renderV2FittedForms() {
         + '&mdash; with the selected group emphasised. Outside them the curves are '
         + 'extrapolation. '
       : '';
-    const dropNote = dropped.length
+    const dropNote = (dropped.length
       ? `<b>${dropped.map((f) => v2FitLabel(f)).join(', ')}</b> `
         + `${dropped.length === 1 ? 'is' : 'are'} not drawn here: fitted on a `
         + 'different user set, so the curves would not be comparable. '
-      : '';
+      : '')
+      + (hidden > 0
+        ? `${hidden} further fitted model${hidden === 1 ? ' is' : 's are'} hidden `
+          + 'by the model selection above. '
+        : '');
     const apeNote = apeByGender.length
       ? `On the ape panel the selector only changes <b>${apeByGender.join('</b>, <b>')}</b>: `
         + 'every other model&rsquo;s ape term is the same for everyone. The bands '
@@ -381,7 +389,7 @@ function renderV2Corner() {
 
   const names0 = ['one', undefined].includes(overlay)
     ? v2CornerNames(groupKey, [v2Fit(primaryName)].filter(Boolean))
-    : v2CornerNames(groupKey, v2FitNames().map(v2Fit).filter(Boolean));
+    : v2CornerNames(groupKey, v2ScopedFitNames().map(v2Fit).filter(Boolean));
   const names = names0;
   const N = names.length;
   if (N < 2) {
@@ -397,17 +405,17 @@ function renderV2Corner() {
   // Which fits are drawn, and in what colour. A fit earns a place only if it
   // shares at least two of these parameters -- one gets you a diagonal and
   // nothing else.
-  const allNames = v2FitNames();
-  const chosen = (overlay === 'all' ? allNames : [primaryName])
+  // Overlaying respects the scope, but the single-fit view never does: the
+  // model picker is an inspection tool and must reach any fit, including the
+  // refits the scope hides.
+  const chosen = (overlay === 'all' ? v2ScopedFitNames() : [primaryName])
     .filter((n) => {
       const f = v2Fit(n);
       return f && names.filter((p) => f.params[p]).length >= 2;
     });
   if (!chosen.length) chosen.push(primaryName);
   const colourOf = {};
-  chosen.forEach((n) => {
-    colourOf[n] = cssVar(V2_FIT_HUES[allNames.indexOf(n) % V2_FIT_HUES.length]);
-  });
+  chosen.forEach((n) => { colourOf[n] = v2FitHue(n); });
 
   // Cost control. Every cell is a separate SVG subplot, and contours cost
   // several times a scatter, so a 15-parameter plot across 7 fits has to give

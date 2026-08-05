@@ -164,6 +164,36 @@ def dataset_scales(fit_args):
     return out
 
 
+# What each fit is FOR, so the page can show seven models instead of
+# twenty-two by default.
+#
+#   'form'    a distinct height form on the standard dataset -- the comparison
+#             the page is actually about
+#   'refit'   the same settings fitted again with a different seed. These exist
+#             to measure the noise floor, and overlaying them says nothing
+#             except that the sampler is stochastic
+#   'variant' a side experiment that changes something other than the height
+#             form (a different name filter, zero-sum user offsets, extra ape
+#             terms), so its posterior is not comparable to the rest
+#
+# The refit names match the replicate table in build_v2_reliability.py; if a
+# refit is added there it belongs here too.
+REFITS = {'v4_lin_b', 'v4_lin_c', 'v4_lin_d', 'v4_lin_e'}
+VARIANTS = {'v3_apex', 'v4_lin_apex', 'v4_lin_apelin'}
+
+
+def fit_role(base, name_filter, zero_sum_users):
+    """Which of the three kinds of fit this is. See REFITS / VARIANTS above."""
+    if base in REFITS:
+        return 'refit'
+    # Derived rather than listed where the payload already knows: a different
+    # climber subset or a different offset parameterisation is a variant
+    # whatever it is called.
+    if base in VARIANTS or name_filter != 'confident' or zero_sum_users:
+        return 'variant'
+    return 'form'
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--skip-priors', action='store_true')
@@ -194,6 +224,9 @@ def main():
                'height_form': res['args']['height_form'],
                'name_filter': res['args']['name_filter'],
                'zero_sum_users': bool(res['args'].get('zero_sum_users', False)),
+               'role': fit_role(name[:-5] if name.endswith('_marg') else name,
+                                res['args']['name_filter'],
+                                bool(res['args'].get('zero_sum_users', False))),
                'max_rhat': round(res['max_rhat'], 3),
                'minutes': round(res['elapsed_min']),
                # The page shows failed fits deliberately -- an unreliable refit

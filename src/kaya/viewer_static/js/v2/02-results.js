@@ -190,6 +190,46 @@ const v2Fit = (n) => V2_POST?.fits?.[n];
 const v2FitNames = () => Object.keys(V2_POST?.fits || {});
 const v2SelectedFit = () => v2El('fit-pick')?.value || v2FitNames()[0];
 
+// ---- which fits the multi-model figures draw -------------------------------
+//
+// There are 22 fitted models. Overlaying all of them produces a legend taller
+// than the plot and 22 curves in 10 colours, which answers no question anyone
+// asked. Most of them are not alternatives to each other either: four are the
+// same model refitted with a different seed (they exist to measure the noise
+// floor, and overlaying them only shows that the sampler is stochastic), and
+// several change something other than the height form, so their posteriors are
+// not comparable to the rest.
+//
+// The default is therefore the seven height forms of one arm. The scope is per
+// pane: the archived page is the full working record and shows everything,
+// while the current page starts narrow.
+const V2_SCOPES = new Map();
+const V2_SCOPE_DEFAULT = { 'gm-': { arm: 'unmarginalized', extras: false } };
+
+function v2Scope() {
+  if (!V2_SCOPES.has(V2_NS)) {
+    V2_SCOPES.set(V2_NS, { ...(V2_SCOPE_DEFAULT[V2_NS] || { arm: 'both', extras: true }) });
+  }
+  return V2_SCOPES.get(V2_NS);
+}
+
+function v2ScopedFitNames() {
+  const s = v2Scope();
+  const keep = v2FitNames().filter((n) => {
+    const f = v2Fit(n);
+    if (!f) return false;
+    if (!s.extras && (f.role || 'form') !== 'form') return false;
+    return s.arm === 'both' || (f.arm || 'unmarginalized') === s.arm;
+  });
+  // A filter that empties the figure is worse than no filter. This only bites
+  // on a payload built before `role` existed, where nothing is a 'form'.
+  return keep.length ? keep : v2FitNames();
+}
+
+// Colour has to be stable as the scope changes, or narrowing the selection
+// silently recolours every curve and the reader thinks the fits moved.
+const v2FitHue = (n) => cssVar(V2_FIT_HUES[v2FitNames().indexOf(n) % V2_FIT_HUES.length]);
+
 // A fit's display name. The marginalized arm shares its height form with the
 // original, so it is labelled by that form plus which version it is -- a
 // legend that mixed "linear" with "v3_lin_marg" told the reader nothing about
@@ -479,11 +519,12 @@ function renderV2AcrossFits(name) {
   const el = v2El('across-fits');
   const note = v2El('across-note');
   if (!el || typeof Plotly === 'undefined') return;
-  const have = v2FitNames().filter((f) => v2Fit(f).params[name]);
+  const have = v2ScopedFitNames().filter((f) => v2Fit(f).params[name]);
   if (have.length < 2) {
     Plotly.purge(el);
-    el.innerHTML = '<p class="form-noparams">Only one fit contains this parameter, '
-      + 'so there is nothing to compare it against.</p>';
+    el.innerHTML = '<p class="form-noparams">Fewer than two of the models '
+      + 'currently shown contain this parameter, so there is nothing to compare '
+      + 'it against. Widen the selection above, or pick another parameter.</p>';
     if (note) note.textContent = '';
     return;
   }
@@ -494,14 +535,14 @@ function renderV2AcrossFits(name) {
   const allDraws = have.flatMap((f) => v2Fit(f).params[name].chains.flat());
   const [lo, hi] = v2SharedRange(allDraws, null);
   const grid = v2Grid(lo, hi, 160);
-  const traces = have.map((f, i) => {
+  const traces = have.map((f) => {
     const p = v2Fit(f).params[name];
     const bad = p.rhat > 1.01;
     return {
       type: 'scatter', mode: 'lines',
       name: `${v2FitLabel(f)}${bad ? ' ⚠' : ''}`,
       x: grid, y: v2Kde(p.chains.flat(), grid),
-      line: { color: cssVar(V2_FIT_HUES[i % V2_FIT_HUES.length]), width: 2,
+      line: { color: v2FitHue(f), width: 2,
               dash: bad ? 'dot' : 'solid' },
       hovertemplate: `${v2FitLabel(f)}<br>%{x:.3f}<extra></extra>`,
     };

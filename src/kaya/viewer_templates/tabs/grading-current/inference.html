@@ -146,6 +146,32 @@
                 happened to be fitted alongside it? Pick any parameter above to change
                 this plot.
               </p>
+              <p class="prose">
+                Twenty-two models have been fitted, which is far too many to overlay
+                usefully. <b>The selection below controls every multi-model figure in
+                this section</b> &mdash; this one, the fitted curves, and the corner
+                plot. It defaults to the seven height forms of one version, since those
+                are the models that are genuine alternatives to each other. The
+                <i>refits</i> are the same model run again with a different random seed:
+                they exist to measure how much the sampler wobbles, and overlaying them
+                shows only that it does. The <i>side experiments</i> change something
+                other than the height form, so their posteriors answer a different
+                question.
+              </p>
+              <div class="controls-inline">
+                <label class="ctl">
+                  <span>Which models</span>
+                  <select id="gm-fit-scope">
+                    <option value="unmarginalized">Original model &mdash; 7 height forms</option>
+                    <option value="marginalized">Offsets integrated out &mdash; 7 height forms</option>
+                    <option value="both">Both versions &mdash; 14 fits</option>
+                  </select>
+                </label>
+                <label class="ctl ctl-check">
+                  <input type="checkbox" id="gm-fit-extras" />
+                  <span>Include refits and side experiments</span>
+                </label>
+              </div>
               <div id="gm-across-fits" class="chart-mid"></div>
               <p class="caption" id="gm-across-note"></p>
 

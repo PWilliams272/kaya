@@ -141,6 +141,27 @@ function bindV2Inference() {
   ['corner-group', 'corner-overlay', 'corner-style'].forEach((id) => {
     v2El(id)?.addEventListener('change', v2Bound(renderV2Corner));
   });
+
+  // One control, every multi-model figure. Splitting it per figure was the
+  // obvious alternative and is worse: the reader would narrow the overlay,
+  // scroll down, and find the curves still showing all twenty-two.
+  const scopeSel = v2El('fit-scope');
+  const extrasBox = v2El('fit-extras');
+  if (scopeSel) scopeSel.value = v2Scope().arm;
+  if (extrasBox) extrasBox.checked = v2Scope().extras;
+  const applyScope = v2Bound(() => {
+    const sc = v2Scope();
+    if (scopeSel) sc.arm = scopeSel.value;
+    if (extrasBox) sc.extras = extrasBox.checked;
+    // The pinned axis range was computed over the previous selection, so it has
+    // to go or the curves keep the old plot's limits.
+    v2FittedRange = null;
+    renderV2AcrossFits(v2El('param-pick')?.value);
+    renderV2FittedForms();
+    renderV2Corner();
+  });
+  scopeSel?.addEventListener('change', applyScope);
+  extrasBox?.addEventListener('change', applyScope);
   ['fitted-gender', 'fitted-band'].forEach((id) => {
     v2El(id)?.addEventListener('change', v2Bound(renderV2FittedForms));
   });
