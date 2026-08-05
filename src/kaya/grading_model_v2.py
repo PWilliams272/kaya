@@ -361,6 +361,7 @@ def build_model_v2(
     use_n_at_max: bool = False,
     store_user_terms: bool = False,
     zero_sum_users: bool = False,
+    marginalize_singles: bool = False,
 ) -> pm.Model:
     """Build the v2 PyMC model.
 
@@ -438,6 +439,29 @@ def build_model_v2(
 
     coords = {'user': user_ids, 'gym': gym_ids, 'climb': climb_ids, 'obs': np.arange(len(obs))}
 
+    if marginalize_singles:
+        if gender_mode != 'point':
+            raise NotImplementedError(
+                'marginalize_singles needs gender_mode="point": the latent-sex '
+                'branch mixes at user level, and a marginalized single has no '
+                'user-level term left to mix.')
+        if zero_sum_users:
+            raise NotImplementedError(
+                'marginalize_singles is incompatible with zero_sum_users: the '
+                'zero-sum constraint couples every climber, so an offset that '
+                'has been integrated out still appears in the constraint.')
+        # Which observations belong to a climber with only this one row.
+        counts = np.bincount(obs_u, minlength=n_users)
+        single_obs = np.flatnonzero(counts[obs_u] == 1)
+        multi_obs = np.flatnonzero(counts[obs_u] > 1)
+        multi_users = np.flatnonzero(counts > 1)
+        remap = np.full(n_users, -1)
+        remap[multi_users] = np.arange(len(multi_users))
+        multi_seg = remap[obs_u[multi_obs]]
+        coords['obs_single'] = single_obs
+        coords['obs_multi'] = multi_obs
+        coords['user_multi'] = [user_ids[i] for i in multi_users]
+
     with pm.Model(coords=coords) as model:
         beta0 = pm.Normal('beta0', mu=median_m, sigma=5)
         sigma_user = pm.HalfNormal('sigma_user', sigma=2)
@@ -450,15 +474,24 @@ def build_model_v2(
         # ESS 45, chain means 5.61/5.63/5.63/5.64 sitting on distinct levels),
         # while the ZeroSumNormal gym corrections converged at r_hat 1.00-1.04.
         # Off by default so the queued height-form comparison stays like-for-like.
-        if zero_sum_users:
+        if marginalize_singles:
+            # Offsets exist only for climbers who have more than one row. The
+            # rest are integrated out in closed form at the likelihood, so
+            # sampling them would be sampling a parameter the data cannot
+            # distinguish from noise.
+            eps_raw = pm.Normal('epsilon_raw', 0, 1, dims='user_multi')
+            eps_multi = sigma_user * eps_raw
+            epsilon = None
+        elif zero_sum_users:
             eps_raw = pm.ZeroSumNormal('epsilon_raw', sigma=1, dims='user')
+            epsilon = sigma_user * eps_raw
         else:
             eps_raw = pm.Normal('epsilon_raw', 0, 1, dims='user')
+            epsilon = sigma_user * eps_raw
         # Not a Deterministic by default: at 16k users x 2k draws that is
         # ~250MB of stored trace per user-dimensioned quantity, and it is
         # recoverable post-hoc as sigma_user * epsilon_raw.
-        epsilon = sigma_user * eps_raw
-        if store_user_terms:
+        if store_user_terms and epsilon is not None:
             pm.Deterministic('epsilon', epsilon, dims='user')
 
         # --- covariate block, built as an explicitly centered design matrix ---
@@ -551,7 +584,7 @@ def build_model_v2(
             Each rebuilt column keeps the SAME centering constant as the
             fitted design matrix, so beta0 stays orthogonal in both branches.
             """
-            term = beta0 + epsilon
+            term = beta0 if epsilon is None else beta0 + epsilon
             if use_static:
                 term = term + static_term
             for nm in Xnames:
@@ -606,6 +639,33 @@ def build_model_v2(
             if store_user_terms:
                 pm.Deterministic('p_female_post',
                                  pt.exp(logw_f + user_ll_f - per_user), dims='user')
+        elif marginalize_singles:
+            # 59% of climbers contribute exactly one observation, and their
+            # offset can absorb that observation entirely -- which is what
+            # makes leave-one-out meaningless for those rows (8,400 effective
+            # parameters, and two fits of the identical model scoring 31.1
+            # elpd apart). Integrate those offsets out instead.
+            #
+            # It is exact. epsilon enters the ceiling additively and is
+            # Gaussian, the observation noise is Gaussian, so the two convolve
+            # into one wider Gaussian and the density stays ExGaussian:
+            #
+            #   -m ~ ExGaussian(-c, sqrt(sigma_link^2 + sigma_user^2), nu)
+            #
+            # Nothing is approximated and nothing is dropped -- sigma_user is
+            # still estimated, from the multi-observation climbers who
+            # actually carry information about it.
+            ability0 = ability_for(w_female, use_static=True)   # no epsilon
+            ceiling0 = ability0[obs_u] + correction
+            sigma_single = pt.sqrt(sigma_link ** 2 + sigma_user ** 2)
+
+            pm.ExGaussian('m_single', mu=-ceiling0[single_obs],
+                          sigma=sigma_single, nu=nu[single_obs],
+                          observed=-m[single_obs], dims='obs_single')
+            pm.ExGaussian('m_multi',
+                          mu=-(ceiling0[multi_obs] + eps_multi[multi_seg]),
+                          sigma=sigma_link, nu=nu[multi_obs],
+                          observed=-m[multi_obs], dims='obs_multi')
         else:
             ability = ability_for(w_female)
             if store_user_terms:
