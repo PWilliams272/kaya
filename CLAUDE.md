@@ -93,6 +93,8 @@ until it is.
 - `VIEWER_HANDOFF.md`, `VIEWER_PROJECT_STATUS.md`, `VIEWER_APP_DEPLOY_RUNBOOK.md` — viewer build/deploy.
 - `KAYA_VIEWER_DESIGN_HANDOFF.md`, `viewer_static/design-system-reference.html` — design system.
 - `BAYESIAN_GRADING_MODEL.md` — the grading model's methodology.
+- `docs/run-plan.md` — which fits are queued, what question each one settles, and what is
+  deliberately not being run. Decision-driven: nothing downstream of an open question runs.
 - `docs/inference-toolkit.md` — portable reference on choosing and diagnosing a sampler:
   what R-hat and ESS measure, affine invariance, nested sampling, and which fix each
   diagnostic signature points at. Written to travel to another repo; keep it self-contained.
