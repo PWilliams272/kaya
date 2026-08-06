@@ -7,7 +7,7 @@ const V2_SAMPLER_GUIDE = [
   ['step size', 'How far the simulation moves per step. The sampler tunes this automatically. A very small step size means the surface is sharply curved somewhere and it has to inch along.', 'large, but it is set for you'],
   ['acceptance rate', 'The fraction of proposed moves kept. Tuned towards a target you choose — 0.90 here. Hitting the target only means tuning worked. <b>It says nothing about whether the answer is right.</b>', 'close to the target'],
   ['R&#770; (R-hat)', 'Run four chains from different starting points. If they all explored the same distribution, the variation between chains matches the variation within one. R-hat is that ratio; 1.00 is perfect agreement.', '≤ 1.01'],
-  ['ESS', 'Consecutive draws are correlated, so 2,000 draws are not worth 2,000 independent ones. Effective sample size is what they are actually worth.', '≥ 400'],
+  ['ESS (effective sample size)', 'Consecutive draws are correlated — each one starts where the last ended — so 2,000 draws are not worth 2,000 independent ones. ESS is how many independent draws they <i>are</i> worth: 2,000 draws with ESS 100 carry as much information as 100 draws from a perfect random-number generator, and the uncertainty on any number you quote from them scales with the square root of ESS, not of the draw count. It is the same quantity as the B/W ratio below, read the other way round: ESS ≈ total draws ÷ autocorrelation factor. <b>Higher is better.</b>', '≥ 400'],
 ];
 
 function renderV2Sampler() {

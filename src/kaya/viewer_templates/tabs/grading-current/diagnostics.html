@@ -127,6 +127,93 @@
               </div>
               <p class="caption" id="gm-rhat-arms-note"></p>
 
+              <h3>What would actually move these numbers</h3>
+              <p class="prose">
+                Every fit on this page ran with the same settings &mdash; four
+                chains, 600 tuning iterations, 500 kept draws, target acceptance
+                0.90. Several of the standard remedies have already been tried and
+                measured here, and two of the most commonly recommended ones are
+                the wrong medicine for this particular illness.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table read-guide">
+                  <thead>
+                    <tr><th>lever</th><th>what it changes, mechanically</th><th>evidence here</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="sym">more kept draws</td>
+                      <td>Nothing about the sampler. R&#770;&nbsp;&minus;&nbsp;1 falls
+                        roughly as <span>\(1/n\)</span> purely because the chains have
+                        had longer to overlap. Effective sample size, though, really
+                        does grow with <span>\(n\)</span> &mdash; so this buys real
+                        information <i>and</i> a flattering number, and the two should
+                        not be confused.</td>
+                      <td class="unit">untried beyond 500</td>
+                    </tr>
+                    <tr>
+                      <td class="sym">longer warm-up</td>
+                      <td>The sampler spends warm-up learning two things: the
+                        <b>step size</b>, and the <b>mass matrix</b> &mdash; a
+                        per-parameter scale telling it how far a move in that
+                        direction should be. Both are estimated from the warm-up draws
+                        alone. Too short, and every subsequent proposal is badly
+                        scaled, which is autocorrelation by another name. 600
+                        iterations is short for a 4,241-parameter model.</td>
+                      <td class="unit"><b>never tried</b></td>
+                    </tr>
+                    <tr>
+                      <td class="sym">higher target acceptance</td>
+                      <td>Forces a smaller step size, so the simulated trajectory
+                        tracks a sharply curved surface instead of flying off it. The
+                        symptom it treats is <b>divergences</b>.</td>
+                      <td class="unit">no divergences to fix</td>
+                    </tr>
+                    <tr>
+                      <td class="sym">integrating more offsets out</td>
+                      <td>Removes parameters outright. Every climber offset is a
+                        dimension the sampler must explore; integrate it out and it
+                        never visits that dimension at all. Extending this from
+                        single-send climbers to two-send would remove another
+                        <b>1,771</b> of them.</td>
+                      <td class="unit"><b>7 of 8 forms improved</b></td>
+                    </tr>
+                    <tr>
+                      <td class="sym">non-centring the offsets</td>
+                      <td>Writing an offset as <span>\(\sigma \times z\)</span> with
+                        <span>\(z\)</span> a standard normal, rather than drawing it
+                        directly from a distribution whose width is itself being
+                        fitted. It breaks the dependence between an offset and its own
+                        scale &mdash; the funnel shape samplers handle worst.</td>
+                      <td class="unit">already done</td>
+                    </tr>
+                    <tr>
+                      <td class="sym">zero-sum climber offsets</td>
+                      <td>Pins the offsets to sum to zero, so they cannot drift up and
+                        down together against the global intercept.</td>
+                      <td class="unit">tried, worse</td>
+                    </tr>
+                    <tr>
+                      <td class="sym">more chains</td>
+                      <td>R&#770; is a comparison <i>between</i> chains, so more of
+                        them measure that comparison more reliably &mdash; they do not
+                        change how well any single chain mixes. Adding chains can
+                        <i>raise</i> R&#770; by catching a bad one that four would
+                        have hidden.</td>
+                      <td class="unit">will not help</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="caption">
+                The two that are worth compute are the first pair: nobody has ever
+                run this model with a long warm-up, and the diagnosis above says
+                badly scaled proposals rather than a broken surface. The parameter
+                correlations bear that out &mdash; apart from one deterministic
+                transform of another, <b>no two parameters in this model correlate
+                above 0.59</b>, so there is no ridge left to reparameterise away.
+              </p>
+
               <div class="methodology-note">
                 <b>Reproducibility.</b> Model in
                 <code>src/kaya/grading_model_v2.py</code>. Network selected as the
