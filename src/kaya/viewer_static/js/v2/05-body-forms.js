@@ -313,9 +313,15 @@ function renderV2FittedForms() {
         + `${dropped.length === 1 ? 'is' : 'are'} not drawn here: fitted on a `
         + 'different user set, so the curves would not be comparable. '
       : '')
+      // The detailed page has a scope selector the reader can widen; the
+        // presentation page does not, so pointing at "the selection above"
+        // would send them looking for a control that is not there.
       + (hidden > 0
-        ? `${hidden} further fitted model${hidden === 1 ? ' is' : 's are'} hidden `
-          + 'by the model selection above. '
+        ? `${hidden} further fitted model${hidden === 1 ? ' is' : 's are'} not `
+          + 'shown here'
+          + (v2El('fit-scope')
+            ? ', per the model selection above. '
+            : '; the full set is on the detailed write-up. ')
         : '');
     const apeNote = apeByGender.length
       ? `On the ape panel the selector only changes <b>${apeByGender.join('</b>, <b>')}</b>: `

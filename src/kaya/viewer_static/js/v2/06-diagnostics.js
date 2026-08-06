@@ -99,7 +99,7 @@ function bindV2Inference() {
       });
       fitSel.appendChild(g);
     });
-    if (v2FitNames().includes('v3_conf')) fitSel.value = 'v3_conf';
+    if (v2FitNames().includes(V2_PRIMARY_FIT)) fitSel.value = V2_PRIMARY_FIT;
   }
   const paramSel = v2El('param-pick');
   const fillParams = () => {
@@ -204,6 +204,7 @@ async function renderV2Inference() {
   await renderV2RhatParams();
   await renderV2RhatArms();
   await renderV2RhatRidges();
+  await renderV2Design();
   const sel = v2El('param-pick');
   renderV2ParamDetail(sel?.value || Object.keys(v2Fit(v2SelectedFit()).params)[0]);
 }

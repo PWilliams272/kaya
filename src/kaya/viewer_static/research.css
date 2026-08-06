@@ -778,6 +778,13 @@
   width: var(--fg-w, 100%);
   margin-left: calc((100% - var(--fg-w, 100%)) / 2);
 }
+/* Six cards fill two rows of three. Four in the same auto-fit track leave one
+   stranded on its own row, so the presentation page's shorter set gets an
+   explicit 2x2 -- which also hands each chart half the width instead of a
+   third. Below the breakpoint auto-fit takes over again. */
+@media (min-width: 900px) {
+  .form-card-grid[data-cards="4"] { grid-template-columns: repeat(2, 1fr); }
+}
 .form-card {
   display: flex;
   flex-direction: column;

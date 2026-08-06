@@ -160,7 +160,19 @@
                         alone. Too short, and every subsequent proposal is badly
                         scaled, which is autocorrelation by another name. 600
                         iterations is short for a 4,241-parameter model.</td>
-                      <td class="unit"><b>never tried</b></td>
+                      <td class="unit"><b>running now</b> (tune 2,000)</td>
+                    </tr>
+                    <tr>
+                      <td class="sym">orthogonalising the design</td>
+                      <td>Replaces the covariate columns with combinations of
+                        themselves that are mutually uncorrelated, spanning the same
+                        space. The mass matrix above is <b>diagonal</b>: it can
+                        stretch each axis independently but cannot <i>rotate</i>, so
+                        a posterior whose narrow direction lies at an angle to the
+                        axes is one it can never represent &mdash; no matter how long
+                        it tunes. Rotating the coordinates instead puts the narrow
+                        direction back on an axis. See below.</td>
+                      <td class="unit"><b>running now</b></td>
                     </tr>
                     <tr>
                       <td class="sym">higher target acceptance</td>
@@ -206,11 +218,82 @@
                 </table>
               </div>
               <p class="caption">
-                The two worth compute are the first pair: nobody has ever run this
-                model with a long warm-up, and the diagnosis above says badly
-                scaled proposals rather than a broken surface.
+                The two worth compute were the middle pair, and both are on the
+                machine now: nobody had ever run this model with a long warm-up,
+                and the diagnosis above says badly scaled proposals rather than a
+                broken surface. They are deliberately being run as
+                <b>separate</b> fits &mdash; one changes the warm-up, the other
+                changes the coordinates &mdash; because a run that moved both
+                would improve R&#770; without saying which change did it.
               </p>
               <p class="caption" id="gm-rhat-ridges"></p>
+
+              <h3>Why the columns fight each other in the first place</h3>
+              <p class="prose">
+                Height enters the model as \(\tilde h\) and \(\tilde h^{2}\), and
+                again multiplied by gender as \(G\tilde h\) and \(G\tilde h^{2}\).
+                These are four separate columns, but they are not four separate
+                questions: a climber who is tall has a large \(\tilde h\)
+                <i>and</i> a large \(\tilde h^{2}\), and if they are female, large
+                versions of the other two as well. The columns move together, so
+                the coefficients on them <b>trade off</b> &mdash; raise one, lower
+                another, and the fitted curve barely changes.
+              </p>
+              <p class="prose">
+                That trade-off is a long thin diagonal ridge in the posterior, and
+                the sampler has to walk along it one small step at a time. The
+                measure of how bad it is, per height form, is the
+                <b>condition number</b> of the design: the ratio of the widest to
+                the narrowest direction. <b>1.0 is perfectly round</b>, and lower
+                is better.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gm-design-forms"></table>
+              </div>
+              <p class="caption">
+                Computed from the covariate matrix itself, not from any fit, by
+                <code>scripts/build_v2_rhat.py</code> &mdash; so it describes the
+                problem independently of whether the fix works. Note the page's
+                own primary, <b>quadratic &times; gender</b>, is the worst
+                conditioned of the seven.
+              </p>
+
+              <p class="prose">
+                The fix is to replace each column with the part of it that the
+                earlier columns cannot explain &mdash; regress it on them and keep
+                the residual. That is Gram&ndash;Schmidt, and it is one line:
+                <b>replace each column by its residual after regressing on the
+                columns before it</b>. The resulting basis spans exactly the same
+                space, so it can describe exactly the same curves:
+              </p>
+              <div class="eqn-block" id="gm-design-basis"></div>
+              <p class="caption">
+                \(G\) appears in every line because the gender main effect is the
+                first column, so everything after it is orthogonalised against
+                that too. These coefficients are properties of <i>this sample and
+                this column order</i>, not of the polynomial &mdash; which is why
+                the transform is stored with the fit rather than recomputed, and
+                why cross-validation must apply the <b>training</b> fold's version
+                to held-out climbers.
+              </p>
+
+              <div class="callout warn">
+                <div>
+                  <b>This is not a free change of coordinates, and the earlier
+                  version of this section said it was.</b> Priors were written as
+                  independent normals on the raw coefficients. Independent priors
+                  on an <i>orthogonal</i> basis are a different statement &mdash;
+                  they imply a <i>correlated</i> prior on the raw ones. Each
+                  orthogonalised column is therefore rescaled back to the length
+                  of the column it replaces, which is what keeps the prior on the
+                  fitted curve intact; without that step the prior on the curve
+                  silently tightens by a factor nobody wrote down.
+                </div>
+              </div>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gm-design-prior"></table>
+              </div>
+              <p class="caption" id="gm-design-prior-note"></p>
 
               <div class="methodology-note">
                 <b>Reproducibility.</b> Model in

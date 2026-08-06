@@ -188,7 +188,19 @@ const V2_CORNER_GROUPS = {
 
 const v2Fit = (n) => V2_POST?.fits?.[n];
 const v2FitNames = () => Object.keys(V2_POST?.fits || {});
-const v2SelectedFit = () => v2El('fit-pick')?.value || v2FitNames()[0];
+// The fit every page quotes when no picker has been touched. Named once
+// because two panes set it -- the detailed page seeds its dropdown with it,
+// and the presentation page has no dropdown at all and would otherwise fall
+// through to whatever sorts first in the payload. Two pages quoting different
+// primaries is the drift this constant exists to prevent.
+const V2_PRIMARY_FIT = 'v3_conf';
+
+const v2SelectedFit = () => {
+  const picked = v2El('fit-pick')?.value;
+  if (picked) return picked;
+  const names = v2FitNames();
+  return names.includes(V2_PRIMARY_FIT) ? V2_PRIMARY_FIT : names[0];
+};
 
 // ---- which fits the multi-model figures draw -------------------------------
 //
@@ -203,8 +215,16 @@ const v2SelectedFit = () => v2El('fit-pick')?.value || v2FitNames()[0];
 // The default is therefore the seven height forms of one arm. The scope is per
 // pane: the archived page is the full working record and shows everything,
 // while the current page starts narrow.
+//
+// The presentation page (`gf-`) takes the SAME scope as the detailed page on
+// purpose. It is a shorter read, not a different measurement -- two pages
+// quoting different primaries would be worse than either choice on its own.
+// What makes it shorter is which sections exist, not which fits back them.
 const V2_SCOPES = new Map();
-const V2_SCOPE_DEFAULT = { 'gm-': { arm: 'unmarginalized', extras: false } };
+const V2_SCOPE_DEFAULT = {
+  'gm-': { arm: 'unmarginalized', extras: false },
+  'gf-': { arm: 'unmarginalized', extras: false },
+};
 
 function v2Scope() {
   if (!V2_SCOPES.has(V2_NS)) {

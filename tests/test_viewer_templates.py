@@ -19,6 +19,7 @@ TABS = [
     'tab-body-morphology',
     'tab-user-segmentation',
     'tab-data-overview',
+    'tab-grading-current',
     'tab-grading-model',
     'tab-grading-v2',
 ]
@@ -160,13 +161,24 @@ def test_no_script_is_orphaned(page: str) -> None:
 
 
 def test_scripts_load_in_numeric_order(page: str) -> None:
-    """The numeric prefixes encode a real dependency order, not a preference."""
+    """The numeric prefixes encode a real dependency order, not a preference.
+
+    Groups load shell -> v2 -> current -> findings, because each depends on the
+    one before: both explainer pages call the v2 renderers with their own
+    element ids rather than duplicating them, and the findings page reuses
+    helpers defined in the current page's driver.
+    """
     srcs = _script_srcs(page)
-    top_level = [s for s in srcs if s.count('/') == 1]
-    v2 = [s for s in srcs if s.startswith('js/v2/')]
-    assert top_level == sorted(top_level), 'top-level scripts are out of order'
-    assert v2 == sorted(v2), 'v2 scripts are out of order'
-    assert srcs == top_level + v2, 'the v2 scripts must load after the shell'
+    groups = ['js/', 'js/v2/', 'js/current/', 'js/findings/']
+    expected: list = []
+    for prefix in groups:
+        members = [s for s in srcs if s.startswith(prefix) and s.count('/') == prefix.count('/')]
+        assert members == sorted(members), f'{prefix} scripts are out of order'
+        expected += members
+    assert srcs == expected, (
+        'script groups must load shell -> v2 -> current -> findings; '
+        f'got {srcs}'
+    )
 
 
 def test_no_script_is_oversized() -> None:
@@ -181,3 +193,171 @@ def test_no_script_is_oversized() -> None:
 
 def test_monolithic_app_js_is_gone() -> None:
     assert not (Path(viewer_app.STATIC_DIR) / 'app.js').exists()
+
+
+# --- the current Grading Model page vs its archives ---------------------
+#
+# The current page is a distillation: it states the settled conclusions, and the
+# full working record stays on the archived tabs. That only holds if the
+# archives keep rendering, and if the new page keeps its own id namespace —
+# two panes cannot both own `v2-*`.
+
+GM_SECTIONS = [
+    'gm-headline',
+    'gm-model',
+    'gm-gyms',
+    'gm-height',
+    'gm-time',
+    'gm-cv',
+    'gm-marginal',
+    'gm-negatives',
+    'gm-diagnostics',
+    'gm-provenance',
+]
+
+
+GF_SECTIONS = [
+    'gf-headline',
+    'gf-gyms',
+    'gf-model',
+    'gf-body',
+    'gf-time',
+    'gf-evidence',
+]
+
+
+@pytest.mark.parametrize('section_id', GM_SECTIONS)
+def test_current_page_sections_present(page: str, section_id: str) -> None:
+    assert f'id="{section_id}"' in page
+
+
+@pytest.mark.parametrize('section_id', GF_SECTIONS)
+def test_findings_page_sections_present(page: str, section_id: str) -> None:
+    assert f'id="{section_id}"' in page
+
+
+def test_findings_page_is_shorter_than_the_detailed_one(page: str) -> None:
+    """The whole premise of a second page is that it is a shorter read.
+
+    Not a style preference: if the presentation cut grows to match the detailed
+    one there is no reason for it to exist, and two full-length pages quoting
+    the same fit is a maintenance trap rather than a feature.
+    """
+    import re
+
+    def pane(slug: str) -> str:
+        m = re.search(rf'<section id="tab-{slug}".*?(?=<section id="tab-|</main>)',
+                      page, re.S)
+        assert m, f'no pane for {slug}'
+        return m.group(0)
+
+    findings, detail = pane('grading-findings'), pane('grading-current')
+    assert len(findings) < 0.75 * len(detail), (
+        f'findings pane is {len(findings)} chars against the detailed '
+        f"page's {len(detail)} — it has stopped being a distillation")
+
+
+def test_findings_page_keeps_the_headliners(page: str) -> None:
+    """Equations, sliders, both headline results, and the honest caveats."""
+    import re
+
+    m = re.search(r'<section id="tab-grading-findings".*?(?=<section id="tab-|</main>)',
+                  page, re.S)
+    assert m
+    body = m.group(0)
+    assert body.count('class="eqn"') >= 5, 'the model must keep its equations'
+    assert 'id="gf-form-cards"' in body, 'the functional forms need their sliders'
+    assert 'id="gf-gym-chart"' in body, 'gym comparison is a headline result'
+    assert 'id="gf-fitted-height"' in body, 'height/ape is a headline result'
+    assert 'id="gf-adv-chart"' in body, 'improvement over time must survive'
+    assert 'id="gf-glossary"' in body, 'equations need their docked symbol panel'
+    # A presentation cut that dropped every caveat would be a brochure.
+    assert body.count('verdict-pill') >= 5, 'the open and null results must survive'
+
+
+def test_findings_tab_is_registered_in_the_shell() -> None:
+    """A pane nobody can reach renders nothing and fails no other test."""
+    shell = (Path(viewer_app.STATIC_DIR) / 'js' / '09-shell.js').read_text()
+    assert "'grading-findings'" in shell, 'tab is not in TAB_NAMES'
+    assert 'renderFindingsTab()' in shell, 'tab activates no renderer'
+
+
+def test_current_page_does_not_reuse_archived_ids(page: str) -> None:
+    """Duplicate ids silently break getElementById — this repo has been bitten."""
+    import re
+
+    all_ids = re.findall(r'id="([^"]+)"', page)
+    duplicates = {i for i in all_ids if all_ids.count(i) > 1}
+    assert not duplicates, f'duplicate element ids: {sorted(duplicates)}'
+
+
+def test_both_archives_are_labelled_as_archives(page: str) -> None:
+    import re
+
+    for slug in ['grading-model', 'grading-v2']:
+        button = re.search(rf'data-tab="{slug}"[^>]*>(.*?)</button>', page)
+        assert button, f'no tab button for {slug}'
+        assert 'Archive' in button.group(1), f'{slug} tab is not labelled as an archive'
+        pane = re.search(rf'<section id="tab-{slug}".*?(?=<section id="tab-|</main>)', page, re.S)
+        assert pane and 'archive-banner' in pane.group(0), f'{slug} pane has no archive banner'
+
+
+def test_current_tab_is_not_labelled_as_an_archive(page: str) -> None:
+    import re
+
+    button = re.search(r'data-tab="grading-current"[^>]*>(.*?)</button>', page)
+    assert button and 'Archive' not in button.group(1)
+    assert 'tab-archived' not in button.group(0)
+
+
+def test_current_page_carries_verdicts_and_equations(page: str) -> None:
+    """A distillation that dropped the negatives would not be a distillation."""
+    import re
+
+    pane = re.search(r'<section id="tab-grading-current".*?(?=<section id="tab-|</main>)', page, re.S)
+    assert pane
+    body = pane.group(0)
+    assert body.count('verdict-pill') >= 8, 'negative results must survive as verdicts'
+    assert body.count('class="eqn"') >= 5, 'the model must keep its functional form'
+    assert 'id="gm-glossary"' in body, 'equations need their docked parameter panel'
+    assert 'scripts/build_v2_results.py' in body, 'provenance citations must survive'
+
+
+def test_bootstrap_waits_for_every_script() -> None:
+    """The saved-tab restore calls renderers defined in later scripts.
+
+    In the single app.js these were hoisted function declarations in the same
+    file. Across separate classic scripts they are not, and calling
+    `bootstrapWithFallback()` at top level threw `renderCurrentTab is not
+    defined` whenever the last-used tab was an explainer. DOMContentLoaded is
+    the gate that restores the guarantee.
+    """
+    shell = (Path(viewer_app.STATIC_DIR) / 'js' / '09-shell.js').read_text(encoding='utf-8')
+    assert "addEventListener('DOMContentLoaded', startViewer" in shell
+    for line in shell.splitlines():
+        assert not line.startswith('bootstrapWithFallback('), (
+            'bootstrap must not run before the later scripts are evaluated'
+        )
+
+
+def test_v2_renderers_are_not_hardcoded_to_the_archive_pane() -> None:
+    """Both explainer panes share these renderers, so ids resolve through v2El.
+
+    A reintroduced literal `v2-` id would draw the current Grading Model tab's
+    figure into the archived pane, or into nothing at all.
+    """
+    import re
+
+    static = Path(viewer_app.STATIC_DIR)
+    offenders = {}
+    for path in sorted((static / 'js' / 'v2').glob('*.js')):
+        text = path.read_text(encoding='utf-8')
+        hits = [
+            m.group(0)
+            for m in re.finditer(r"""getElementById\(\s*['"`]v2-|id="v2-|#tab-grading-v2""", text)
+        ]
+        # The namespace's own default is the one legitimate literal.
+        hits = [h for h in hits if h not in ("V2_NS = 'v2-'",)]
+        if hits:
+            offenders[path.name] = hits
+    assert not offenders, f'hardcoded archive ids: {offenders}'

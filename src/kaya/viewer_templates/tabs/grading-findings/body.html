@@ -1,0 +1,93 @@
+<section class="article-section" id="gf-body">
+              <h2>What height and arm span actually buy</h2>
+              <p class="prose">
+                Candidate height shapes are compared by <b>LOO</b> &mdash;
+                leave-one-out cross-validation, which scores a model by how well it
+                predicts each observation with that observation held out. The score is
+                <b>elpd</b>: total log-probability for data the model did not see.
+                <b>Higher is better</b>, and only <i>differences</i> between models
+                mean anything &mdash; the absolute number has no scale of its own.
+              </p>
+
+              <div class="finding borderline">
+                <div class="finding-head">
+                  <span class="finding-title">Height matters, at two to three standard errors &mdash; a real effect, not an overwhelming one</span>
+                  <span class="verdict-pill verdict-borderline">Real, small</span>
+                </div>
+                <p>
+                  Among climbers with three or more sends, adding a height term is
+                  worth about <b>+25 &plusmn; 9</b> elpd, and <b>+17 to +22
+                  &plusmn; 8</b> once each climber&rsquo;s personal offset is
+                  integrated out. Two <i>identical</i> refits of that column agree to
+                  within 0.4 (+25.4 and +25.0), which is what makes the number
+                  trustworthy rather than the size of it.
+                </p>
+              </div>
+
+              <div class="finding open">
+                <div class="finding-head">
+                  <span class="finding-title">Which shape height takes is not settled &mdash; and the curved gender-split form is among the weakest</span>
+                  <span class="verdict-pill verdict-open">Open</span>
+                </div>
+                <p>
+                  The saturating curve sits near the bottom in one version of the
+                  model and at the top in the other. That swing is about
+                  <b>1.5&times;</b> its own error, so the two are not in contradiction
+                  &mdash; they simply do not pin the shape down. More awkwardly, the
+                  curved gender-split form used elsewhere in this work <b>fails to
+                  beat no height term at all</b> in three of four columns once the
+                  offsets are integrated out. <b>The headline model should most likely
+                  be a straight line.</b> Reporting this rather than quietly picking
+                  the winner is the point: the honest answer is that the data
+                  constrains <i>how much</i> height is worth far better than it
+                  constrains <i>what shape</i> the relationship has.
+                </p>
+              </div>
+
+              <h3>The fitted curves</h3>
+              <p class="prose">
+                Each curve is pinned to zero at the median climber, so what is being
+                read is the <b>shape</b> &mdash; and how much of the vertical axis the
+                credible band covers. Shaded bands are 89% credible intervals. Click a
+                model in the legend to isolate it.
+              </p>
+              <div class="param-detail">
+                <div class="controls-inline">
+                  <label class="ctl">
+                    <span>Curves for</span>
+                    <select id="gf-fitted-gender">
+                      <option value="male">Male users</option>
+                      <option value="female">Female users</option>
+                    </select>
+                  </label>
+                  <label class="ctl ctl-check">
+                    <input type="checkbox" id="gf-fitted-band" checked />
+                    <span>Show credible bands</span>
+                  </label>
+                </div>
+                <div class="param-detail-grid">
+                  <div>
+                    <h4 class="chart-label">Height</h4>
+                    <div id="gf-fitted-height" class="chart-mid"></div>
+                  </div>
+                  <div>
+                    <h4 class="chart-label">Ape index</h4>
+                    <div id="gf-fitted-ape" class="chart-mid"></div>
+                  </div>
+                </div>
+                <p class="caption" id="gf-fitted-note"></p>
+              </div>
+
+              <h3>Scored against a fixed reference</h3>
+              <p class="prose">
+                Each height shape against <b>no height term at all</b>, on the same
+                climbers. A positive number means the shape earns its parameters.
+              </p>
+              <div class="head-row">
+                <div id="gf-vsnull-picker" class="chart-head-tools"></div>
+              </div>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gf-vsnull-table"></table>
+              </div>
+              <p class="caption" id="gf-vsnull-note"></p>
+            </section>

@@ -1,0 +1,69 @@
+<section class="article-section" id="gf-time">
+              <h2>How fast climbers improve</h2>
+              <p class="prose">
+                This is not a curiosity on the side &mdash; it is a threat to the gym
+                result. The model treats a climber as a fixed quantity: there is no
+                \(t\) anywhere in \(C_{u,g}\). So if someone logged at one gym in 2022
+                and another in 2025, <b>three years of getting better is charged to
+                the second gym</b>. The model has nowhere else to put it.
+              </p>
+
+              <div class="finding confirmed">
+                <div class="finding-head">
+                  <span class="finding-title">Advancement is a steady rate that falls with grade &mdash; about <span data-gm="adv_v1">+0.28</span> grades/year at V1, <span data-gm="adv_v9">+0.04</span> at V9</span>
+                  <span class="verdict-pill verdict-confirmed">Measured</span>
+                </div>
+                <p>
+                  Fitted across every watching period at once rather than read off a
+                  single window. The rate is positive and decreasing all the way up,
+                  and the top bin is consistent with zero rather than negative
+                  (<span data-gm="adv_v11">&minus;0.05</span> &plusmn;
+                  <span data-gm="adv_v11_sem">0.13</span> at V11).
+                </p>
+              </div>
+
+              <h3>The advancement rate, by starting grade</h3>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gf-adv-table"></table>
+              </div>
+              <div id="gf-adv-chart" class="chart-mid"></div>
+              <p class="caption" id="gf-adv-note"></p>
+
+              <div class="finding null-result">
+                <div class="finding-head">
+                  <span class="finding-title">The obvious estimator is broken by regression to the mean, and says V11 climbers lose grades</span>
+                  <span class="verdict-pill verdict-null">Rejected</span>
+                </div>
+                <p>
+                  Take each climber&rsquo;s first and last recorded max, subtract, and
+                  divide by the years between: that estimator claims the strongest
+                  climbers <i>lose</i> about
+                  <span data-gm="naive_v11">1.0</span> grades a year. They do not.
+                  Being sorted into the V11 bin requires a high first reading, and a
+                  high reading is partly luck &mdash; so the same climber&rsquo;s next
+                  reading is lower on average whether or not they improved. The rate
+                  above is fitted across all windows precisely because that removes
+                  the sorting.
+                </p>
+              </div>
+
+              <div class="finding open">
+                <div class="finding-head">
+                  <span class="finding-title">Date and gym correction really do correlate, and the mechanism is not settled</span>
+                  <span class="verdict-pill verdict-open">Open</span>
+                </div>
+                <p>
+                  Gyms whose data is more recent get stiffer corrections
+                  (<span data-gm="gt_r">+0.61</span>). Climber advancement is the
+                  obvious explanation and it is <b>not sufficient</b> &mdash; applied
+                  as a fixed offset it accounts for only about <b>8%</b> of the
+                  correlation. Within a single operating company the correlation is
+                  <span data-gm="gt_r_wb">+0.34</span>, so brand composition explains
+                  part of the rest, and something else explains the remainder. This is
+                  the largest open question on the page, and it is stated rather than
+                  smoothed over.
+                </p>
+                <div id="gf-time-chart" class="chart-mid"></div>
+                <p class="caption" id="gf-time-note"></p>
+              </div>
+            </section>

@@ -1,0 +1,106 @@
+<section class="article-section" id="gf-evidence">
+              <h2>Why believe any of it</h2>
+              <p class="prose">
+                A fitted model always produces numbers. What decides whether they mean
+                anything is a short list of checks &mdash; whether the sampler
+                actually explored the distribution, whether independent runs agree,
+                and whether the parameters are separately identified or merely trading
+                off against each other.
+              </p>
+
+              <h3>The model comparison, with its convergence gate</h3>
+              <p class="prose">
+                Every candidate, its held-out score, and <b>whether the fit that
+                produced it converged</b>. The gate travels with the result on
+                purpose: a score from a fit whose chains disagreed is not a
+                measurement, and the most common way to mislead yourself here is to
+                quote one anyway.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gf-loo-table"></table>
+              </div>
+              <p class="caption" id="gf-loo-note"></p>
+
+              <h3>Where each parameter landed</h3>
+              <p class="prose">
+                Posterior distributions for the fitted parameters. Width is
+                uncertainty; a distribution straddling zero means the data did not
+                determine the sign.
+              </p>
+              <div id="gf-post-grid" class="post-grid"></div>
+
+              <h3>Did the chains agree?</h3>
+              <p class="prose">
+                Four chains start from different random points. If they all explored
+                the same distribution, the variation <i>between</i> them matches the
+                variation <i>within</i> each one &mdash; that ratio is <b>R&#770;</b>
+                (R-hat), and <b>1.00 is perfect agreement, lower is better</b>. The
+                companion number is <b>ESS</b> (effective sample size): consecutive
+                draws are correlated, so 2,000 draws are not worth 2,000 independent
+                ones, and ESS is how many they <i>are</i> worth. <b>Higher is
+                better</b>; 400 is the usual floor.
+              </p>
+              <div class="controls-inline">
+                <label class="ctl">
+                  <span>Parameter</span>
+                  <select id="gf-param-pick"></select>
+                </label>
+                <label class="ctl">
+                  <span>Show</span>
+                  <select id="gf-trace-mode">
+                    <option value="trace">Chain traces</option>
+                    <option value="rank">Rank plot</option>
+                  </select>
+                </label>
+              </div>
+              <div class="param-detail-grid">
+                <div>
+                  <h4 class="chart-label">Posterior</h4>
+                  <div id="gf-param-dens" class="chart-mid"></div>
+                </div>
+                <div>
+                  <h4 class="chart-label">Chains</h4>
+                  <div id="gf-param-trace" class="chart-mid"></div>
+                </div>
+              </div>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gf-param-stats"></table>
+              </div>
+              <p class="caption" id="gf-param-verdict"></p>
+
+              <h3>What the sampler did</h3>
+              <div class="data-table-wrap">
+                <table class="data-table read-guide" id="gf-sampler-guide"></table>
+              </div>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gf-sampler-table"></table>
+              </div>
+              <p class="caption" id="gf-sampler-note"></p>
+
+              <div class="callout warn">
+                <div>
+                  <b>The honest summary.</b> This model samples <i>hard</i>. There are
+                  no divergences &mdash; the sampler never fell off the surface
+                  &mdash; but it reaches its maximum trajectory length on essentially
+                  every iteration, and R&#770; on the worst parameters sits above the
+                  1.01 threshold rather than below it. That describes a posterior
+                  which is extremely elongated rather than broken: the cost is
+                  precision and runtime, not correctness. Two fixes are on the machine
+                  as this is written &mdash; a much longer warm-up, and rotating the
+                  covariate columns so they stop trading off against each other. Both,
+                  and every diagnostic behind this paragraph, are on
+                  <i>Grading Model &mdash; Full Detail</i>.
+                </div>
+              </div>
+
+              <div class="methodology-note">
+                <b>Reproducibility.</b> Model in
+                <code>src/kaya/grading_model_v2.py</code>. The network is the largest
+                set of gyms connected by &ge;50 shared climbers. Body measurements
+                outside 4&prime;0&Prime;&ndash;7&prime;0&Prime; and |ape index| &gt; 12
+                in are treated as missing, not believed. The likelihood was
+                implemented twice &mdash; once in PyTensor for PyMC, once in plain
+                NumPy &mdash; and the two agree to
+                <b>1.3&times;10<sup>&minus;9</sup></b>.
+              </div>
+            </section>

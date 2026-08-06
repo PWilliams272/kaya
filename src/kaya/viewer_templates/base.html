@@ -7,7 +7,7 @@
     <meta name="kaya-viewer-data-mode" content="static" />
     <link rel="stylesheet" href="/static/tokens.css" />
     <link rel="stylesheet" href="/static/app.css?v=6" />
-    <link rel="stylesheet" href="/static/research.css?v=34" />
+    <link rel="stylesheet" href="/static/research.css?v=35" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -32,7 +32,8 @@
           <button class="tab-button" type="button" data-tab="body-morphology">Height and Wingspan</button>
           <button class="tab-button" type="button" data-tab="user-segmentation">User Analysis</button>
           <button class="tab-button" type="button" data-tab="data-overview">Data Overview</button>
-          <button class="tab-button" type="button" data-tab="grading-current">Grading Model</button>
+          <button class="tab-button" type="button" data-tab="grading-findings">Findings</button>
+          <button class="tab-button" type="button" data-tab="grading-current">Grading Model &mdash; Full Detail</button>
           <button class="tab-button tab-archived" type="button" data-tab="grading-model">Archive &mdash; v1 Model</button>
           <button class="tab-button tab-archived" type="button" data-tab="grading-v2">Archive &mdash; v2 Notes</button>
         </div>
@@ -41,6 +42,7 @@
         {% include 'tabs/body-morphology.html' %}
         {% include 'tabs/user-segmentation.html' %}
         {% include 'tabs/data-overview.html' %}
+        {% include 'tabs/grading-findings.html' %}
         {% include 'tabs/grading-current.html' %}
         {% include 'tabs/grading-model.html' %}
         {% include 'tabs/grading-v2.html' %}
@@ -78,6 +80,8 @@
     <script src="/static/js/v2/07-explorers.js?v=6"></script>
     <script src="/static/js/v2/08-psis.js?v=6"></script>
     <script src="/static/js/v2/09-arm-pairs.js?v=6"></script>
+    <script src="/static/js/v2/10-design.js?v=6"></script>
     <script src="/static/js/current/01-grading-current.js?v=6"></script>
+    <script src="/static/js/findings/01-grading-findings.js?v=1"></script>
   </body>
 </html>

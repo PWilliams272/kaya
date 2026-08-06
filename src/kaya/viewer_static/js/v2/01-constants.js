@@ -42,6 +42,23 @@ function withV2Ns(ns, paneId, fn) {
   return v2RenderChain;
 }
 
+// KaTeX over one element's innerHTML.
+//
+// Anything injected after DOMContentLoaded has already missed auto-render, so
+// it has to be typeset explicitly. Both delimiter styles, because the pages
+// use \( \) inline and \[ \] for display blocks.
+function v2Typeset(el) {
+  if (!el || typeof window.renderMathInElement !== 'function') return;
+  window.renderMathInElement(el, {
+    delimiters: [
+      { left: '$$', right: '$$', display: true },
+      { left: '\\[', right: '\\]', display: true },
+      { left: '\\(', right: '\\)', display: false },
+    ],
+    throwOnError: false,
+  });
+}
+
 // Coalesce the post-slide resize.
 //
 // Opening or closing the symbols panel changes the pane's usable width by the

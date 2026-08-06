@@ -1,0 +1,103 @@
+<section class="article-section" id="gf-model">
+              <h2>The model, in five equations</h2>
+              <p class="prose">
+                Every symbol below is defined with its units in the
+                <b>Symbols</b> panel on the right &mdash; hover an equation to
+                highlight the ones it uses.
+              </p>
+
+              <h3>1. Ability lives on the grade scale</h3>
+              <p class="prose">
+                Each climber \(u\) gets a latent ability: a baseline \(\beta_0\) (the
+                grade an average climber sends at an average gym), a body-covariate
+                term \(\mathbf{x}_u\) carrying gender, height, arm span and two
+                missingness flags, and a personal offset scaled by
+                \(\sigma_{\text{user}}\), the spread of natural ability between
+                climbers.
+              </p>
+              <div class="eqn" data-syms="beta0 sigma_user eps x u" tabindex="0">$$\text{ability}_u = \beta_0 + \mathbf{x}_u^{\top}\boldsymbol{\beta} + \sigma_{\text{user}}\,\tilde\epsilon_u,
+                \qquad \tilde\epsilon_u \sim \mathcal{N}(0,1)$$</div>
+
+              <h3>2. Gym corrections are forced to sum to zero</h3>
+              <p class="prose">
+                Ability and correction are identified only up to an additive shift
+                &mdash; add a grade to every climber and subtract one from every gym
+                and the data look identical. Pinning the corrections to sum to zero
+                <i>exactly</i> removes that freedom, and makes &ldquo;relative to the
+                average gym&rdquo; true by construction rather than by convention. A
+                climber&rsquo;s ceiling at a gym is then the two added.
+              </p>
+              <div class="eqn" data-syms="gym sigma_gym delta_g g" tabindex="0">$$\text{gym}_g = \sigma_{\text{gym}}\,\tilde\delta_g,
+                \qquad \tilde\delta \sim \text{ZeroSumNormal}(0,1)
+                \qquad C_{u,g} = \text{ability}_u + \text{gym}_g$$</div>
+
+              <h3>3. Nobody sends their limit every session</h3>
+              <p class="prose">
+                This is the part that makes the problem hard. Kaya records
+                <b>sends, not attempts</b>, so the hardest grade someone logged is not
+                their ceiling &mdash; it sits below it by a non-negative <i>gap</i>.
+                Someone who visited twice has had far less chance to find their limit
+                than someone who visited fifty times, so the gap shrinks as
+                \(\tilde n_{u,g}\), their standardised visit count, rises.
+              </p>
+              <div class="eqn" data-syms="lambda lambda0 kappa n rho r" tabindex="0">$$\log \lambda_{u,g} = \log\lambda_0 + \kappa\,\tilde n_{u,g} + \rho\,\tilde r_u$$</div>
+              <div class="eqn" data-syms="gap lambda m C sigma_link" tabindex="0">$$\text{gap}_{u,g}\sim\text{Exponential}(\lambda_{u,g}),
+                \qquad m_{u,g} = C_{u,g} - \text{gap}_{u,g} + \varepsilon,\ \ \varepsilon\sim\mathcal{N}(0,\sigma_{\text{link}})$$</div>
+              <p class="prose">
+                A Normal minus an Exponential is an <b>Exponentially Modified
+                Gaussian</b>, so the gap integrates out in closed form and is never
+                sampled &mdash; removing <b>32,501</b> latent variables and turning the
+                likelihood into an ordinary observed node.
+              </p>
+              <div class="eqn" data-syms="m C sigma_link lambda" tabindex="0">$$-m_{u,g} \;\sim\; \text{ExGaussian}\!\left(-C_{u,g},\ \sigma_{\text{link}},\ 1/\lambda_{u,g}\right)$$</div>
+
+              <h3>See the gap for yourself</h3>
+              <p class="prose">
+                The sliders below move the gap distribution. The point to take away is
+                that the observed max is a <i>biased</i> view of the ceiling, and the
+                bias depends on how often someone climbed.
+              </p>
+              <div id="gf-gap-controls" class="controls-inline"></div>
+              <div id="gf-gap-chart" class="chart-mid"></div>
+              <p class="caption" id="gf-gap-note"></p>
+
+              <h3>4. Height enters as one curve per gender, blended by probability</h3>
+              <p class="prose">
+                \(G\) is the probability the climber is female &mdash; a
+                <b>probability, not a label</b>. A climber whose name is 70% female
+                contributes 0.7 of a row to the female curve and 0.3 to the male one,
+                so uncertainty about the name propagates into the estimate instead of
+                being silently rounded away.
+              </p>
+              <div class="eqn" data-syms="h G gM gF" tabindex="0">$$f_{\text{height}}(\tilde h,\ G) \;=\;
+                \underbrace{(1-G)\left(\gamma_1^{M}\tilde h + \gamma_2^{M}\tilde h^{2}\right)}_{\text{male users}}
+                \;+\;
+                \underbrace{G\left(\gamma_1^{F}\tilde h + \gamma_2^{F}\tilde h^{2}\right)}_{\text{female users}}$$</div>
+              <div class="methodology-note">
+                <b>What is actually fitted.</b> Not two free pairs, but a baseline and
+                a <i>difference</i>: \(\gamma^{M}_{k}=\gamma_k\) and
+                \(\gamma^{F}_{k}=\gamma_k+\gamma_k^{\times}\). Same function, but it
+                puts the prior on the thing under test &mdash; a tight
+                \(\gamma_k^{\times}\) shrinks the two curves toward <i>each other</i>,
+                so a gender difference has to be earned from the data rather than
+                appearing by default.
+              </div>
+
+              <h3>5. The shape of the height curve is itself a hypothesis</h3>
+              <p class="prose">
+                &ldquo;Does height help?&rdquo; is not one question. A straight line
+                says every inch is worth the same; a curve says there is a best
+                height and being taller past it hurts; a saturating form says reach
+                helps until you have enough of it and then stops paying. These are
+                different claims about the world, so each is fitted and scored rather
+                than assumed. Drag the sliders &mdash; the useful thing is what each
+                shape <b>cannot</b> say.
+              </p>
+              <div id="gf-form-cards" class="form-card-grid"></div>
+              <p class="caption">
+                Four of the six candidate shapes. Only <b>quadratic &times;
+                gender</b> is drawn at its fitted values; the others are
+                illustrative, with sliders you set yourself. The full set, and the
+                scores that separate them, are on the detailed page.
+              </p>
+            </section>

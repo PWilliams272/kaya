@@ -1,0 +1,78 @@
+<section id="tab-grading-findings" class="tab-pane">
+          <div class="article-shell embedded">
+            <header class="masthead">
+              <div class="eyebrow">Findings &middot; Bayesian Hierarchical Modeling</div>
+              <h1>A V5 Is Not a V5</h1>
+              <p class="dek">
+                Across <b>29 gyms and four companies</b>, the same climb graded
+                V5 at one gym would be graded more than a full grade differently
+                at another. This is what the send logs say once you separate how
+                hard the climbers are from how hard the gym grades.
+              </p>
+              <div class="meta-row">
+                <span id="gf-updated">Updated 2026-08-05</span>
+                <span class="dot">&middot;</span>
+                <span>20,014 recorded bests &middot; 10,357 climbers</span>
+              </div>
+            </header>
+
+            <div class="callout">
+              <div>
+                <b>This is the short version.</b> It carries the results, the
+                model behind them, and the checks that decide whether to believe
+                them. Every alternative that was tried, every diagnostic, and
+                every approach that failed is on
+                <i>Grading Model &mdash; Full Detail</i>, which quotes the same
+                fit and the same numbers.
+              </div>
+            </div>
+
+            <nav class="toc" aria-label="Contents">
+              <div class="toc-label">Contents</div>
+              <ol>
+                <li><a href="#gf-headline">How far apart the gyms are</a></li>
+                <li><a href="#gf-gyms">Which gyms sit where</a></li>
+                <li><a href="#gf-model">The model, in five equations</a></li>
+                <li><a href="#gf-body">What height and arm span actually buy</a></li>
+                <li><a href="#gf-time">How fast climbers improve</a></li>
+                <li><a href="#gf-evidence">Why believe any of it</a></li>
+              </ol>
+            </nav>
+
+            {% include 'tabs/grading-findings/headline.html' %}
+            {% include 'tabs/grading-findings/gyms.html' %}
+            {% include 'tabs/grading-findings/model.html' %}
+            {% include 'tabs/grading-findings/body.html' %}
+            {% include 'tabs/grading-findings/time.html' %}
+            {% include 'tabs/grading-findings/evidence.html' %}
+
+            <footer class="article-footer">
+              Every estimate here comes from real Kaya send logs on the 29-gym
+              connected network, fitted with PyMC/NUTS (the No-U-Turn Sampler).
+              Nothing on this page is hand-typed &mdash; each figure reads the
+              same precomputed payload the full write-up does. For the working
+              record, including what did not survive, see
+              <b>Grading Model &mdash; Full Detail</b>.
+            </footer>
+          </div>
+
+          <!-- Its own glossary ids: element ids must be unique per document and
+               the two explainer pages both mount the shared symbol table. -->
+          <aside id="gf-glossary" class="glossary" data-open="false"
+                 aria-label="Parameter definitions">
+            <button type="button" class="glossary-handle" id="gf-gloss-toggle"
+                    aria-expanded="false" aria-controls="gf-glossary-body">
+              <span class="glossary-handle-text">Symbols</span>
+            </button>
+            <div class="glossary-body" id="gf-glossary-body">
+              <div class="glossary-head">
+                <h4>Parameter definitions</h4>
+                <p id="gf-gloss-hint">Hover an equation to highlight the symbols it uses; click it to
+                  keep them highlighted, and click again to close this panel.</p>
+              </div>
+              <div class="glossary-scroll">
+                <table class="sym-table" id="gf-symbols"></table>
+              </div>
+            </div>
+          </aside>
+        </section>

@@ -196,10 +196,16 @@ function renderV2FormCard(spec) {
   if (noteEl) noteEl.textContent = spec.note ? spec.note(vals) : '';
 }
 
-function renderV2FormCards() {
+// `keys` narrows which cards are drawn. The full working record wants all six;
+// the presentation page wants the shape of the argument -- nothing, a line, the
+// fitted form, and one that levels off -- without the two that only restate a
+// neighbour. Omitting it keeps every card, so existing callers are unchanged.
+function renderV2FormCards(keys) {
   const host = v2El('form-cards');
   if (!host) return;
-  host.innerHTML = V2_FORM_SPECS.map((spec) => {
+  const specs = keys ? V2_FORM_SPECS.filter((f) => keys.includes(f.key)) : V2_FORM_SPECS;
+  host.dataset.cards = String(specs.length);   // CSS picks the column count
+  host.innerHTML = specs.map((spec) => {
     const badge = spec.fitted
       ? '<span class="form-badge fitted">fitted &middot; v3_conf</span>'
       : '<span class="form-badge">illustrative</span>';
@@ -251,7 +257,7 @@ function renderV2FormCards() {
   });
 
   setV2FormGridWidth();
-  V2_FORM_SPECS.forEach(renderV2FormCard);
+  specs.forEach(renderV2FormCard);
   sizeV2FormGrid();
   renderV2FormCards.resizeBound = renderV2FormCards.resizeBound || new Set();
   if (!renderV2FormCards.resizeBound.has(V2_NS)) {

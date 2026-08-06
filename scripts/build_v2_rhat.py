@@ -69,6 +69,102 @@ def scalar_params(idata):
             if idata.posterior[p].values.ndim == 2]
 
 
+def _cond(X):
+    """Condition number of a design block's correlation matrix.
+
+    1 is perfectly round; large means one direction is far narrower than
+    another, which is the shape a diagonal mass matrix cannot represent.
+    """
+    ev = np.linalg.eigvalsh(np.corrcoef(X.T))
+    return float(ev[-1] / max(ev[0], 1e-12))
+
+
+def design_block():
+    """What orthogonalising the design does, measured on the design itself.
+
+    Nothing here needs a trace: it is a property of the covariate matrix, so
+    it can be reported before the fit that tests it has finished. That is the
+    point -- the page can say what the change does and what it costs without
+    waiting on, or pre-judging, the run that decides whether it helps.
+    """
+    import pickle
+
+    from kaya.grading_model_v2 import PRIOR_SD, make_dataset
+    from kaya.marginal_v2 import prepare_design
+
+    root = Path(__file__).resolve().parents[1]
+    with open(root / 'runs' / 'base_bouldering.pkl', 'rb') as fh:
+        base = pickle.load(fh)
+    nets = json.loads((root / 'runs' / 'networks.json').read_text())['networks']
+    ds = make_dataset(base, nets['net50'], name_filter='confident',
+                      label='net50/confident')
+
+    forms = [('zero', 'no height term'), ('linear', 'linear'),
+             ('quadratic', 'quadratic'), ('linear_x_gender', 'linear × gender'),
+             ('quadratic_x_gender', 'quadratic × gender'),
+             ('saturating', 'saturating'),
+             ('vertex_quadratic', 'vertex quadratic')]
+    rows = []
+    for form, label in forms:
+        d0 = prepare_design(ds, height_form=form)
+        d1 = prepare_design(ds, height_form=form, orthogonal_design=True)
+        X0, names = d0['Xc'], d0['Xnames']
+        c = np.corrcoef(X0.T)
+        iu = np.triu_indices(len(names), 1)
+        k = int(np.argmax(np.abs(c[iu])))
+        i, j = iu[0][k], iu[1][k]
+        rows.append({
+            'form': form, 'label': label, 'n_cols': len(names),
+            'a': names[i], 'b': names[j], 'r': round(float(c[i, j]), 3),
+            'cond_raw': round(_cond(X0), 1),
+            'cond_orth': round(_cond(d1['Xc']), 4),
+            # saturating and vertex_quadratic are nonlinear IN THE PARAMETERS,
+            # so their height terms never enter the design matrix and cannot be
+            # rotated. Flagged rather than quietly listed beside forms the
+            # change actually acts on.
+            'rotatable': form in {'zero', 'linear', 'quadratic',
+                                  'linear_x_gender', 'quadratic_x_gender'},
+        })
+
+    # The prior trade-off, on the page's primary form. Rescaling each
+    # orthogonalised column back to its raw norm is what keeps the prior on the
+    # fitted CURVE intact; the priors on individual coefficients still move,
+    # and that movement is the whole statistical content of the change.
+    d0 = prepare_design(ds, height_form='quadratic_x_gender')
+    d1 = prepare_design(ds, height_form='quadratic_x_gender',
+                        orthogonal_design=True)
+    names = d0['Xnames']
+    T = np.asarray(d1['consts']['X_orth_T'])
+    sd = np.array([PRIOR_SD.get(n, 1.0) for n in names])
+    S = T @ np.diag(sd ** 2) @ T.T
+    curve0 = float(np.sqrt((d0['Xc'] ** 2 * sd ** 2).sum(axis=1)).mean())
+    curve1 = float(np.sqrt((d1['Xc'] ** 2 * sd ** 2).sum(axis=1)).mean())
+
+    # The orthogonal basis functions, written out. T is upper triangular, so
+    # column j is raw column j plus a combination of the ones before it;
+    # dividing by T[j,j] normalises the leading coefficient to 1 and makes the
+    # result readable as "h^2 minus its projection onto h".
+    basis = []
+    for j, nm in enumerate(names):
+        terms = [{'on': names[k], 'c': round(float(T[k, j] / T[j, j]), 3)}
+                 for k in range(j) if abs(T[k, j] / T[j, j]) >= 5e-4]
+        if terms:
+            basis.append({'name': nm, 'terms': terms})
+
+    return {
+        'forms': rows,
+        'primary_form': 'quadratic_x_gender',
+        'basis': basis,
+        'prior': {
+            'curve_raw': round(curve0, 3), 'curve_orth': round(curve1, 3),
+            'coefs': [{'name': n, 'sd': float(sd[i]),
+                       'implied': round(float(np.sqrt(S[i, i])), 3),
+                       'ratio': round(float(np.sqrt(S[i, i]) / sd[i]), 2)}
+                      for i, n in enumerate(names)],
+        },
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--primary', default=PRIMARY)
@@ -169,6 +265,7 @@ def main():
     payload = {
         'primary': args.primary, 'n_chains': int(n_chains), 'n_draws': int(n_draws),
         'ridges': ridges,
+        'design': design_block(),
         'params': params,
         'worst_param': worst, 'lengths': lengths,
         'below_one': below, 'n_scalars': total,

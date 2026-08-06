@@ -1,0 +1,35 @@
+<section class="article-section" id="gf-gyms">
+              <h2>Which gyms sit where</h2>
+              <p class="prose">
+                Bars show the <b>89% credible interval</b> &mdash; the range each
+                gym&rsquo;s correction falls in with 89% posterior probability.
+                Hollow markers are gyms whose interval still contains zero, meaning
+                the data cannot tell them apart from average. Colour is the operating
+                company; click one in the legend to fade it out.
+              </p>
+              <div id="gf-gym-chart" class="chart-tall"></div>
+              <p class="caption">
+                Per-gym grading correction in grades relative to the network average
+                &mdash; positive is stiffer, higher is harder. Hover for exact values.
+              </p>
+
+              <div class="finding borderline">
+                <div class="finding-head">
+                  <span class="finding-title">Grading runs in the family, but house style is nowhere near the whole story</span>
+                  <span class="verdict-pill verdict-borderline">Partly</span>
+                </div>
+                <p>
+                  Movement grades about <b data-v2="movement_gap">0.40 grades stiffer</b>
+                  than Touchstone on average. But the spread <i>within</i> Touchstone
+                  (<span data-v2="touchstone_range">&minus;0.82 to +0.34</span>) is as
+                  wide as the gap between the brands. Knowing the operator tells you
+                  something real, and does not tell you much &mdash; the individual gym
+                  still dominates.
+                </p>
+              </div>
+              <div id="gf-brand-chart" class="chart-mid"></div>
+              <p class="caption">
+                Distribution of gym corrections within each operating company, in
+                grades relative to the network average. Each dot is one gym.
+              </p>
+            </section>

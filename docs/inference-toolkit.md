@@ -278,15 +278,20 @@ c = ⟨a, b⟩ / ⟨b, b⟩
 which, when both columns are mean-centred, is `cov(a,b)/var(b)` — the ordinary
 least-squares slope of `a` on `b`. Nothing more exotic than that.
 
-*Worked: for `p₂ = h² − c·h`,*
+*Worked, on the two-column case: for `p₂ = h² − c·h`,*
 
 ```
 c = ⟨h², h⟩ / ⟨h, h⟩ = −5,770.4 / 8,707.8 = −0.663
 ```
 
-*so `p₂ = h² + 0.663·h`. The raw `h²` column leans in the `h` direction because
-height is left-skewed (skew −0.547); regressing it on `h` and keeping the
-residual removes precisely that lean.*
+*so a height-only block gives `p₂ = h² + 0.663·h`. The raw `h²` column leans in
+the `h` direction because height is left-skewed (skew −0.547); regressing it on
+`h` and keeping the residual removes precisely that lean.*
+
+*In the real design `p₂` comes out as `h² + 0.694·h + 0.116·g`, because the
+gender main effect is a column too and sits ahead of both. Same operation,
+one more column to project out — a reminder that these coefficients are
+sample-and-order specific, not properties of the polynomial.*
 
 #### The worked example
 
@@ -339,21 +344,26 @@ Gram-Schmidt each column against the ones before it — equivalently
 QR-decompose the design block and keep `Q`, or use R's `poly(h, 2)`, or a
 Legendre basis evaluated at the data.
 
-The resulting basis functions are the raw monomials with the earlier ones
-subtracted off. The coefficients are properties of *this* sample, not
-universal constants:
+The resulting basis functions are the raw columns with the earlier ones
+subtracted off. The coefficients are properties of *this* sample and *this
+column order* — not universal constants:
 
 ```
-p₂  = h²   + 0.663·h                              orthogonal quadratic
-q₁  = g·h  − 0.436·h  + 0.079·h²                  orthogonal linear interaction
-q₂  = g·h² + 0.768·h  − 0.257·h² + 1.513·q₁       orthogonal quadratic interaction
+p₂  = h²   + 0.694·h  + 0.116·g                              orthogonal quadratic
+q₁  = g·h  − 0.226·h  + 0.094·h² + 0.542·g                   orthogonal linear interaction
+q₂  = g·h² + 0.031·h  − 0.148·h² + 0.243·g + 1.617·q₁        orthogonal quadratic interaction
 ```
 
-*`q₂` needs four terms because `g·h²` overlaps with `h`, with `h²`, and with
-`q₁`, so all three come off.*
+*`q₂` needs every earlier column because `g·h²` overlaps with all of them.*
 
-*Result: every pairwise correlation in the block drops to ~10⁻¹⁵, and the
-block's condition number goes from **36.0 to 1.00** — a perfectly round
+*`g` appears in each line because the real design has the gender main effect
+as its first column, so everything after is orthogonalised against it too.
+Orthogonalise a height-only block and you get different numbers for the same
+model — **the basis depends on what is in the block and in what order**, which
+is why it has to be stored rather than recomputed from a formula.*
+
+*Result: every pairwise correlation in the block drops to ~10⁻¹⁴, and the
+block's condition number goes from **52.4 to 1.0000** — a perfectly round
 posterior in those coordinates.*
 
 #### Implementing it without touching the rest of the model

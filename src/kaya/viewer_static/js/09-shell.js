@@ -9,7 +9,7 @@ function renderAll() {
 }
 
 const TAB_NAMES = ['gym-comparison', 'body-morphology', 'user-segmentation', 'data-overview',
-  'grading-current', 'grading-model', 'grading-v2'];
+  'grading-findings', 'grading-current', 'grading-model', 'grading-v2'];
 
 function getSavedTab() {
   const saved = localStorage.getItem('kaya-viewer-tab');
@@ -43,6 +43,10 @@ async function activateTab(tabName) {
     // Ability Explorer (client-side calculator, no API data needed).
     bindExplorerControls();
     refreshExplorer();
+  } else if (tabName === 'grading-findings') {
+    // The presentation cut. Same payloads as the two pages below it, so
+    // switching between any of them refetches nothing.
+    renderFindingsTab();
   } else if (tabName === 'grading-current') {
     // The current write-up. Shares every payload with the archived v2 notes,
     // so switching between them refetches nothing.
