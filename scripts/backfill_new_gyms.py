@@ -143,34 +143,57 @@ class Manifest:
 
 # ---- S3 inspection -------------------------------------------------------
 
-def gym_run_ids(gym_id: str) -> Dict[str, int]:
-    """Every run_id present in raw S3 for this gym, and its object count.
+# gym_id is not the FIRST partition of the raw key
+# (`raw/sends/run_date=<d>/gym_id=<id>/run_id=<r>/...`), so S3 cannot serve a
+# per-gym prefix query -- answering "which runs exist for gym X" means walking
+# the whole `raw/sends/` listing. Doing that once per gym was ~4.4s x 109 gyms
+# of pure preflight, paid again on every resume. Walk it once, index it by
+# gym, and refresh only where a pull has just added something.
+_RUN_INDEX: Optional[Dict[str, Dict[str, int]]] = None
 
-    Scans `raw/sends/` rather than one run_date prefix: a run started before
-    midnight UTC and finishing after it writes under the date it STARTED, so
-    keying on today's date would miss it.
-    """
+
+def scan_run_index(refresh: bool = False) -> Dict[str, Dict[str, int]]:
+    """{gym_id: {run_id: object_count}} for the whole raw sends area."""
+    global _RUN_INDEX
+    if _RUN_INDEX is not None and not refresh:
+        return _RUN_INDEX
+    index: Dict[str, Dict[str, int]] = {}
     if not has_s3_storage_config():
-        return {}
+        _RUN_INDEX = index
+        return index
     client = get_s3_client()
     bucket, prefix = get_s3_bucket(), get_s3_prefix()
-    marker = f'/gym_id={gym_id}/run_id='
-    counts: Dict[str, int] = {}
-    token = None
+    token, pages = None, 0
     while True:
         req: Dict[str, Any] = {'Bucket': bucket, 'Prefix': f'{prefix}/raw/sends/'}
         if token:
             req['ContinuationToken'] = token
         resp = client.list_objects_v2(**req)
+        pages += 1
         for item in resp.get('Contents', []):
             key = item['Key']
-            if marker not in key:
+            if '/gym_id=' not in key or '/run_id=' not in key:
                 continue
-            run_id = key.split(marker, 1)[1].split('/', 1)[0]
-            counts[run_id] = counts.get(run_id, 0) + 1
+            gym_id = key.split('/gym_id=', 1)[1].split('/', 1)[0]
+            run_id = key.split('/run_id=', 1)[1].split('/', 1)[0]
+            runs = index.setdefault(gym_id, {})
+            runs[run_id] = runs.get(run_id, 0) + 1
         if not resp.get('IsTruncated'):
-            return counts
+            break
         token = resp.get('NextContinuationToken')
+    logger.info('indexed %s gyms from %s S3 listing page(s)', len(index), pages)
+    _RUN_INDEX = index
+    return index
+
+
+def gym_run_ids(gym_id: str, refresh: bool = False) -> Dict[str, int]:
+    """Every run_id present in raw S3 for this gym, and its object count.
+
+    Reads the whole `raw/sends/` area rather than one run_date prefix: a run
+    started before midnight UTC and finishing after it writes under the date
+    it STARTED, so keying on today's date would miss it.
+    """
+    return dict(scan_run_index(refresh=refresh).get(str(gym_id), {}))
 
 
 # States in which this job has a run of its own that may have died part-way.
@@ -378,7 +401,7 @@ def main() -> int:
                             storage_backend='s3', batch_size=args.batch_size,
                             log_level=logging.INFO)
 
-            after = gym_run_ids(gym_id)
+            after = gym_run_ids(gym_id, refresh=True)
             new = sorted(set(after) - before)
             rec.update({
                 'state': 'done',

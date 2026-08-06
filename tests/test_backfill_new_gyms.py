@@ -80,7 +80,7 @@ def test_partial_writes_are_detected_as_orphans(monkeypatch, manifest):
         'preexisting_run_ids': ['old-run'],
     })
     monkeypatch.setattr(backfill, 'gym_run_ids',
-                        lambda gid: {'old-run': 4, 'killed-run': 7})
+                        lambda gid, refresh=False: {'old-run': 4, 'killed-run': 7})
     assert backfill.orphan_run_ids('37', manifest) == {'killed-run': 7}
 
 
@@ -88,7 +88,7 @@ def test_a_completed_run_is_never_an_orphan(monkeypatch, manifest):
     manifest.gym('37').update({'state': 'done', 'run_id': 'good-run',
                                'preexisting_run_ids': []})
     monkeypatch.setattr(backfill, 'gym_run_ids',
-                        lambda gid: {'good-run': 9})
+                        lambda gid, refresh=False: {'good-run': 9})
     assert backfill.orphan_run_ids('37', manifest) == {}
 
 
@@ -96,7 +96,7 @@ def test_preexisting_runs_are_never_orphans(monkeypatch, manifest):
     """History written before this job started is not ours to delete."""
     manifest.gym('37').update({'state': 'in_progress',
                                'preexisting_run_ids': ['a', 'b']})
-    monkeypatch.setattr(backfill, 'gym_run_ids', lambda gid: {'a': 1, 'b': 2})
+    monkeypatch.setattr(backfill, 'gym_run_ids', lambda gid, refresh=False: {'a': 1, 'b': 2})
     assert backfill.orphan_run_ids('37', manifest) == {}
 
 
@@ -110,7 +110,7 @@ def test_a_gym_this_job_never_started_has_no_orphans(monkeypatch, manifest):
     """
     assert manifest.gym('51').get('state') == 'pending'
     monkeypatch.setattr(backfill, 'gym_run_ids',
-                        lambda gid: {f'2026080{i}T030000Z-abc': 1 for i in range(1, 6)})
+                        lambda gid, refresh=False: {f'2026080{i}T030000Z-abc': 1 for i in range(1, 6)})
     assert backfill.orphan_run_ids('51', manifest) == {}
 
 
@@ -119,7 +119,7 @@ def test_orphans_block_the_retry_rather_than_duplicating(monkeypatch, tmp_path, 
     pulled = []
     stub_s3(monkeypatch)
     seed_interrupted(tmp_path / 'm.json')
-    monkeypatch.setattr(backfill, 'gym_run_ids', lambda gid: {'killed-run': 5})
+    monkeypatch.setattr(backfill, 'gym_run_ids', lambda gid, refresh=False: {'killed-run': 5})
     monkeypatch.setattr(backfill, 'update_gym_data',
                         lambda *a, **k: pulled.append(a[0]))
     monkeypatch.setattr(backfill, 'resolve_gyms',
@@ -139,7 +139,7 @@ def test_clean_orphans_deletes_then_pulls(monkeypatch, tmp_path):
     runs = {'killed-run': 5}
     stub_s3(monkeypatch)
     seed_interrupted(tmp_path / 'm.json')
-    monkeypatch.setattr(backfill, 'gym_run_ids', lambda gid: dict(runs))
+    monkeypatch.setattr(backfill, 'gym_run_ids', lambda gid, refresh=False: dict(runs))
     monkeypatch.setattr(backfill, 'delete_run',
                         lambda gid, rid: (deleted.append(rid), runs.pop(rid), 5)[2])
 
@@ -195,7 +195,7 @@ def test_gyms_with_existing_s3_history_are_skipped(monkeypatch, tmp_path):
     pulled = []
     stub_s3(monkeypatch)
     monkeypatch.setattr(backfill, 'gym_run_ids',
-                        lambda gid: {'daily-run': 3} if gid == '51' else {})
+                        lambda gid, refresh=False: {'daily-run': 3} if gid == '51' else {})
     monkeypatch.setattr(backfill, 'update_gym_data',
                         lambda gym_id, **kw: pulled.append(gym_id))
     monkeypatch.setattr(backfill, 'resolve_gyms', lambda arg: [
@@ -210,7 +210,7 @@ def test_gyms_with_existing_s3_history_are_skipped(monkeypatch, tmp_path):
 def test_force_allows_repulling_an_existing_gym(monkeypatch, tmp_path):
     pulled = []
     stub_s3(monkeypatch)
-    monkeypatch.setattr(backfill, 'gym_run_ids', lambda gid: {'daily-run': 3})
+    monkeypatch.setattr(backfill, 'gym_run_ids', lambda gid, refresh=False: {'daily-run': 3})
     monkeypatch.setattr(backfill, 'update_gym_data',
                         lambda gym_id, **kw: pulled.append(gym_id))
     monkeypatch.setattr(backfill, 'resolve_gyms', lambda arg: [
@@ -232,7 +232,7 @@ def test_an_interrupted_gym_can_still_be_resumed(monkeypatch, tmp_path):
     runs = {'killed-run': 5}
     stub_s3(monkeypatch)
     seed_interrupted(tmp_path / 'm.json')
-    monkeypatch.setattr(backfill, 'gym_run_ids', lambda gid: dict(runs))
+    monkeypatch.setattr(backfill, 'gym_run_ids', lambda gid, refresh=False: dict(runs))
     monkeypatch.setattr(backfill, 'delete_run',
                         lambda gid, rid: (deleted.append(rid), runs.pop(rid), 5)[2])
 
