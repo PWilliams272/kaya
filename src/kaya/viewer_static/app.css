@@ -305,13 +305,15 @@ body {
   color: var(--lg-text-2);
 }
 
-.inline-select-control select {
+.inline-select-control select,
+.inline-select-control input[type='search'] {
   background: var(--lg-surface);
   color: var(--lg-text);
   border: 1px solid var(--lg-border);
   border-radius: var(--lg-radius-md);
   padding: 10px 12px;
 }
+.inline-select-control input[type='search'] { min-width: 260px; }
 
 
 .combo-select {
@@ -541,3 +543,27 @@ body {
     justify-content: space-between;
   }
 }
+
+/* ---- Every Tracked Gym directory (Data Overview) ---- */
+/* Sort buttons sit inside the header cells rather than replacing them, so the
+   table keeps working — sorted by sends — with JavaScript disabled or before
+   the handlers bind. */
+.table-sort {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.table-sort:hover { color: var(--lg-text); }
+.table-sort.active { color: var(--lg-info); }
+.table-sort:focus-visible { outline: 2px solid var(--lg-info); outline-offset: 2px; }
+/* Inline de-emphasis for the secondary half of a cell (share of total, the
+   operating company, "not modelled"). Distinct from research.css's
+   `td.unit.muted`, which dims a whole cell. */
+#gym-directory-table .muted { color: var(--lg-text-3); font-weight: 400; }
+#gym-directory-table tbody tr:hover td { background: var(--lg-surface-2, rgba(127,127,127,0.06)); }

@@ -66,4 +66,32 @@
               <div id="gym-counts-chart" class="chart-host chart-host-tall"></div>
             </div>
           </div>
+
+          <div class="card chart-card chart-card-wide">
+            <div class="section-title-row">
+              <div>
+                <div class="section-heading">Every Tracked Gym</div>
+                <p class="section-description" id="gym-directory-note">&nbsp;</p>
+              </div>
+            </div>
+            <div class="control-grid control-grid-compact">
+              <label class="inline-select-control">
+                <span>Filter</span>
+                <input type="search" id="gym-directory-search"
+                       placeholder="Gym name, company, or id&hellip;" autocomplete="off" />
+              </label>
+              <label class="inline-select-control">
+                <span>Show</span>
+                <select id="gym-directory-scope">
+                  <option value="all">All gyms</option>
+                  <option value="model">In the grading model only</option>
+                  <option value="other">Pulled but not modelled</option>
+                </select>
+              </label>
+            </div>
+            <div class="data-table-wrap">
+              <table class="data-table" id="gym-directory-table"></table>
+            </div>
+            <p class="section-description" id="gym-directory-foot">&nbsp;</p>
+          </div>
         </section>

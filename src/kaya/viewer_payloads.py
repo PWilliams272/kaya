@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
+from sqlalchemy import text
 
 from kaya.data_access import (
     BOULDER_GRADE_TO_NUM,
@@ -15,6 +16,7 @@ from kaya.data_access import (
     route_grade_ticks,
     route_grade_to_num,
 )
+from kaya.db_manager import get_engine
 from kaya.s3_storage import get_s3_bucket, get_s3_client, get_s3_prefix, has_s3_storage_config
 
 VIEWER_CACHE_S3_SUBPREFIX = 'viewer-cache'
@@ -109,8 +111,36 @@ class ViewerPayloadBuilder:
         return summary
 
     def build_gyms(self) -> List[Dict[str, Any]]:
+        """Every gym the pull covers, with enough context to audit coverage.
+
+        `list_gyms` supplies the send count. The extra columns here -- distinct
+        climbers, and the first and last send on file -- are what turn a list
+        of names into something you can act on: a gym with a recent first-send
+        date is still backfilling, and a gym whose last send is months old has
+        stopped reporting. Both are invisible from the count alone.
+
+        Added as extra keys rather than a new payload, so an older
+        `gyms.json` (a viewer-cache Lambda run predating this) still satisfies
+        every existing consumer. The directory table renders the missing
+        columns as em-dashes rather than failing.
+        """
         gyms_df = self.accessor.list_gyms(source='local_db')
-        return gyms_df.to_dict(orient='records')
+        if gyms_df.empty:
+            return []
+        query = text(
+            'SELECT CAST(gym_id AS TEXT) AS gym_id, '
+            'COUNT(DISTINCT user_id) AS unique_users, '
+            'MIN(date) AS first_send, MAX(date) AS last_send '
+            'FROM sends GROUP BY gym_id'
+        )
+        extra = pd.read_sql_query(query, get_engine(use_aws=False))
+        merged = gyms_df.merge(extra, on='gym_id', how='left')
+        # Timestamps come back as full datetimes; the table shows days.
+        for col in ('first_send', 'last_send'):
+            merged[col] = (
+                pd.to_datetime(merged[col], errors='coerce').dt.strftime('%Y-%m-%d')
+            )
+        return merged.to_dict(orient='records')
 
     def build_time_series(
         self,

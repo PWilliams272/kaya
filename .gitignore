@@ -15,6 +15,9 @@ runs/*.nc
 runs/*.pkl
 runs/logs/
 runs/traces/
+# emcee chain archives: ~118MB each, same category as runs/traces/.
+# The small pointwise_*.npz files under runs/results/ ARE tracked.
+runs/results/emcee_*.npz
 # runs/networks.json is deliberately NOT ignored — see DATA_STORAGE_NOTES.md,
 # "Fit inputs under runs/". It is a hand-maintained source input that nothing
 # in this repo can regenerate.

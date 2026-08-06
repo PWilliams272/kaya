@@ -361,3 +361,16 @@ def test_v2_renderers_are_not_hardcoded_to_the_archive_pane() -> None:
         if hits:
             offenders[path.name] = hits
     assert not offenders, f'hardcoded archive ids: {offenders}'
+
+
+# --- the gym directory on Data Overview -------------------------------------
+
+def test_data_overview_carries_the_gym_directory(page: str) -> None:
+    """The full gym list, its controls, and the renderer that fills it."""
+    for element_id in ['gym-directory-table', 'gym-directory-search',
+                       'gym-directory-scope', 'gym-directory-note',
+                       'gym-directory-foot']:
+        assert f'id="{element_id}"' in page, f'missing {element_id}'
+    shell = (Path(viewer_app.STATIC_DIR) / 'js' / '09-shell.js').read_text()
+    assert 'renderGymDirectory()' in shell, 'directory is never rendered'
+    assert 'bindGymDirectory()' in shell, 'directory controls are never bound'

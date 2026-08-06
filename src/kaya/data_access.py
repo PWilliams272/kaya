@@ -315,12 +315,44 @@ class KayaDataAccessor:
             'last_date': record['last_date'],
         }
 
+    @staticmethod
+    def _collapse_gym_rows(grouped: pd.DataFrame) -> pd.DataFrame:
+        """One row per gym_id, whatever the name history.
+
+        TRIM()ing the name handles whitespace drift. It does not handle a
+        gym being RENAMED mid-stream, which has also happened: gym 381 logged
+        sends as both "Bouldering Project - Fremont" and "Bouldering Project -
+        Fremont/Upper Walls", so it arrived here as two rows sharing one
+        gym_id -- listed twice, its sends split across the two, and counted
+        twice by anything that measures the list's length. The `unique_gyms`
+        summary counts DISTINCT gym_id and so disagreed with this list by one.
+
+        gym_id is the identity, so collapse on it and keep the name the gym
+        used for most of its sends.
+        """
+        if grouped.empty:
+            return grouped
+        totals = (
+            grouped.groupby('gym_id', dropna=False)['send_count']
+            .sum().rename('send_count').reset_index()
+        )
+        names = (
+            grouped.sort_values('send_count', ascending=False)
+            .drop_duplicates('gym_id')[['gym_id', 'gym_name']]
+        )
+        return (
+            totals.merge(names, on='gym_id', how='left')
+            [['gym_id', 'gym_name', 'send_count']]
+            .sort_values('send_count', ascending=False)
+            .reset_index(drop=True)
+        )
+
     def list_gyms(
         self,
         source: SendSource = 'local_db',
         limit: Optional[int] = None,
     ) -> pd.DataFrame:
-        """List gyms with send counts."""
+        """List gyms with send counts, one row per gym_id."""
         resolved_source = self._resolve_source(source)
         if resolved_source not in {'local_db', 'aws_db'}:
             sends_df = self.read_sends(source=resolved_source)
@@ -341,6 +373,7 @@ class KayaDataAccessor:
                 .rename(columns={gym_column: 'gym_name'})
                 .sort_values('send_count', ascending=False)
             )
+            grouped = self._collapse_gym_rows(grouped)
             return grouped.head(limit) if limit else grouped
 
         use_aws = resolved_source == 'aws_db'
@@ -359,12 +392,11 @@ class KayaDataAccessor:
             f'GROUP BY gym_id, TRIM({gym_name_sql}) '
             'ORDER BY send_count DESC'
         )
-        if limit is not None:
-            query += ' LIMIT :limit'
-            params = {'limit': limit}
-        else:
-            params = None
-        return pd.read_sql_query(text(query), get_engine(use_aws=use_aws), params=params)
+        # LIMIT is applied AFTER collapsing, not in SQL: a renamed gym occupies
+        # two pre-collapse rows, so `LIMIT 20` would have returned 19 gyms.
+        rows = pd.read_sql_query(text(query), get_engine(use_aws=use_aws))
+        rows = self._collapse_gym_rows(rows)
+        return rows.head(limit) if limit is not None else rows
 
     def sends_time_series(
         self,

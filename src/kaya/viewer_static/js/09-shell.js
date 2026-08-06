@@ -32,6 +32,12 @@ async function activateTab(tabName) {
     renderTimeSeries();
     renderGymCounts();
     renderGradeDistribution();
+    // The directory's model columns come from the explainer payload. Awaited
+    // rather than fired and forgotten so the table is not drawn twice, and
+    // tolerated when absent -- the gym list stands on its own without it.
+    if (typeof loadV2Results === 'function') await loadV2Results();
+    bindGymDirectory();
+    renderGymDirectory();
   } else if (tabName === 'body-morphology') {
     await ensureBodyMorphologyData();
     renderBodyMetrics();
