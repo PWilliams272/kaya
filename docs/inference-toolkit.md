@@ -232,10 +232,66 @@ Note the sign: inverting a 2×2 correlation matrix with off-diagonal `ρ` gives
 off-diagonal `-ρ/(1-ρ²)`. **Strongly negatively correlated columns produce
 strongly positively correlated coefficients.**
 
-*Worked example — a height model with four gamma coefficients on the columns
-`h`, `h²`, `gender·h`, `gender·h²`:*
+#### What an interaction term is
 
-*Design-column correlations:*
+Without an interaction, a covariate gets one coefficient and therefore one
+effect for everybody. `h` alone says "every extra inch of height is worth γ₁,
+the same for every climber."
+
+An **interaction** lets that effect depend on something else. Adding a column
+`g·h` alongside `h` makes the model:
+
+```
+effect of height  =  γ₁ + γ₁ˣ·g
+```
+
+so at `g = 0` the slope is `γ₁`, and at `g = 1` it is `γ₁ + γ₁ˣ`. **The
+interaction coefficient is the *difference* between the two slopes, not the
+second slope itself** — a point that catches people reading the output table.
+`γ₁ˣ = 0` means "height works the same way regardless of `g`".
+
+The column is literally the elementwise product of the two variables, which is
+where the conditioning problems come from.
+
+*In the worked example `g` is `w_female`: the **probability** that a climber is
+female, inferred from their first name and sharpened by their height. It is
+continuous on [0, 1], not a binary flag — 68.6% of climbers sit below 0.05 and
+28.3% above 0.95, with only 324 of 10,357 (3.1%) genuinely uncertain in
+between. Using a probability rather than a hard label means a climber whose
+name is ambiguous contributes partially to both groups instead of being guessed
+into one.*
+
+#### Where the coefficients come from
+
+Orthogonalising is Gram-Schmidt, and Gram-Schmidt has a one-line description
+that makes it obvious:
+
+> **Replace each column by its residual after regressing it on the columns
+> before it.**
+
+The coefficient subtracted is exactly the projection
+
+```
+c = ⟨a, b⟩ / ⟨b, b⟩
+```
+
+which, when both columns are mean-centred, is `cov(a,b)/var(b)` — the ordinary
+least-squares slope of `a` on `b`. Nothing more exotic than that.
+
+*Worked: for `p₂ = h² − c·h`,*
+
+```
+c = ⟨h², h⟩ / ⟨h, h⟩ = −5,770.4 / 8,707.8 = −0.663
+```
+
+*so `p₂ = h² + 0.663·h`. The raw `h²` column leans in the `h` direction because
+height is left-skewed (skew −0.547); regressing it on `h` and keeping the
+residual removes precisely that lean.*
+
+#### The worked example
+
+*A height model with four gamma coefficients on the columns `h`, `h²`, `g·h`,
+`g·h²`. Design-column correlations:*
 
 | | h | h² | g·h | g·h² |
 |---|---|---|---|---|
@@ -253,8 +309,8 @@ strongly positively correlated coefficients.**
 | **γ₁ˣ** | | | 1.000 | **+0.799** |
 | **γ₂ˣ** | | | | 1.000 |
 
-*The −0.899 between the two interaction columns comes back as +0.799 between
-their coefficients — the sign flip the inverse predicts.*
+*The −0.899 between the interaction columns comes back as +0.799 between their
+coefficients — the sign flip the inverse predicts.*
 
 **Two distinct causes, worth separating:**
 
@@ -263,21 +319,29 @@ their coefficients — the sign flip the inverse predicts.*
 *In the example, standardised height has skew −0.547 and `corr(h, h²) = −0.363`
 even though both columns are mean-centred.*
 
-*Subgroup restriction.* The interaction columns `gender·h` and `gender·h²` are
-zero for every male climber, so they are the polynomial evaluated on the female
-subsample alone — a narrower, off-centre height range. **Over a narrow interval
-that does not straddle zero, `h` and `h²` are nearly linearly dependent.** That
-is why the interaction pair reaches −0.899 while the main-effect pair is only
-−0.363. Interaction terms are usually the worst-conditioned part of a
-polynomial model for exactly this reason.
+*Subgroup restriction.* This is the bigger effect. The interaction columns
+`g·h` and `g·h²` are near zero for every male climber, so they are effectively
+the polynomial evaluated on the female subsample alone — `Σg² = 2,987` of
+10,357 climbers. That subsample has a **narrower and off-centre** height range:
+−2.30 to +0.51 standard deviations, against −2.04 to +1.79 for everyone.
 
-**The fix.** Replace the raw basis with an orthogonal one spanning the same
-space. Gram-Schmidt each column against the ones before it — equivalently,
+**Over a narrow interval that does not straddle zero, `h` and `h²` are nearly
+linearly dependent.** On [−2, +2], `h²` is a clear parabola carrying
+information `h` cannot. On [−2.3, +0.5] it is close to a straight line in `h`.
+That is why the interaction pair reaches −0.899 while the main-effect pair is
+only −0.363, and it is the general reason **interaction terms are usually the
+worst-conditioned part of a polynomial model**.
+
+#### The fix
+
+Replace the raw basis with an orthogonal one spanning the same space:
+Gram-Schmidt each column against the ones before it — equivalently
 QR-decompose the design block and keep `Q`, or use R's `poly(h, 2)`, or a
 Legendre basis evaluated at the data.
 
-The resulting basis functions are just the raw monomials with the earlier ones
-subtracted off, and the coefficients are properties of *this* sample:
+The resulting basis functions are the raw monomials with the earlier ones
+subtracted off. The coefficients are properties of *this* sample, not
+universal constants:
 
 ```
 p₂  = h²   + 0.663·h                              orthogonal quadratic
@@ -285,35 +349,30 @@ q₁  = g·h  − 0.436·h  + 0.079·h²                  orthogonal linear inte
 q₂  = g·h² + 0.768·h  − 0.257·h² + 1.513·q₁       orthogonal quadratic interaction
 ```
 
-*Reading `p₂`: the raw `h²` leans in the `h` direction because height is
-left-skewed, so subtracting 0.663·h removes exactly that lean and leaves the
-part of the curvature that `h` cannot express. The interaction terms need the
-main effects subtracted as well as each other, which is why `q₂` has four
-terms.*
+*`q₂` needs four terms because `g·h²` overlaps with `h`, with `h²`, and with
+`q₁`, so all three come off.*
 
 *Result: every pairwise correlation in the block drops to ~10⁻¹⁵, and the
 block's condition number goes from **36.0 to 1.00** — a perfectly round
 posterior in those coordinates.*
 
-**One trap.** Orthogonalising `h²` against `h` on the full sample does **not**
-orthogonalise `g·h²` against `g·h`. The interaction block lives under a
-weighting by `g`, so it has to be orthogonalised in its own right — in the
-example, reusing the main-effect basis only takes the interaction pair from
-−0.899 to −0.289. Gram-Schmidt the whole design block in one pass and the
-problem does not arise.
-
-**What it costs: nothing statistically.** The two bases span the same function
+**What it costs statistically: nothing.** The two bases span the same function
 space, so the fitted curve, the predictions and the model comparison are
-identical. Only the coordinates change — and with them the conditioning the
+identical. Only the coordinates change, and with them the conditioning the
 sampler sees.
 
-**What it costs: interpretability.** `γ₁` stops meaning "grades per SD of
+**What it costs in interpretation:** `γ₁` stops meaning "grades per SD of
 height" and becomes the coefficient on an abstract basis function. Transform
 back for reporting. If the write-up already reports fitted *curves* rather than
 raw coefficients, this cost is close to zero.
 
-Orthogonalise the interaction columns too, or the worst-conditioned block is
-left untouched.
+**One trap.** Orthogonalising `h²` against `h` on the full sample does **not**
+orthogonalise `g·h²` against `g·h`. The interaction block lives under a
+weighting by `g`, so orthogonality under the unweighted inner product says
+nothing about orthogonality under the weighted one — in the example, reusing
+the main-effect basis only takes the interaction pair from −0.899 to −0.289,
+which looks like progress and is not enough. Gram-Schmidt the whole design
+block in one pass and the problem does not arise.
 
 ### Dense mass matrix / PCA rotation
 
