@@ -83,7 +83,7 @@ function bindV2Inference() {
     v2FitNames().forEach((f) => byArm[v2Fit(f).arm || 'unmarginalized']?.push(f));
     const groupLabel = {
       unmarginalized: 'Original model — one ability offset per climber',
-      marginalized: 'Offsets integrated out',
+      marginalized: 'Climber offsets integrated out',
     };
     Object.entries(byArm).forEach(([arm, names]) => {
       if (!names.length) return;
@@ -162,6 +162,8 @@ function bindV2Inference() {
   });
   scopeSel?.addEventListener('change', applyScope);
   extrasBox?.addEventListener('change', applyScope);
+
+  v2El('rhat-n')?.addEventListener('change', v2Bound(renderV2RhatScale));
   ['fitted-gender', 'fitted-band'].forEach((id) => {
     v2El(id)?.addEventListener('change', v2Bound(renderV2FittedForms));
   });
@@ -198,6 +200,9 @@ async function renderV2Inference() {
   renderV2Sampler();
   renderV2FittedForms();
   renderV2Corner();
+  await renderV2RhatScale();
+  await renderV2RhatParams();
+  await renderV2RhatArms();
   const sel = v2El('param-pick');
   renderV2ParamDetail(sel?.value || Object.keys(v2Fit(v2SelectedFit()).params)[0]);
 }
@@ -395,3 +400,159 @@ function v2BandShapes(showLabels) {
   return { shapes, annotations };
 }
 
+
+
+// ---- what R-hat actually costs you ----
+//
+// v2_rhat.json is written by scripts/build_v2_rhat.py straight from the
+// traces. Nothing here is hand-typed: the point of the section is that the
+// chains can settle these questions themselves.
+
+let V2_RHAT = null;
+
+async function loadV2Rhat() {
+  if (V2_RHAT) return true;
+  try {
+    const r = await fetch('/static/v2_rhat.json', { cache: 'no-cache' });
+    if (!r.ok) return false;
+    V2_RHAT = await r.json();
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+// B/W = n(R^2 - 1) + 1, the identity the section is built on. Reading it in
+// this direction is the whole trick: pick an R-hat, get the autocorrelation.
+const v2BwFromRhat = (r, n) => n * (r * r - 1) + 1;
+
+async function renderV2RhatScale() {
+  const el = v2El('rhat-scale');
+  if (!el || !(await loadV2Rhat())) return;
+  const sel = v2El('rhat-n');
+  const n = Number(sel?.value) || V2_RHAT.n_draws;
+  const rows = [1.0, 1.005, 1.01, 1.02, 1.05, 1.1];
+  el.innerHTML = '<thead><tr><th>R&#770;</th>'
+    + '<th>B/W<br /><span class="muted">autocorrelation factor</span></th>'
+    + '<th>effective draws per chain<br /><span class="muted">out of '
+    + `${n.toLocaleString()}, higher is better</span></th>`
+    + '<th>what that means</th></tr></thead><tbody>'
+    + rows.map((r) => {
+      const bw = Math.max(1, v2BwFromRhat(r, n));
+      const eff = n / bw;
+      // The gate is where the page draws its own line, so it is the row that
+      // gets emphasised rather than an arbitrary "bad" threshold.
+      const here = Math.abs(r - V2_RHAT.gate) < 1e-9;
+      const verdict = bw < 2 ? 'draws are essentially independent'
+        : bw < 12 ? 'usable, but a fraction of the draws are real'
+          : bw < 30 ? 'most of the run is redundant'
+            : 'the chains have barely explored';
+      return `<tr${here ? ' class="row-best"' : ''}>`
+        + `<td class="unit"><b>${r.toFixed(3)}</b>${here ? ' <span class="pill-best">the line used here</span>' : ''}</td>`
+        + `<td class="unit">${bw < 10 ? bw.toFixed(1) : Math.round(bw).toLocaleString()}&times;</td>`
+        + `<td class="unit">${eff > 999 ? Math.round(eff).toLocaleString() : Math.round(eff)}</td>`
+        + `<td class="muted">${verdict}</td></tr>`;
+    }).join('') + '</tbody>';
+
+  const note = v2El('rhat-scale-note');
+  if (note) {
+    const bwGate = v2BwFromRhat(V2_RHAT.gate, n);
+    note.innerHTML = `Read off the identity above, at <b>${n.toLocaleString()} draws `
+      + `per chain</b>. At this length R&#770; = ${V2_RHAT.gate} means the sampler is `
+      + `<b>${Math.round(bwGate)}&times;</b> autocorrelated &mdash; about `
+      + `<b>${Math.round(n / bwGate)}</b> genuinely independent draws per chain out of `
+      + `${n.toLocaleString()}. Change the length and watch the same R&#770; buy a `
+      + 'completely different amount of information.';
+  }
+}
+
+async function renderV2RhatParams() {
+  const el = v2El('rhat-params');
+  if (!el || !(await loadV2Rhat())) return;
+  const R = V2_RHAT;
+  el.innerHTML = '<thead><tr><th>parameter</th>'
+    + '<th>classic R&#770;<br /><span class="muted">the equation above</span></th>'
+    + '<th>B/W<br /><span class="muted">implied autocorrelation</span></th>'
+    + '<th>split R&#770;<br /><span class="muted">what this page reports</span></th>'
+    + '<th>effective sample size<br /><span class="muted">of '
+    + `${(R.n_chains * R.n_draws).toLocaleString()} draws</span></th></tr></thead><tbody>`
+    + R.params.map((p) => {
+      // The interesting rows are the ones where the two statistics disagree:
+      // that gap is the whole argument for the stricter one.
+      const gap = p.split - p.classic > 0.01;
+      return `<tr><td class="label-cell">${p.name}</td>`
+        + `<td class="unit${p.classic < 1 ? ' ok' : ''}">${p.classic.toFixed(4)}</td>`
+        + `<td class="unit muted">${p.bw.toFixed(1)}&times;</td>`
+        + `<td class="unit${gap ? ' bad' : ''}">${p.split.toFixed(4)}</td>`
+        + `<td class="unit${p.ess < 400 ? ' bad' : ''}">${p.ess.toLocaleString()}</td></tr>`;
+    }).join('') + '</tbody>';
+
+  const note = v2El('rhat-params-note');
+  if (note) {
+    const low = R.lowest[0];
+    const worst = R.params.reduce((a, b) => (b.split - b.classic > a.split - a.classic ? b : a));
+    const len = R.lengths.map((l) => `${l.n} draws &rarr; ${l.rhat.toFixed(4)}`).join(', ');
+    note.innerHTML = `<b>Below 1.0 happens.</b> If the chains land closer together `
+      + 'than their own wandering predicts, <span>\\(B < W\\)</span> and R&#770; comes '
+      + `out under 1. Across every fit on disk, <b>${R.below_one} of ${R.n_scalars} `
+      + `scalar parameters</b> have classic R&#770; below 1.0, the lowest being `
+      + `<b>${low.rhat.toFixed(5)}</b> (${low.param} in ${low.fit}). A value a hair `
+      + 'under 1 is ordinary noise, not a sign of anything. '
+      + '<br /><br />'
+      + '<b>The two columns are different statistics.</b> This page reports arviz&rsquo;s '
+      + '<b>rank-normalized split R&#770;</b>, which is stricter in two ways: it cuts '
+      + `each chain in half first (so it is ${R.n_chains * 2} half-chains of `
+      + `${R.n_draws / 2}, catching a chain that drifts <i>within itself</i>), and it `
+      + 'replaces the draws by normal scores of their ranks, so it behaves on '
+      + `heavy-tailed posteriors. The gap shows: <b>${worst.name}</b> reads `
+      + `${worst.classic.toFixed(4)} classic and <b>${worst.split.toFixed(4)}</b> split. `
+      + 'Where classic sits below 1 and split above the line, the four chain <i>means</i> '
+      + 'agree while each chain is still drifting &mdash; the classic statistic cannot '
+      + 'see that, which is why it is not the one quoted. '
+      + `<br /><br />And the same chains scored at different lengths: ${len}. `
+      + 'Same draws, same mixing, different R&#770;.';
+  }
+}
+
+async function renderV2RhatArms() {
+  const el = v2El('rhat-arms');
+  if (!el || !(await loadV2Rhat())) return;
+  const R = V2_RHAT;
+  const cell = (v, best) => `<td class="unit${best ? ' ok' : ''}">${v}</td>`;
+  el.innerHTML = '<thead><tr><th rowspan="2">height form</th>'
+    + '<th colspan="2">max R&#770; <span class="muted">lower is better</span></th>'
+    + '<th colspan="2">min effective sample size <span class="muted">higher is better</span></th>'
+    + '</tr><tr><th class="muted">original</th><th>offsets integrated out</th>'
+    + '<th class="muted">original</th><th>offsets integrated out</th></tr></thead><tbody>'
+    + R.paired.map((p) => {
+      const o = p.original, m = p.marginalized;
+      return `<tr><td class="label-cell">${v2FitLabel(p.base)}</td>`
+        + cell(o.rhat.toFixed(3), m.rhat > o.rhat)
+        + cell(`<b>${m.rhat.toFixed(3)}</b>`, m.rhat < o.rhat)
+        + cell(o.ess, m.ess < o.ess)
+        + cell(`<b>${m.ess}</b>`, m.ess > o.ess) + '</tr>';
+    }).join('') + '</tbody>';
+
+  const note = v2El('rhat-arms-note');
+  if (note) {
+    const gains = R.paired.filter((p) => p.marginalized.ess > p.original.ess);
+    const best = R.paired.reduce((a, b) =>
+      (b.marginalized.ess / b.original.ess > a.marginalized.ess / a.original.ess ? b : a));
+    const lost = R.paired.filter((p) => p.marginalized.ess <= p.original.ess);
+    note.innerHTML = `Every fit here ran identically &mdash; ${R.n_chains} chains, `
+      + `${R.n_draws} draws, same tuning, same data &mdash; so the only difference is `
+      + `whether the climber offsets were sampled or integrated out. <b>Effective `
+      + `sample size improved in ${gains.length} of ${R.paired.length} height forms</b>, `
+      + `the largest gain being <b>${v2FitLabel(best.base)}</b> at `
+      + `${best.original.ess} &rarr; ${best.marginalized.ess} `
+      + `(${(best.marginalized.ess / best.original.ess).toFixed(1)}&times;). `
+      + (lost.length
+        ? `<b>${lost.map((p) => v2FitLabel(p.base)).join(', ')} went the other way</b> `
+          + `(${lost.map((p) => `${p.original.ess} &rarr; ${p.marginalized.ess}`).join(', ')}), `
+          + 'which is worth stating rather than rounding off: the improvement is '
+          + 'strong and consistent, not universal. '
+        : '')
+      + 'This is the honest sense in which one version is better than the other. '
+      + 'They do not give different answers &mdash; they cost different amounts to get.';
+  }
+}

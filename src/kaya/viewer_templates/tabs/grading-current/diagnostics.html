@@ -39,6 +39,94 @@
                 </div>
               </div>
 
+              <h3>What R&#770; = 1.02 actually costs you</h3>
+              <p class="prose">
+                R&#770; (R-hat) is quoted as a pass/fail all over this page, which
+                invites two wrong readings: that <b>1.00 is a floor</b>, and that
+                <b>1.02 is a rounding error</b>. Both are wrong, and the chains on
+                disk can settle it rather than being asked to be taken on trust.
+              </p>
+              <p class="prose">
+                Four chains are run from different random starting points. If they
+                have all converged on the same answer, how far apart the chains sit
+                should match how much each one wanders on its own. That is the
+                whole idea, and the statistic is the ratio of those two things. For
+                <span>\(m\)</span> chains of <span>\(n\)</span> draws, with
+                <span>\(\bar\theta_j\)</span> the mean of chain <span>\(j\)</span>:
+              </p>
+              <div class="eqn-block">
+                $$B = \frac{n}{m-1}\sum_{j=1}^{m}\left(\bar\theta_j - \bar\theta\right)^2
+                  \qquad W = \frac{1}{m}\sum_{j=1}^{m} s_j^2$$
+                $$\widehat{\operatorname{var}}^{+} = \frac{n-1}{n}W + \frac{1}{n}B
+                  \qquad \hat R = \sqrt{\frac{\widehat{\operatorname{var}}^{+}}{W}}$$
+              </div>
+              <p class="prose">
+                <span>\(B\)</span> is the <b>between-chain</b> variance, scaled by
+                <span>\(n\)</span> so it is comparable to a variance of individual
+                draws. <span>\(W\)</span> is the <b>within-chain</b> variance. Under
+                perfect mixing the two are equal and
+                <span>\(\hat R = 1\)</span>. <b>Lower is better.</b>
+              </p>
+              <div class="callout">
+                <div>
+                  <b>Rearranged, it stops hiding what it means.</b>
+                  <div class="eqn-block">
+                    $$\frac{B}{W} \;=\; n\left(\hat R^{2} - 1\right) + 1$$
+                  </div>
+                  That ratio is roughly the <b>autocorrelation factor</b>
+                  &mdash; how many draws this sampler needs to produce one
+                  draw&rsquo;s worth of genuinely new information. R&#770; buries it
+                  under a division by <span>\(n\)</span> and a square root, which is
+                  exactly why 1.00 and 1.02 look like neighbours.
+                </div>
+              </div>
+              <div class="controls-inline">
+                <label class="ctl">
+                  <span>Draws per chain</span>
+                  <select id="gm-rhat-n">
+                    <option value="125">125</option>
+                    <option value="500" selected>500 &mdash; this project</option>
+                    <option value="2000">2,000</option>
+                    <option value="10000">10,000</option>
+                  </select>
+                </label>
+              </div>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gm-rhat-scale"></table>
+              </div>
+              <p class="caption" id="gm-rhat-scale-note"></p>
+
+              <div class="callout warn">
+                <div>
+                  <b>R&#770; is relative to how long you ran.</b> Since
+                  <span>\(\hat R \approx 1 + (\tau - 1)/2n\)</span>, doubling the
+                  draws roughly halves <span>\(\hat R - 1\)</span> <i>with no
+                  improvement in mixing whatsoever</i> &mdash; visible in the table
+                  above, where the same threshold buys wildly different amounts of
+                  autocorrelation at different <span>\(n\)</span>. It is why
+                  effective sample size sits beside R&#770; in every table on this
+                  page: R&#770; alone can be bought with runtime.
+                </div>
+              </div>
+
+              <h3>1.00 is not the floor, and the version reported here is stricter</h3>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gm-rhat-params"></table>
+              </div>
+              <p class="caption" id="gm-rhat-params-note"></p>
+
+              <h3>Integrating the offsets out samples measurably better</h3>
+              <p class="prose">
+                The two versions of the model return the same answers &mdash; that is
+                what <a href="#gm-marginal">Integrating the climber out</a> shows, and
+                it is the point: marginalizing is exact, not an approximation. What
+                differs is how hard the sampler has to work to get them.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gm-rhat-arms"></table>
+              </div>
+              <p class="caption" id="gm-rhat-arms-note"></p>
+
               <div class="methodology-note">
                 <b>Reproducibility.</b> Model in
                 <code>src/kaya/grading_model_v2.py</code>. Network selected as the

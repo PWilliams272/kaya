@@ -1,0 +1,167 @@
+"""What R-hat actually measures, from this project's own chains.
+
+R-hat is quoted all over the page as a pass/fail at 1.01, which invites two
+wrong readings: that 1.00 is a floor, and that 1.02 is a rounding error. Both
+are wrong, and the traces already on disk can show why rather than assert it.
+
+For m chains of n draws, with theta_bar_j the mean of chain j:
+
+    B = n/(m-1) * sum_j (theta_bar_j - theta_bar)^2      between-chain
+    W = (1/m) * sum_j s_j^2                              within-chain
+    var_plus = (n-1)/n * W + B/n
+    R_hat = sqrt(var_plus / W)
+
+Rearranged, R_hat stops looking like a number near 1 and starts being
+readable:
+
+    B/W = n * (R_hat^2 - 1) + 1
+
+which is roughly the autocorrelation factor -- how many draws it takes this
+sampler to produce one draw's worth of new information. At 500 draws per
+chain, R_hat = 1.01 means B/W = 11.
+
+This script exports:
+  * classic vs arviz's rank-normalized split R-hat, per parameter
+  * how far below 1.0 R-hat actually goes across every trace
+  * the same chains scored at several lengths, since R_hat - 1 shrinks with n
+    at fixed mixing quality
+  * R-hat and effective sample size per height form, both arms, which is the
+    direct measurement of whether integrating the offsets out samples better
+
+Writes src/kaya/viewer_static/v2_rhat.json. Run from the repo root.
+"""
+import argparse
+import json
+import warnings
+from pathlib import Path
+
+warnings.filterwarnings('ignore')
+import arviz as az
+import numpy as np
+
+from kaya.viewer_paths import result_file, trace_file, trace_names
+
+ROOT = Path(__file__).resolve().parents[1]
+OUT = ROOT / 'src' / 'kaya' / 'viewer_static' / 'v2_rhat.json'
+
+PRIMARY = 'v3_lin_marg'
+# Parameters worth showing individually: the model's own quantities, not the
+# deterministic transforms of them (lambda0 is exp(log_lambda0), so the pair
+# correlates at exactly 1.000 and says nothing).
+SHOW = ['beta0', 'beta_gender', 'gamma1', 'sigma_user', 'sigma_gym',
+        'log_lambda0', 'kappa', 'rho', 'beta_h_missing', 'beta_a_missing']
+LENGTHS = [125, 250, 500]
+
+
+def classic_rhat(x):
+    """Gelman-Rubin from the definition. x is (chains, draws). Returns (R, B/W)."""
+    m, n = x.shape
+    means = x.mean(axis=1)
+    b = n / (m - 1) * ((means - means.mean()) ** 2).sum()
+    w = float(x.var(axis=1, ddof=1).mean())
+    if w <= 0:
+        return 1.0, 1.0
+    return float(np.sqrt(((n - 1) / n * w + b / n) / w)), float(b / w)
+
+
+def scalar_params(idata):
+    return [p for p in idata.posterior.data_vars
+            if idata.posterior[p].values.ndim == 2]
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--primary', default=PRIMARY)
+    ap.add_argument('--out', default=None)
+    args = ap.parse_args()
+    out = Path(args.out) if args.out else OUT
+
+    idata = az.from_netcdf(trace_file(args.primary))
+    n_chains, n_draws = idata.posterior[scalar_params(idata)[0]].values.shape
+
+    # --- classic vs split, per parameter ---
+    params = []
+    for p in SHOW:
+        if p not in idata.posterior:
+            continue
+        x = idata.posterior[p].values
+        r, bw = classic_rhat(x)
+        params.append({
+            'name': p,
+            'classic': round(r, 4),
+            'bw': round(bw, 2),
+            'split': round(float(az.rhat(idata, var_names=[p])[p].values), 4),
+            'ess': int(az.ess(idata, var_names=[p])[p].values),
+        })
+
+    # --- the same chains at several lengths ---
+    worst = max(params, key=lambda d: d['split'])['name']
+    x = idata.posterior[worst].values
+    lengths = []
+    for n in LENGTHS:
+        if n > n_draws:
+            continue
+        r, bw = classic_rhat(x[:, :n])
+        lengths.append({'n': n, 'rhat': round(r, 4), 'bw': round(bw, 1)})
+
+    # --- how far below 1.0 does it go, across everything on disk ---
+    below, total, lowest = 0, 0, []
+    for name in trace_names('v3_*', 'v4_*'):
+        if name.startswith('smoke'):
+            continue
+        t = az.from_netcdf(trace_file(name))
+        for p in scalar_params(t):
+            r, _ = classic_rhat(t.posterior[p].values)
+            total += 1
+            if r < 1:
+                below += 1
+            lowest.append((r, p, name))
+    lowest.sort()
+
+    # --- both arms, per height form: does marginalizing sample better? ---
+    arms = {}
+    for name in trace_names('v3_*', 'v4_*'):
+        if name.startswith('smoke'):
+            continue
+        res = json.loads(result_file(name).read_text())
+        marg = bool(res['args'].get('marginalize_singles', False))
+        base = name[:-5] if name.endswith('_marg') else name
+        rec = arms.setdefault(base, {})
+        rec['marginalized' if marg else 'original'] = {
+            'rhat': round(res['max_rhat'], 3), 'ess': int(res['min_ess']),
+            'minutes': round(res['elapsed_min']),
+        }
+    paired = [{'base': b, **v} for b, v in arms.items()
+              if 'original' in v and 'marginalized' in v]
+    better = sum(1 for p in paired if p['marginalized']['ess'] > p['original']['ess'])
+
+    payload = {
+        'primary': args.primary, 'n_chains': int(n_chains), 'n_draws': int(n_draws),
+        'params': params,
+        'worst_param': worst, 'lengths': lengths,
+        'below_one': below, 'n_scalars': total,
+        'lowest': [{'rhat': round(r, 5), 'param': p, 'fit': f}
+                   for r, p, f in lowest[:3]],
+        'paired': paired,
+        'n_paired_better': better,
+        'gate': 1.01,
+    }
+    out.write_text(json.dumps(payload, separators=(',', ':')))
+
+    print(f'{args.primary}: {n_chains} chains x {n_draws} draws\n')
+    print(f"{'param':16s}{'classic':>9}{'B/W':>8}{'split':>9}{'ESS':>7}")
+    for p in params:
+        print(f"{p['name']:16s}{p['classic']:9.4f}{p['bw']:8.1f}"
+              f"{p['split']:9.4f}{p['ess']:7d}")
+    print(f'\n{below} of {total} scalars have classic R-hat below 1.0 '
+          f'(lowest {lowest[0][0]:.5f})')
+    print(f'\nmarginalizing improved min ESS in {better} of {len(paired)} height forms')
+    for p in sorted(paired, key=lambda d: d['base']):
+        o, m = p['original'], p['marginalized']
+        print(f"   {p['base']:14s} {o['rhat']:.3f}/{o['ess']:<4d} -> "
+              f"{m['rhat']:.3f}/{m['ess']:<4d}")
+    print(f'\nwrote {out}')
+
+
+if __name__ == '__main__':
+    main()
