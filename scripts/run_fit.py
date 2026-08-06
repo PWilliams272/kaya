@@ -47,6 +47,10 @@ def main():
     p.add_argument('--zero-sum-users', action='store_true')
     p.add_argument('--marginalize-singles', action='store_true',
                    help='integrate out the offsets of climbers with one row')
+    p.add_argument('--orthogonal-design', action='store_true',
+                   help='sample the covariate block on a Gram-Schmidt '
+                        'orthogonalised basis; raw-basis coefficients are '
+                        'still reported under their usual names')
     p.add_argument('--draws', type=int, default=1000)
     p.add_argument('--tune', type=int, default=1000)
     p.add_argument('--chains', type=int, default=4)
@@ -76,6 +80,7 @@ def main():
         estimate_sigma_link=not args.fixed_sigma_link,
         zero_sum_users=args.zero_sum_users,
         marginalize_singles=args.marginalize_singles,
+        orthogonal_design=args.orthogonal_design,
     )
 
     t0 = time.time()
@@ -110,6 +115,20 @@ def main():
            'elapsed_min': elapsed / 60, 'divergences': ndiv,
            'max_rhat': float(summ['r_hat'].max()), 'min_ess': float(summ['ess_bulk'].min()),
            'params': summ.to_dict('index')}
+
+    # Under --orthogonal-design the names above are Deterministic transforms of
+    # what the sampler actually moved, which keeps max_rhat comparable to every
+    # raw-basis fit on disk. Record the sampled basis alongside it: the two
+    # together are the whole result, since the point of the change is that the
+    # orthogonal directions mix even where their raw-basis combination does not.
+    if args.orthogonal_design:
+        oh = [f'{v}_orth' for v in KEY_PARAMS if f'{v}_orth' in idata.posterior]
+        osum = az.summary(idata, var_names=oh, hdi_prob=0.89)
+        res['orth'] = {'max_rhat': float(osum['r_hat'].max()),
+                       'min_ess': float(osum['ess_bulk'].min()),
+                       'params': osum.to_dict('index')}
+        print(f'\n[{args.name}] sampled (orthogonal) basis:', flush=True)
+        print(osum.to_string(), flush=True)
 
     # Convergence is a gate, not a report. The trace is still written above --
     # sampling is far too expensive to throw away, and a failed fit is itself a

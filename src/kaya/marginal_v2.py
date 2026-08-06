@@ -76,7 +76,7 @@ from numpy.polynomial.hermite_e import hermegauss
 from scipy.special import log_ndtr, logsumexp
 
 from kaya.grading_model_v2 import PRIOR_SD as _PRIOR_SD
-from kaya.grading_model_v2 import DatasetV2, _design_columns
+from kaya.grading_model_v2 import DatasetV2, _design_columns, orthogonal_transform
 
 __all__ = ['MarginalModel', 'exgaussian_logpdf']
 
@@ -124,7 +124,8 @@ def zero_sum_basis(n):
 
 
 def prepare_design(dataset: DatasetV2, *, height_form='linear',
-                   ape_quadratic=True, ape_x_gender=False, consts=None):
+                   ape_quadratic=True, ape_x_gender=False, consts=None,
+                   orthogonal_design=False):
     """Build the design matrix and per-observation vectors from a dataset.
 
     Every centring and scaling here is copied from `build_model_v2`
@@ -177,6 +178,18 @@ def prepare_design(dataset: DatasetV2, *, height_form='linear',
     if own:
         c['X_mean'] = Xcols.mean(axis=0)
     Xc = Xcols - np.asarray(c['X_mean'])
+    # The transform travels in `consts` for the same reason the medians do:
+    # under grouped cross-validation the held-out climbers must be mapped
+    # through the TRAINING set's basis. Deriving a fresh one from the fold
+    # would let the test rows choose the parameterisation they are scored in.
+    if orthogonal_design:
+        if own:
+            c['X_orth_T'] = orthogonal_transform(Xc)
+        Xc = Xc @ np.asarray(c['X_orth_T'])
+    elif not own and 'X_orth_T' in c:
+        raise ValueError('consts carry an orthogonal basis but '
+                         'orthogonal_design=False; the fit and the scoring '
+                         'would be in different bases.')
 
     r_user = ((nsps / c['r_scale'] - 1.0) if c['r_scale']
               else np.zeros_like(nsps))
@@ -235,7 +248,8 @@ class MarginalModel:
     @classmethod
     def from_dataset(cls, dataset: DatasetV2, *, height_form='linear',
                      ape_quadratic=True, ape_x_gender=False,
-                     sigma_link_fixed=0.5, n_quad=21):
+                     sigma_link_fixed=0.5, n_quad=21,
+                     orthogonal_design=False):
         """Mirror build_model_v2's data preparation exactly.
 
         Every scaling and centring below is copied from `build_model_v2`
@@ -244,7 +258,8 @@ class MarginalModel:
         """
         d = prepare_design(dataset, height_form=height_form,
                            ape_quadratic=ape_quadratic,
-                           ape_x_gender=ape_x_gender)
+                           ape_x_gender=ape_x_gender,
+                           orthogonal_design=orthogonal_design)
         Xc, Xnames = d['Xc'], d['Xnames']
         obs_u, obs_g, m = d['obs_u'], d['obs_g'], d['m']
         n_visits, r_obs = d['n_visits'], d['r_obs']

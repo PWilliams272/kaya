@@ -356,10 +356,64 @@ q₂  = g·h² + 0.768·h  − 0.257·h² + 1.513·q₁       orthogonal quadrat
 block's condition number goes from **36.0 to 1.00** — a perfectly round
 posterior in those coordinates.*
 
-**What it costs statistically: nothing.** The two bases span the same function
-space, so the fitted curve, the predictions and the model comparison are
-identical. Only the coordinates change, and with them the conditioning the
-sampler sees.
+#### Implementing it without touching the rest of the model
+
+Write the change of basis as a matrix and apply it to the *coefficient vector*,
+not to the columns:
+
+```python
+q, r = np.linalg.qr(Xc)              # Xc must already be centred
+s = np.sign(np.diag(r)); s[s == 0] = 1
+r = r * s[:, None]                   # force diag(R) > 0 so signs are stable
+T = np.linalg.solve(r, np.diag(np.linalg.norm(Xc, axis=0)))
+```
+
+Then sample `θ` and let the model read `β = Tθ`. `Xc @ T` has orthogonal
+columns, but you never have to build it: the likelihood keeps using the raw
+columns, and every downstream consumer — plotting code, prediction code, any
+function that reconstructs a design column on the fly — keeps working
+untouched. Expose `β` as deterministic transforms under the raw names and
+nothing reading the trace needs to know. In the worked example this mattered
+concretely: the marginalized likelihood rebuilds gender-dependent columns
+individually per integration branch and could not have accepted a column-space
+transform at all.
+
+Centre **before** orthogonalising. Gram-Schmidt followed by centring destroys
+the orthogonality it just built, because subtracting a mean is itself a
+projection.
+
+#### The prior trap, which is the part that bites
+
+Plain QR returns unit-norm columns. Orthogonalising shrinks a column — in the
+example `g·h²` drops to 0.373× its raw norm — so its coefficient must grow by
+the inverse of that to describe the same curve, while its prior SD sits
+unchanged in the config file. Left alone this **silently tightens the prior on
+the fitted function** by a factor nobody wrote down. Rescale each orthogonal
+column back to the raw column's norm (the `diag(norms)` above).
+
+**And even with that fix it is not a pure reparameterisation.** Independent
+priors on an orthogonal basis imply a *correlated* prior `T diag(sd²) Tᵀ` on
+the raw coefficients — a different model, not different coordinates. The
+rescaling controls where that difference lands:
+
+| quantity | raw | orthogonal | ratio |
+| --- | --- | --- | --- |
+| prior SD of the fitted linear predictor | 1.614 | 1.612 | **0.999×** |
+| implied prior SD, `γ₁ˣ` | 0.500 | 1.258 | 2.52× |
+| implied prior SD, `γ₂ˣ` | 0.150 | 0.432 | 2.88× |
+
+The prior on the **curve** is preserved to 0.1%; the priors on individual
+interaction coefficients loosen ~2.5–2.9×. That loosening is the point rather
+than a side effect: independent priors on columns correlated at −0.899 concentrate
+their mass on near-cancelling combinations, which is a constraint on the curve
+that was never intended. Decide which you meant. If you genuinely want the
+original joint prior, the change of basis cannot give it to you — you would
+need a correlated prior on `θ`, which reintroduces exactly the geometry you
+were removing.
+
+The practical consequence: **do not gate acceptance on "the fitted curve is
+unchanged."** Gate on "the curve moved less than its own credible band," and
+treat a larger move as something to explain rather than as proof of a bug.
 
 **What it costs in interpretation:** `γ₁` stops meaning "grades per SD of
 height" and becomes the coefficient on an abstract basis function. Transform
@@ -373,6 +427,17 @@ nothing about orthogonality under the weighted one — in the example, reusing
 the main-effect basis only takes the interaction pair from −0.899 to −0.289,
 which looks like progress and is not enough. Gram-Schmidt the whole design
 block in one pass and the problem does not arise.
+
+**Where it does nothing.** Terms that are nonlinear *in the parameters* — a
+logistic knee, a vertex parameterisation — never enter the design matrix and
+cannot be rotated. In the worked example the two such height forms went 4.4 →
+1.0 on a block that was already well conditioned, i.e. the flag was a no-op
+for exactly the forms whose geometry is worst.
+
+**Under cross-validation, the transform is training-set state.** Store `T`
+beside the centring constants and apply the *training* fold's transform to the
+held-out rows. Deriving a fresh basis per fold lets the test rows choose the
+coordinates they are scored in — a leak that produces no error and no warning.
 
 ### Dense mass matrix / PCA rotation
 

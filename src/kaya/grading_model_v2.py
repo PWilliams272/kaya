@@ -220,6 +220,46 @@ PRIOR_SD = {'beta_gender': 2.0, 'gamma1': 1.0, 'gamma2': 0.3,
             'beta_h_missing': 1.0, 'beta_a_missing': 1.0}
 
 
+def orthogonal_transform(Xc: np.ndarray) -> np.ndarray:
+    """Gram-Schmidt the *centred* design, returned as a change of basis.
+
+    Returns an upper-triangular ``T`` such that ``Xorth = Xc @ T`` has
+    orthogonal columns, each one carrying the SAME norm as the raw column it
+    replaces. Because it is a change of basis and not a change of model, the
+    sampled coefficients can be mapped straight back with ``beta = T @ theta``
+    -- so every downstream consumer keeps working on raw columns and no
+    fitted curve has to be re-derived.
+
+    Two details are load-bearing:
+
+    * **Centre first, orthogonalise second.** Gram-Schmidt on uncentred
+      columns followed by centring destroys the orthogonality it just built,
+      since subtracting a mean is itself a projection.
+    * **Rescale to the original norms.** Plain QR returns unit columns.
+      Orthogonalising shrinks a column (``gamma2_x``'s drops to 0.373x its
+      raw norm), so a coefficient on the shrunken column has to grow by the
+      inverse of that to describe the same curve -- while its PRIOR_SD entry
+      sits unchanged. Left alone, that silently tightens the prior on the
+      fitted *function* by a factor nobody wrote down. Restoring the norm
+      keeps each prior meaning what it meant.
+
+    Note this is not prior-preserving: independent priors on an orthogonal
+    basis imply a correlated prior ``T diag(sd^2) T'`` on the raw
+    coefficients. That is a deliberate modelling statement (independence
+    asserted between directions the data can actually separate) rather than
+    an accident, but it does mean the two parameterisations are not identical
+    models -- see docs/inference-toolkit.md.
+    """
+    q, r = np.linalg.qr(np.asarray(Xc, dtype=float))
+    # Sign convention: force diag(R) > 0, so orthogonal column j points the
+    # same way as raw column j and its coefficient keeps the same sign.
+    s = np.sign(np.diag(r))
+    s[s == 0] = 1.0
+    r = r * s[:, None]
+    norms = np.linalg.norm(Xc, axis=0)
+    return np.linalg.solve(r, np.diag(norms))
+
+
 @dataclass
 class DatasetV2:
     observations: pd.DataFrame
@@ -373,6 +413,7 @@ def build_model_v2(
     store_user_terms: bool = False,
     zero_sum_users: bool = False,
     marginalize_singles: bool = False,
+    orthogonal_design: bool = False,
 ) -> pm.Model:
     """Build the v2 PyMC model.
 
@@ -519,8 +560,27 @@ def build_model_v2(
         X_mean = Xcols.mean(axis=0)
         Xc = Xcols - X_mean
 
-        coefs = [pm.Normal(nm, 0, PRIOR_SD.get(nm, 1.0)) for nm in Xnames]
-        beta_vec = pt.stack(coefs)
+        if orthogonal_design:
+            # Sample on an orthogonal basis, report on the raw one. The design
+            # columns are badly collinear where they interact with gender --
+            # g*h against g*h**2 sits at -0.899 on quadratic_x_gender, and the
+            # block's condition number is 36 -- and NUTS's diagonal mass matrix
+            # cannot represent a rotation no matter how long it tunes.
+            #
+            # theta is what the sampler moves; beta = T @ theta is what the
+            # model means. Substituting beta for theta below leaves every other
+            # line of this function untouched, and the Deterministics keep the
+            # raw-basis names pointing at raw-basis quantities so no downstream
+            # reader of the trace has to know this happened.
+            T = orthogonal_transform(Xc)
+            thetas = [pm.Normal(f'{nm}_orth', 0, PRIOR_SD.get(nm, 1.0))
+                      for nm in Xnames]
+            beta_vec = pt.dot(pt.as_tensor_variable(T), pt.stack(thetas))
+            coefs = [pm.Deterministic(nm, beta_vec[i])
+                     for i, nm in enumerate(Xnames)]
+        else:
+            coefs = [pm.Normal(nm, 0, PRIOR_SD.get(nm, 1.0)) for nm in Xnames]
+            beta_vec = pt.stack(coefs)
         # Columns involving gender are rebuilt per-branch in marginalize mode,
         # so keep the pieces separate rather than collapsing to one dot product.
         gender_cols = [i for i, nm in enumerate(Xnames)

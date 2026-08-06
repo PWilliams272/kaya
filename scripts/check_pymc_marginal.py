@@ -19,6 +19,7 @@ Checked here:
 
 Run from the repo root.
 """
+import argparse
 import json
 import pickle
 import warnings
@@ -42,17 +43,24 @@ def dataset():
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--orthogonal-design', action='store_true',
+                    help='run the check on the Gram-Schmidt basis instead')
+    args = ap.parse_args()
+    orth = args.orthogonal_design
     ds = dataset()
     mm = MarginalModel.from_dataset(ds, height_form='linear',
-                                    sigma_link_fixed=0.5, n_quad=31)
+                                    sigma_link_fixed=0.5, n_quad=31,
+                                    orthogonal_design=orth)
     rng = np.random.default_rng(3)
     theta = mm.initial_point(rng)
     p = mm.unpack(theta)
 
     model = build_model_v2(ds, height_form='linear', gender_mode='point',
                            estimate_sigma_link=False, sigma_link_fixed=0.5,
-                           marginalize_singles=True)
-    print('PyMC model with marginalize_singles=True')
+                           marginalize_singles=True, orthogonal_design=orth)
+    print(f'PyMC model with marginalize_singles=True, '
+          f'orthogonal_design={orth}')
     free = {v.name: v for v in model.free_RVs}
     print(f'  free random variables: {len(free)}')
     ip0 = model.initial_point()
@@ -83,8 +91,12 @@ def main():
             pt_[k] = np.array(p['kappa'])
         elif base_name == 'rho':
             pt_[k] = np.array(p['rho'])
-        elif base_name in mm.Xnames:
-            pt_[k] = np.array(p['beta'][mm.Xnames.index(base_name)])
+        elif base_name.removesuffix('_orth') in mm.Xnames:
+            # Under --orthogonal-design the sampled names carry an _orth
+            # suffix and mm's design matrix is already in that basis, so the
+            # same beta vector maps straight across.
+            pt_[k] = np.array(
+                p['beta'][mm.Xnames.index(base_name.removesuffix('_orth'))])
         else:
             raise SystemExit(f'unmapped variable {k!r}')
 

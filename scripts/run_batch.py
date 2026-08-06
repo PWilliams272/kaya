@@ -54,13 +54,22 @@ SINGLE_THREAD_BLAS = {
     'NUMEXPR_NUM_THREADS': '1',
 }
 
+# The seven height forms the comparison is over. Keys are the trace-name
+# prefixes already on disk, so a re-run under a new parameterisation lines up
+# against its own baseline without a lookup table.
+#
+# 'zero', not 'none': `_height_term` raises on any form outside
+# LINEAR_IN_PARAMS, and 'none' is not in it, so the old spelling here would
+# have taken down any batch that included it at model-build time. Nothing had
+# run this batch since -- batch_marg.sh drove the sweep by hand.
 HEIGHT_FORMS = {
+    'v3_zero': 'zero',
     'v3_lin': 'linear',
     'v3_quad': 'quadratic',
-    'v3_sat': 'saturating',
-    'v3_conf': 'quadratic_x_gender',
     'v4_linxg': 'linear_x_gender',
-    'v3_zero': 'none',
+    'v3_conf': 'quadratic_x_gender',
+    'v3_sat': 'saturating',
+    'v3_vtx': 'vertex_quadratic',
 }
 
 

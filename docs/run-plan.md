@@ -5,7 +5,9 @@ on 10 cores that fit two concurrently. So the plan is **decision-driven**: each
 phase exists to settle one question, and nothing downstream of an unsettled
 question gets run. Stop when the question is answered, not when the batch is.
 
-Status as of 2026-08-05.
+Status as of 2026-08-05. Q2, Q3 and Q4 are queued as one unattended chain —
+`scripts/run_overnight.py`, armed behind the emcee run, status in
+`runs/logs/overnight/STATUS.md`.
 
 ## The questions, in dependency order
 
@@ -24,6 +26,7 @@ Status as of 2026-08-05.
 |---|---|---|---|
 | emcee `lin2` | 128 walkers × 20,000 steps, DE moves | 7 h | running |
 | `v5_conf_marg_long` | quad × gender, marginalized, tune 2000 / draws 2000 | 5–6 h | queued behind emcee |
+| `v6_conf_orth` | quad × gender, marginalized, orthogonal, tune 600 / draws 500 | ~1.5 h | queued, runs beside Q2 |
 
 **Q1** is answered by whether `sigma_gym` comes back near PyMC's 0.301 rather
 than the pre-fix run's 0.193.
@@ -63,27 +66,117 @@ directly comparable to `v3_conf_marg` — the short-warm-up row of the 2×2 abov
 Baseline to beat: max R-hat **1.069**, min ESS **48**, with `gamma1_x` 1.056,
 `gamma2_x` 1.051, `gamma1` 1.050.
 
-Two checks, and the second is the correctness gate:
+### How it is implemented, and what it is not
 
-* R-hat and ESS on the gamma block should improve. The design-block condition
-  number goes 36.0 → 1.00, and a diagonal mass matrix cannot represent a
-  rotation no matter how long it tunes, so this has no ceiling that warm-up has.
-* **The fitted height curve must be unchanged.** Orthogonalising re-expresses
-  the same function space; if the curve moves, the transform or the prior
-  rescaling is wrong.
+`--orthogonal-design` on `run_fit.py`. The sampler moves coefficients `θ` on a
+Gram-Schmidt basis; the model reads `β = Tθ` on the raw columns. Because the
+substitution happens at the coefficient vector, every line downstream —
+including `ability_for`, which rebuilds gender columns individually per
+marginalization branch and could not have taken a column-space transform —
+is untouched. The raw-basis names stay `pm.Deterministic`s, so no consumer of
+a trace has to know this happened, and `max_rhat` stays comparable to every
+raw-basis fit on disk. The sampled basis is reported separately under `orth`
+in the result JSON.
+
+Verified before queueing:
+
+| check | result |
+| --- | --- |
+| design-block condition number, quad × gender | 52.4 → **1.0000** |
+| worst off-diagonal correlation | 0.899 → **1.7×10⁻¹⁴** |
+| PyMC data log-probability, raw vs orthogonal at matched points | identical, **0.0** |
+| `T @ θ` recovers the raw coefficients | 2.2×10⁻¹⁶ |
+| PyMC ↔ NumPy cross-check, both bases | **1.3×10⁻⁹** (unchanged) |
+| all seven height forms build with the flag | yes |
+
+**It is not a pure reparameterisation, and the earlier note here that the
+fitted curve must come back unchanged was too strong.** Independent priors on
+an orthogonal basis imply a *correlated* prior `T diag(sd²) Tᵀ` on the raw
+coefficients. Rescaling each orthogonalised column back to its original norm
+was chosen precisely to control what that costs, and it works on the quantity
+that matters:
+
+| quantity | raw basis | orthogonal | ratio |
+| --- | --- | --- | --- |
+| prior SD of the fitted linear predictor (mean over climbers) | 1.614 | 1.612 | **0.999×** |
+| the same, height block alone | 0.821 | 0.820 | 0.998× |
+| implied prior SD on `gamma1_x` | 0.500 | 1.258 | 2.52× |
+| implied prior SD on `gamma2_x` | 0.150 | 0.432 | 2.88× |
+
+So the prior on the *curve* is preserved to 0.1%, while the prior on
+individual interaction coefficients loosens ~2.5–2.9×. That widening is the
+implicit tightening being removed: independent priors on columns correlated at
+−0.899 put most of their mass on near-cancelling combinations, which is a
+constraint on the curve nobody wrote down. Two checks, revised accordingly:
+
+* R-hat and ESS on the gamma block should improve. A diagonal mass matrix
+  cannot represent a rotation no matter how long it tunes, so unlike warm-up
+  this has no ceiling.
+* **The fitted height curve should move by less than its own credible band.**
+  A visible shift is not automatically a bug now — it could be the loosened
+  prior on the collinear direction — but it needs explaining before the
+  parameterisation is adopted.
+
+One caveat for reading Q4: on `saturating` and `vertex_quadratic` the height
+terms are nonlinear in the parameters, so they never enter the design matrix
+and cannot be rotated. Those two forms go 4.4 → 1.0 on a block that was
+already well conditioned; expect the flag to do essentially nothing for them.
 
 Cost: ~85 min. **Decision point.** If it works, everything after this uses the
 orthogonal parameterisation and the earlier fits become the "before" arm.
 
-## Phase 2 — the height-form sweep (7 fits)
+## Phase 2 — the height-form sweep (6 fits)
 
-Only if Phase 1 succeeds. Re-run all seven height forms, marginalized,
-orthogonalised, at whatever settings Phase 0 established:
+Only if Phase 1 succeeds. Re-run the other six height forms, marginalized,
+orthogonalised — `v6_conf_orth` already supplies the seventh:
 
-`zero, linear, quadratic, linear × gender, quadratic × gender, saturating,
-vertex quadratic`
+`zero, linear, quadratic, linear × gender, saturating, vertex quadratic`
 
-Cost: 7 fits, 2 concurrent → **~5 h** at baseline settings, ~20 h at long ones.
+At **baseline** settings (tune 600 / draws 500), not Q2's long ones, even
+though Q2 may be about to argue for the long ones. Every fit on disk is at
+baseline so the comparison stays like-for-like; seven long fits is ~35 hours
+rather than a night; and if Q2 says warm-up matters, this sweep says which
+forms are worth paying it for. It is a screen, not the final measurement.
+
+Cost: 6 fits, 2 concurrent → **~4.5 h** at baseline settings.
+
+## How the three actually run — `scripts/run_overnight.py`
+
+The three questions are not a straight line, so the chain is a
+dependency-aware scheduler over a fixed core budget rather than a script of
+`&&`s. Q2 and Q3 are the two independent levers of the 2×2 and start together;
+Q4 is downstream of Q3 only. Q3 finishes in ~85 minutes and Q2 runs ~5.5 h, so
+serialising them would idle half the machine for four hours.
+
+```
+t=0      Q2 v5_conf_marg_long  (raw, long)     ─────────────────────► ~5.5 h
+t=0      Q3 v6_conf_orth       (orth, short)   ──► ~1.5 h
+t~1.5h   gate on Q3 ──► pass: Q4 sweep, 6 fits, filling slots as they free
+                    └─► fail: Phase 3 noise floor, 3 refits, raw basis
+```
+
+Ten cores, `--cores 8`, four per fit, so **two fits at a time**. Three was
+measured on this machine and it is not a mild penalty: `v4_lin_b_marg`,
+`v4_lin_c_marg` and `v4_linxg_marg` took 370 minutes each against ~85 for the
+same model run two at a time.
+
+**The gate.** Q4 is most of a night and only makes sense on a parameterisation
+shown to help, so it is conditional on Q3 clearing the `v3_conf_marg`
+baseline: `max_rhat ≤ 1.069` **or** `min_ess ≥ 48`. An OR, not an AND — both
+statistics are noisy at 500 draws, and demanding an improvement in both would
+reject a real improvement about as often as it would catch a real regression.
+
+**The fallback is not idle time.** A failing gate runs the Phase 3 noise floor
+instead, which is non-optional work worth a night on its own. It also could
+not simply have been run alongside: the noise floor has to be measured in
+whichever parameterisation the fits it calibrates were run in, and that is
+exactly what Q3 decides. If Q3 passes, the noise floor becomes three refits of
+`v6_conf_orth` on a later night.
+
+Progress is rewritten to `runs/logs/overnight/STATUS.md` after every state
+change, so the morning check is one `cat`. Per-fit logs sit beside it.
+`kill` the `run_overnight.py` pid to stop scheduling (fits already running
+continue).
 
 ## Phase 3 — the noise floor (3 fits)
 
