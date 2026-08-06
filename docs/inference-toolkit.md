@@ -258,10 +258,10 @@ their coefficients — the sign flip the inverse predicts.*
 
 **Two distinct causes, worth separating:**
 
-*Skew.* Centring `h` at its median does **not** make `h` and `h²` orthogonal.
-`cov(h, h²) = E[h³]` after centring, which is zero only if the distribution is
-symmetric. *In the example, standardised height has skew −0.547 and
-`corr(h, h²) = −0.283`.*
+*Skew.* Centring `h` does **not** make `h` and `h²` orthogonal. After centring,
+`cov(h, h²) = E[h³]`, which is zero only if the distribution is symmetric.
+*In the example, standardised height has skew −0.547 and `corr(h, h²) = −0.363`
+even though both columns are mean-centred.*
 
 *Subgroup restriction.* The interaction columns `gender·h` and `gender·h²` are
 zero for every male climber, so they are the polynomial evaluated on the female
@@ -271,11 +271,36 @@ is why the interaction pair reaches −0.899 while the main-effect pair is only
 −0.363. Interaction terms are usually the worst-conditioned part of a
 polynomial model for exactly this reason.
 
-**The fix.** Replace the raw basis `{1, h, h²}` with an orthogonal one spanning
-the same space — QR-decompose the Vandermonde matrix and use `Q`'s columns, or
-equivalently R's `poly(h, 2)`, or a Legendre basis evaluated at the data. The
-new columns have **exactly zero** sample correlation. *In the example, QR
-orthogonalisation takes `corr(h, h²)` from −0.283 to −0.0000000.*
+**The fix.** Replace the raw basis with an orthogonal one spanning the same
+space. Gram-Schmidt each column against the ones before it — equivalently,
+QR-decompose the design block and keep `Q`, or use R's `poly(h, 2)`, or a
+Legendre basis evaluated at the data.
+
+The resulting basis functions are just the raw monomials with the earlier ones
+subtracted off, and the coefficients are properties of *this* sample:
+
+```
+p₂  = h²   + 0.663·h                              orthogonal quadratic
+q₁  = g·h  − 0.436·h  + 0.079·h²                  orthogonal linear interaction
+q₂  = g·h² + 0.768·h  − 0.257·h² + 1.513·q₁       orthogonal quadratic interaction
+```
+
+*Reading `p₂`: the raw `h²` leans in the `h` direction because height is
+left-skewed, so subtracting 0.663·h removes exactly that lean and leaves the
+part of the curvature that `h` cannot express. The interaction terms need the
+main effects subtracted as well as each other, which is why `q₂` has four
+terms.*
+
+*Result: every pairwise correlation in the block drops to ~10⁻¹⁵, and the
+block's condition number goes from **36.0 to 1.00** — a perfectly round
+posterior in those coordinates.*
+
+**One trap.** Orthogonalising `h²` against `h` on the full sample does **not**
+orthogonalise `g·h²` against `g·h`. The interaction block lives under a
+weighting by `g`, so it has to be orthogonalised in its own right — in the
+example, reusing the main-effect basis only takes the interaction pair from
+−0.899 to −0.289. Gram-Schmidt the whole design block in one pass and the
+problem does not arise.
 
 **What it costs: nothing statistically.** The two bases span the same function
 space, so the fitted curve, the predictions and the model comparison are
