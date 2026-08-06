@@ -203,6 +203,7 @@ async function renderV2Inference() {
   await renderV2RhatScale();
   await renderV2RhatParams();
   await renderV2RhatArms();
+  await renderV2RhatRidges();
   const sel = v2El('param-pick');
   renderV2ParamDetail(sel?.value || Object.keys(v2Fit(v2SelectedFit()).params)[0]);
 }
@@ -555,4 +556,37 @@ async function renderV2RhatArms() {
       + 'This is the honest sense in which one version is better than the other. '
       + 'They do not give different answers &mdash; they cost different amounts to get.';
   }
+}
+
+
+// ---- is there a ridge worth rotating? ----
+//
+// A dense mass matrix, a PCA rotation of the parameters and emcee's affine
+// invariance all buy the same thing: immunity to LINEAR correlation. Whether
+// that is worth buying differs per fit, and an earlier version of this page
+// generalised the linear form's answer to the whole model, which was wrong.
+
+async function renderV2RhatRidges() {
+  const el = v2El('rhat-ridges');
+  if (!el || !(await loadV2Rhat())) return;
+  const rs = (V2_RHAT.ridges || []).filter((r) => !r.fit.startsWith('v3_all'));
+  if (!rs.length) { el.textContent = ''; return; }
+  const tight = rs.filter((r) => Math.abs(r.r) >= 0.7);
+  const worst = rs[0];
+  const flat = rs[rs.length - 1];
+  el.innerHTML = '<b>Whether a rotation would pay depends on the height form, '
+    + 'not on &ldquo;the model&rdquo;.</b> Rotating the parameters into their '
+    + 'principal axes &mdash; equivalently, giving the sampler a dense rather '
+    + 'than diagonal mass matrix &mdash; helps exactly when two parameters trade '
+    + `off along a line. In <b>${v2FitLabel(flat.fit)}</b> the strongest pair `
+    + `correlates at only ${Math.abs(flat.r).toFixed(2)}, so there is nothing to `
+    + `rotate. But <b>${tight.length} of ${rs.length} fits</b> have a pair at 0.7 `
+    + `or above, worst of all <b>${v2FitLabel(worst.fit)}</b> at `
+    + `<b>${worst.r.toFixed(2)}</b> (${worst.a} against ${worst.b}), whose `
+    + `correlation matrix has a condition number of ${worst.condition} &mdash; one `
+    + 'direction of that posterior is far narrower than another, which is exactly '
+    + 'the shape a rotation fixes. For the forms with two height terms per gender '
+    + 'that pairing is the raw polynomial itself, and orthogonal polynomials would '
+    + 'remove it at the source. <b>None of this touches the funnel</b>: a rotation '
+    + 'straightens lines, and a funnel is curved.';
 }

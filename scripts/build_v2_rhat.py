@@ -135,8 +135,40 @@ def main():
               if 'original' in v and 'marginalized' in v]
     better = sum(1 for p in paired if p['marginalized']['ess'] > p['original']['ess'])
 
+    # Is there a ridge worth rotating? A dense mass matrix, a PCA rotation and
+    # emcee's affine invariance all buy the same thing: immunity to LINEAR
+    # correlation. Whether that is worth having is a property of each fit, not
+    # of "the model" -- the linear form has nothing above 0.6 while the height
+    # forms with two terms per gender have pairs near 0.8.
+    ridges = []
+    for name in trace_names('v3_*', 'v4_*'):
+        if name.startswith('smoke'):
+            continue
+        t = az.from_netcdf(trace_file(name))
+        # lambda0 is exp(log_lambda0); the pair correlates at exactly 1.000 and
+        # says nothing about geometry.
+        sc = [p for p in scalar_params(t) if p != 'lambda0']
+        if len(sc) < 2:
+            continue
+        x = np.column_stack([t.posterior[p].values.ravel() for p in sc])
+        c = np.corrcoef(x.T)
+        iu = np.triu_indices(len(sc), 1)
+        k = int(np.argmax(np.abs(c[iu])))
+        i, j = iu[0][k], iu[1][k]
+        ev = np.linalg.eigvalsh(c)
+        ridges.append({
+            'fit': name, 'a': sc[i], 'b': sc[j], 'r': round(float(c[i, j]), 3),
+            'n_params': len(sc),
+            # Ratio of largest to smallest eigenvalue of the correlation
+            # matrix: 1 is perfectly round, large means one direction is far
+            # narrower than another and a rotation would pay.
+            'condition': round(float(ev[-1] / max(ev[0], 1e-12)), 1),
+        })
+    ridges.sort(key=lambda d: -abs(d['r']))
+
     payload = {
         'primary': args.primary, 'n_chains': int(n_chains), 'n_draws': int(n_draws),
+        'ridges': ridges,
         'params': params,
         'worst_param': worst, 'lengths': lengths,
         'below_one': below, 'n_scalars': total,
