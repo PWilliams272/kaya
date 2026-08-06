@@ -18,6 +18,9 @@ runs/traces/
 # emcee chain archives: ~118MB each, same category as runs/traces/.
 # The small pointwise_*.npz files under runs/results/ ARE tracked.
 runs/results/emcee_*.npz
+# Backfill progress, rewritten after every gym and mirrored to S3
+# (state/backfill/<job>.json), which is the durable copy.
+runs/backfill_*.json
 # runs/networks.json is deliberately NOT ignored — see DATA_STORAGE_NOTES.md,
 # "Fit inputs under runs/". It is a hand-maintained source input that nothing
 # in this repo can regenerate.
