@@ -551,6 +551,17 @@ def get_existing_send_ids(
 # clears on.
 _BACKOFF_SCHEDULE = (5.0, 30.0, 120.0, 300.0, 900.0)
 
+# Attempts at one offset before a gym is given up on. Exported so the SQS
+# fanout and its consumer use this number rather than each carrying their own.
+#
+# They did not, and it silently voided the fix above: raising the library
+# default to 6 changed nothing in production, because the fanout stamps an
+# explicit `max_offset_retries` into every job message and its default was
+# still 3. The deployed path never reads the library default. Anything that
+# needs this value imports it — see test_pull_backoff.py, which fails if a
+# literal creeps back into either end.
+DEFAULT_OFFSET_RETRIES = 6
+
 
 def _backoff_seconds(attempt: int) -> float:
     """Seconds to wait after `attempt` consecutive failures at one offset."""
@@ -564,7 +575,7 @@ def update_gym_data(
     storage_backend: str = 'auto',
     batch_size: int = 1000,
     start_offset: int = 0,
-    max_offset_retries: int = 6,
+    max_offset_retries: int = DEFAULT_OFFSET_RETRIES,
     log_level: Optional[int] = None
 ) -> Optional[pd.DataFrame]:
     """Pull data for a gym and write to the database in batches.

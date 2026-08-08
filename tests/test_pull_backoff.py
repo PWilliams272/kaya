@@ -140,3 +140,54 @@ def test_an_explicit_timeout_is_not_overridden(monkeypatch):
     dp.kaya_api_post('https://example.invalid/graphql', {},
                                timeout=(1.0, 2.0))
     assert seen['timeout'] == (1.0, 2.0)
+
+
+# ---------------------------------------------------------------------------
+# The retry budget has to survive the trip through SQS.
+
+def test_the_fanout_stamps_the_shared_retry_budget_into_each_job():
+    """The queued job must carry the same budget the library defaults to.
+
+    This is the failure this test exists for, found in production on
+    2026-08-07: `update_gym_data`'s default was raised from 3 to 6, and it
+    changed nothing. The fanout writes an explicit `max_offset_retries` into
+    every SQS message and *its* default was still 3, so the deployed path never
+    read the library default. The DLQ went on filling at ~8 gyms/day with
+    "Exceeded max retries at offset N", and every message body said
+    `"max_offset_retries": 3`.
+
+    Three places have to agree, so none of them may hold a literal.
+    """
+    import inspect
+
+    from kaya.data_puller import DEFAULT_OFFSET_RETRIES, update_gym_data
+    from kaya.update_data_script import dispatch_gym_updates
+
+    puller = inspect.signature(update_gym_data)
+    fanout = inspect.signature(dispatch_gym_updates)
+
+    assert puller.parameters['max_offset_retries'].default == DEFAULT_OFFSET_RETRIES
+    assert fanout.parameters['max_offset_retries'].default == DEFAULT_OFFSET_RETRIES, (
+        'the SQS fanout defaults to a different retry budget than the puller. '
+        'It stamps its own value into every job message, so the puller default '
+        'is dead code in production and raising it fixes nothing.'
+    )
+
+
+def test_the_consumer_falls_back_to_the_shared_budget_not_a_literal():
+    """A job message with no explicit budget must still get the full one."""
+    from pathlib import Path
+
+    from kaya.data_puller import DEFAULT_OFFSET_RETRIES
+
+    src = Path(__file__).resolve().parents[1] / 'src' / 'kaya'
+    body = (src / 'update_data_script.py').read_text()
+    assert "payload.get('max_offset_retries', 3)" not in body.replace('\n', ' '), (
+        'the SQS consumer falls back to a hardcoded 3 rather than '
+        'DEFAULT_OFFSET_RETRIES; an older queued message would silently run '
+        'with the pre-fix budget.'
+    )
+    assert DEFAULT_OFFSET_RETRIES > 3, (
+        'the whole point of the change was more patience than the 3 attempts '
+        'that were losing ~8 gyms a day to the DLQ.'
+    )

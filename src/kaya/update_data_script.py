@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional, Sequence
 import boto3
 import pandas as pd
 
-from kaya.data_puller import update_gym_data
+from kaya.data_puller import DEFAULT_OFFSET_RETRIES, update_gym_data
 from kaya.gym_config import load_gyms_config
 
 # Set up logging for Lambda
@@ -127,7 +127,7 @@ def dispatch_gym_updates(
     mode: str = 'incremental',
     storage_backend: str = 'auto',
     batch_size: int = 1000,
-    max_offset_retries: int = 3,
+    max_offset_retries: int = DEFAULT_OFFSET_RETRIES,
     log_level: int = logging.INFO,
     gym_ids: Optional[Sequence[Any]] = None,
 ) -> Dict[str, Any]:
@@ -204,7 +204,8 @@ def process_sqs_records(
                 storage_backend=payload.get('storage_backend', 'auto'),
                 batch_size=int(payload.get('batch_size', 1000)),
                 max_offset_retries=int(
-                    payload.get('max_offset_retries', 3)
+                    payload.get('max_offset_retries',
+                                DEFAULT_OFFSET_RETRIES)
                 ),
                 log_level=int(payload.get('log_level', logging.INFO)),
             )
@@ -224,7 +225,7 @@ def update_all_gyms(
     use_aws: bool = True,
     storage_backend: str = 'auto',
     batch_size: int = 1000,
-    max_offset_retries: int = 3,
+    max_offset_retries: int = DEFAULT_OFFSET_RETRIES,
     gym_ids: Optional[Sequence[Any]] = None,
     log_level: int = logging.INFO
 ) -> Dict[str, str]:
@@ -318,7 +319,7 @@ if __name__ == '__main__':
         use_aws=True,
         storage_backend='auto',
         batch_size=1000,
-        max_offset_retries=3,
+        max_offset_retries=DEFAULT_OFFSET_RETRIES,
         log_level=logging.INFO
     )
     print(results)
