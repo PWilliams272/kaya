@@ -35,6 +35,15 @@ HEADERS = {
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
+# (connect, read) seconds. Without this `requests` waits forever, and on
+# 2026-08-06 that cost six hours: the laptop slept mid-pull, the peer dropped
+# the connection, and the read blocked on a socket that would never speak
+# again. Nothing failed, so neither the retry loop nor the backpressure break
+# ever engaged -- a hang is worse than an error precisely because none of the
+# recovery machinery is watching for it. A read that stalls past this is dead;
+# raising turns it back into the timeout error the retry loop already handles.
+_REQUEST_TIMEOUT = (10.0, 120.0)
+
 
 def _resolve_storage_backend(
     storage_backend: str,
@@ -166,6 +175,7 @@ def kaya_api_post(
     """
     KAYA_API_TOKEN = os.getenv("KAYA_API_TOKEN")
     HEADERS['authorization'] = f'Bearer {KAYA_API_TOKEN}'
+    kwargs.setdefault('timeout', _REQUEST_TIMEOUT)
     for attempt in range(max_retries + 1):
         try:
             response = requests.post(
@@ -525,6 +535,28 @@ def get_existing_send_ids(
     )['send_id'].tolist()
 
 
+# Retry waits, in seconds, for attempt 1, 2, 3, ...
+#
+# The old schedule was `min(0.5 * attempt, 5.0)`: five attempts inside 15
+# seconds. That is the right shape for a transient blip and exactly the wrong
+# one for a rate limit, which is what Kaya's API actually returns here -- it
+# surfaces "slow down" as a generic INTERNAL_SERVER_ERROR rather than a 429, so
+# the puller could not tell the two apart and kept knocking during the window
+# it was being told to stop. On 2026-08-06 that turned one throttled gym into
+# eleven failed ones in a two-minute span; every one of them pulled fine the
+# next morning.
+#
+# 5s, 30s, 2min, 5min, 15min: about 22 minutes of patience in total, which is
+# the timescale a quota refills on rather than the timescale a network blip
+# clears on.
+_BACKOFF_SCHEDULE = (5.0, 30.0, 120.0, 300.0, 900.0)
+
+
+def _backoff_seconds(attempt: int) -> float:
+    """Seconds to wait after `attempt` consecutive failures at one offset."""
+    return _BACKOFF_SCHEDULE[min(attempt, len(_BACKOFF_SCHEDULE)) - 1]
+
+
 def update_gym_data(
     gym_id: Union[str, int],
     mode: str = 'incremental',
@@ -532,7 +564,7 @@ def update_gym_data(
     storage_backend: str = 'auto',
     batch_size: int = 1000,
     start_offset: int = 0,
-    max_offset_retries: int = 3,
+    max_offset_retries: int = 6,
     log_level: Optional[int] = None
 ) -> Optional[pd.DataFrame]:
     """Pull data for a gym and write to the database in batches.
@@ -551,8 +583,9 @@ def update_gym_data(
             Defaults to 1000.
         start_offset (int, optional): Starting offset for data pull. Defaults
             to 0.
-        max_offset_retries (int, optional): Maximum retries for the same API
-            offset before failing the current gym update. Defaults to 3.
+        max_offset_retries (int, optional): Attempts at the same offset before
+            giving up. Six with `_backoff_seconds` spends ~22 minutes waiting,
+            which is the point -- see that function. Defaults to 6.
         log_level (Optional[int], optional): Logging level. Defaults to None.
 
     Returns:
@@ -641,9 +674,17 @@ def update_gym_data(
             if offset_retry_count >= max_offset_retries:
                 raise RuntimeError(
                     f"Exceeded max retries at offset {offset} for gym "
-                    f"{gym_id}."
+                    f"{gym_id} after waiting "
+                    f"{sum(_backoff_seconds(i) for i in range(1, max_offset_retries)):.0f}s "
+                    f"in total. If the error is INTERNAL_SERVER_ERROR this is "
+                    f"most likely rate limiting, not a problem with this gym."
                 ) from e
-            time.sleep(min(0.5 * offset_retry_count, 5.0))
+            wait = _backoff_seconds(offset_retry_count)
+            logger.warning(
+                "backing off %.0fs before retrying offset %s for gym_id=%s",
+                wait, offset, gym_id,
+            )
+            time.sleep(wait)
             continue
         if df.empty:
             logger.debug(f"No data returned at offset {offset}. Stopping.")

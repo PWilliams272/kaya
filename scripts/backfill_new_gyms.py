@@ -54,6 +54,7 @@ import logging
 import os
 import signal
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
@@ -197,8 +198,10 @@ def gym_run_ids(gym_id: str, refresh: bool = False) -> Dict[str, int]:
 
 
 # States in which this job has a run of its own that may have died part-way.
-# A gym it never started cannot have been orphaned BY it.
-IN_FLIGHT_STATES = {'in_progress', 'blocked_orphans'}
+# A gym it never started cannot have been orphaned BY it. 'failed' belongs here
+# for the same reason 'in_progress' does: the pull got far enough to write
+# objects before the API gave up on it.
+IN_FLIGHT_STATES = {'in_progress', 'blocked_orphans', 'failed'}
 
 
 def orphan_run_ids(gym_id: str, manifest: Manifest,
@@ -280,6 +283,20 @@ def main() -> int:
                     help='print the plan and touch nothing')
     ap.add_argument('--status', action='store_true',
                     help='report progress and orphans, pull nothing')
+    ap.add_argument('--between-gyms', type=float, default=30.0,
+                    help="seconds to pause between gyms, so a long backfill "
+                         "does not present as one uninterrupted burst to "
+                         "somebody else's API")
+    ap.add_argument('--cooloff', type=float, default=300.0,
+                    help='seconds to wait after a gym fails before starting '
+                         'the next one. A failure is the API asking for room.')
+    ap.add_argument('--max-consecutive-failures', type=int, default=3,
+                    help='stop the run after this many gyms fail in a row. '
+                         'Several in a row is backpressure, not several broken '
+                         'gyms -- see the 2026-08-06 note in the module docstring.')
+    ap.add_argument('--clean-only', action='store_true',
+                    help='delete orphaned partial writes and stop, without '
+                         'starting a pull')
     ap.add_argument('--clean-orphans', action='store_true',
                     help='DELETE partial writes left by killed runs')
     ap.add_argument('--yes', action='store_true',
@@ -359,15 +376,30 @@ def main() -> int:
     signal.signal(signal.SIGTERM, stop)
 
     pulled = 0
+    failed: List[str] = []
+    consecutive = 0
+    cleaned = 0
     try:
-        for g in todo:
+        for i, g in enumerate(todo):
             gym_id, gym_name = g['gym_id'], g['gym_name']
+            # A gap between gyms, so a 20-gym backfill does not present to the
+            # API as one uninterrupted multi-hour burst. Cheap next to a pull
+            # that takes half an hour, and the thing being protected is
+            # somebody else's service.
+            #
+            # --clean-only never touches that service -- it lists and deletes
+            # in our own bucket -- so pacing it just makes an S3 tidy-up take
+            # 30s per gym for nothing.
+            if i and args.between_gyms and not args.clean_only:
+                print(f'  pausing {args.between_gyms:.0f}s before the next '
+                      'gym...', flush=True)
+                time.sleep(args.between_gyms)
             rec = manifest.gym(gym_id)
 
             orph = orphan_run_ids(gym_id, manifest)
             if orph:
                 total = sum(orph.values())
-                if args.clean_orphans:
+                if args.clean_orphans or args.clean_only:
                     if not args.yes:
                         ans = input(
                             f'\nDELETE {total} S3 objects from {len(orph)} '
@@ -378,6 +410,18 @@ def main() -> int:
                     for run_id in orph:
                         n = delete_run(gym_id, run_id)
                         logger.info('deleted %s objects from orphaned run %s', n, run_id)
+                    if args.clean_only:
+                        # Tidying and pulling are separate decisions. A full
+                        # pull is hours long, so "remove the partial write"
+                        # should not oblige anyone to start one now.
+                        rec.pop('orphans', None)
+                        rec['state'] = 'pending'
+                        rec['cleaned_at'] = datetime.now(timezone.utc).isoformat()
+                        manifest.save()
+                        print(f'  cleaned {total} orphaned object(s); '
+                              'not pulling (--clean-only)', flush=True)
+                        cleaned += 1
+                        continue
                 else:
                     logger.warning(
                         '%s (%s) has %s orphaned object(s) from %s killed run(s): %s. '
@@ -389,6 +433,9 @@ def main() -> int:
                     manifest.save()
                     continue
 
+            if args.clean_only:
+                continue
+
             before = set(gym_run_ids(gym_id))
             rec.update({'state': 'in_progress', 'gym_name': gym_name,
                         'preexisting_run_ids': sorted(before),
@@ -397,9 +444,46 @@ def main() -> int:
             manifest.save()
 
             print(f"\n=== {gym_name} ({gym_id}) — full pull ===", flush=True)
-            update_gym_data(gym_id, mode='full', use_aws=True,
-                            storage_backend='s3', batch_size=args.batch_size,
-                            log_level=logging.INFO)
+            try:
+                update_gym_data(gym_id, mode='full', use_aws=True,
+                                storage_backend='s3', batch_size=args.batch_size,
+                                log_level=logging.INFO)
+            except Exception as exc:   # noqa: BLE001 - one gym must not end the run
+                # Kaya's API returns INTERNAL_SERVER_ERROR intermittently; the
+                # puller already retries, and exhausting those retries is a
+                # statement about one gym at one moment, not about the batch.
+                # Letting it propagate cost 17 unattended gyms once.
+                #
+                # 'failed' is in IN_FLIGHT_STATES, so whatever partial objects
+                # this pull wrote are detected as orphans on the next run and
+                # block the retry until they are cleaned -- the same protection
+                # an interrupted gym gets, for the same reason.
+                logger.error('%s (%s) FAILED: %s', gym_name, gym_id, exc)
+                rec.update({'state': 'failed', 'error': str(exc)[:500],
+                            'failed_at': datetime.now(timezone.utc).isoformat()})
+                manifest.save()
+                failed.append(gym_id)
+                consecutive += 1
+                # Backpressure, not just failure tracking. One gym failing is a
+                # gym; several in a row is the API telling the whole run to
+                # stop, and the only reason it looks like N gym failures is
+                # that we kept asking. On 2026-08-06 eleven gyms were burned in
+                # a two-minute window this way and every one pulled fine the
+                # next morning.
+                if consecutive >= args.max_consecutive_failures:
+                    print(f'\n{consecutive} gyms failed in a row -- treating '
+                          'that as backpressure rather than as '
+                          f'{consecutive} broken gyms.', file=sys.stderr)
+                    print('Stopping. The remaining gyms are untouched and the '
+                          'manifest records where\nthis got to; re-run the '
+                          'same command later to continue.', file=sys.stderr)
+                    print('Diagnose with: python scripts/probe_kaya_api.py',
+                          file=sys.stderr)
+                    break
+                print(f'  cooling off {args.cooloff:.0f}s after a failure...',
+                      flush=True)
+                time.sleep(args.cooloff)
+                continue
 
             after = gym_run_ids(gym_id, refresh=True)
             new = sorted(set(after) - before)
@@ -412,6 +496,7 @@ def main() -> int:
             })
             manifest.save()
             pulled += 1
+            consecutive = 0
             print(f"    done — {rec['objects_written']} S3 objects, "
                   f"run_id {rec['run_id']}", flush=True)
     except KeyboardInterrupt:
@@ -420,10 +505,20 @@ def main() -> int:
         manifest.save()
 
     remaining = [g for g in gyms if not manifest.is_done(g['gym_id'])]
+    if args.clean_only:
+        print(f'\ncleaned {cleaned} gym(s); nothing was pulled')
+        return 0
     print(f'\npulled {pulled} gym(s); {len(remaining)} still to do')
+    if failed:
+        print(f'{len(failed)} gym(s) failed and were skipped: {", ".join(failed)}')
+        print('their partial writes are orphans -- clean them before retrying:')
+        print(f'  scripts/backfill_new_gyms.py --gyms {",".join(failed)} '
+              '--clean-orphans')
     if remaining:
         print('re-run the same command to continue; --status shows where it stopped')
-    return 1 if interrupted['flag'] else 0
+    # A failure that was contained is still a failure worth a non-zero exit, so
+    # an unattended wrapper does not report success on a partial batch.
+    return 1 if (interrupted['flag'] or failed) else 0
 
 
 if __name__ == '__main__':
