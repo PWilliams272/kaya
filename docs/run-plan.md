@@ -386,3 +386,115 @@ Then read the diagnostics and top up only what needs it:
 scripts/run_fit.py --name v7_v3_lin_b --seed 20260906 ...   # 4 more chains
 scripts/merge_chains.py --out v7_v3_lin_merged v7_v3_lin v7_v3_lin_b
 ```
+
+---
+
+## 2026-08-07 — where things stand
+
+Written at the end of the night's work, for whoever picks this up next. The
+sections above still describe the questions correctly; this one says what has
+been measured and what is running.
+
+### The v10 sweep came back, and it may not be readable
+
+Seven height forms, all climber offsets integrated out by quadrature — 40
+sampled parameters against 4,241, step size 46× the v7 fits. Five landed, two
+were still sampling at the time of writing.
+
+| fit | form | elpd (higher better) | state |
+|---|---|---|---|
+| `v10_quad_marg` | quadratic | **−35518.38** | clean |
+| `v10_lin_marg` | linear | −35521.13 | clean |
+| `v10_linxg_marg` | linear × gender | −35521.39 | clean |
+| `v10_conf_marg` | quadratic × gender | *no elpd* | **chain froze** |
+| `v10_zero_marg` | zero | −55362.71 | **chain froze** |
+| `v10_sat_marg` | saturating | — | running |
+| `v10_vtx_marg` | vertex quadratic | — | running |
+
+**The spread across the three clean fits is 3.0 elpd.** The noise floor on this
+geometry has never been measured — `v10_lin_marg_s2` measures it tonight — and
+3.0 is small enough that the floor may well swallow the ranking whole. The v7
+sweep is the precedent: 32.7 elpd of spread against a 31.1 elpd floor, which is
+not a ranking.
+
+**The two frozen fits are not evidence of anything.** Chain 3 of each adapted
+its step size to exactly 0.0 during warm-up and never left its initial point:
+R-hat 1.53, ESS 7, 1,500 divergences, identical numbers from two models sharing
+no height parameters. `v10_zero_marg`'s elpd of −55,363 (p_loo 19,228) is
+arithmetic on a dead chain, **not** a finding that height matters enormously.
+Both are re-run tonight at fresh seeds.
+
+### Two questions, not one
+
+`scripts/report_noise_floor.py` now separates them, because they have different
+stakes and were previously answered as one number:
+
+- **Does height do anything?** best form vs `zero`. Decides whether there is a
+  height section at all.
+- **Which form?** spread across the height forms with `zero` excluded. Only
+  decides what that section says.
+
+Each is judged against the same floor, and non-converged fits are excluded from
+both rather than annotated and counted. Run it the moment the twin lands:
+
+```bash
+source .venv/bin/activate && python scripts/report_noise_floor.py
+```
+
+### Running tonight — `scripts/run_night_queue.sh`, two at a time
+
+| order | fit | why it is in this position |
+|---|---|---|
+| 1 | `v10_lin_marg_s2` | the floor. Nothing above can be *read* without it |
+| 2 | `v10_zero_marg_r2` | clean no-height baseline — the "does height matter" arm |
+| 3 | `v11_lin_adv` | advancement arm, new information |
+| 4 | `v10_conf_marg_r2` | best-scoring form on four clean chains instead of three |
+| 5 | `v11_quad_adv` | second advancement arm |
+
+Two at a time, because one fit is 4 chains on a 4 P-core machine and the
+previous queue ran them serially. Three at a time is the case that is actually
+bad: 370 min each against ~85 for two.
+
+If the floor turns out larger than 3.0 elpd, **4 and 5 are the fits to
+reconsider** — they confirm a ranking that would no longer be readable.
+
+### Advancement is in, and stays fixed
+
+A known number of grades added to each ceiling for when that send happened,
+interpolated by grade, applied to 13,255 of 20,014 observations. Mean |offset|
+0.021 grades, max 0.515. **Never fitted** — a free parameter has nothing to
+separate it from the gym corrections and absorbed 3.4× its true value in
+simulation. `build_model_v2(advancement=True)` raises rather than silently
+doing nothing when the snapshot lacks `max_send_date`.
+
+### Gym drift is reproducible now, and the cells exist
+
+`scripts/probe_gym_drift.py` rebuilds `docs/two-stage-and-grade-compression.md`
+§6.5 from the live mirror — τ 0.163 grades/yr, I² 68%, per-gym sd 0.101,
+0.60 grades accumulated over 5.9 years — and writes
+`runs/time_resolved_cells.pkl`, 53,338 (climber, gym, 90-day window) cells.
+That file is the input a drift-carrying model needs; `base_bouldering.pkl`
+cannot provide it, because it aggregates to one row per (climber, gym).
+
+Drift is roughly half the entire spread the gym corrections are trying to
+measure. It is the largest un-modelled effect left.
+
+### Deliberately not queued
+
+- **Stage 1 / stage 2 and grade compression.** Both need cores, and both sit
+  downstream of the floor: if height is unreadable, the stage-1 design changes.
+- **Bridge sampling on the PyMC traces.** `scripts/run_bridge.py` works from an
+  emcee `.npz`; pointing it at `idata_v10_*.nc` needs the ZeroSumNormal basis
+  inverted to recover `gym_raw`, which is real work for a question (Q6) that
+  blocks nothing.
+- **A drift-carrying fit.** The cells exist; the model term does not. Design it
+  against §6.5's constraint that only *relative* drift is identifiable.
+
+### One stale docstring, not fixed
+
+`prepare_base_data` in `grading_model_v2.py` still says `local_db` is "stale —
+last written in June 2025" and that anything time-based must use `s3_raw`. That
+was wrong and is contradicted by `build_base_snapshot.py`'s own header:
+`local_db` resolves through `LOCAL_DB_URL` to the live mirror, 2.46M sends,
+zero null dates. Left alone because it is outside tonight's task, but it will
+send the next reader to the slow source for no reason.
