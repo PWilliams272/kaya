@@ -53,6 +53,10 @@ async function activateTab(tabName) {
     // The presentation cut. Same payloads as the two pages below it, so
     // switching between any of them refetches nothing.
     renderFindingsTab();
+  } else if (tabName === 'run-log') {
+    // The lab notebook. Its own payload, shared with nothing, so it costs one
+    // fetch the first time and nothing after.
+    await renderV2Runlog();
   } else if (tabName === 'grading-current') {
     // The current write-up. Shares every payload with the archived v2 notes,
     // so switching between them refetches nothing.
@@ -63,6 +67,12 @@ async function activateTab(tabName) {
     await ensureGymComparisonData();
     renderGymComparisonAll();
   }
+
+  // Last, and outside every branch: the contents rail is derived from the DOM
+  // this pane just produced, so it has to be built after the pane is populated
+  // rather than alongside it. Tabs that are not article pages produce an empty
+  // tree and the rail hides itself.
+  if (typeof renderPageNav === 'function') renderPageNav(tabName);
 }
 
 function bindTabs() {

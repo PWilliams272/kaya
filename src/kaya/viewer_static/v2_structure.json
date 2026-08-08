@@ -1,0 +1,283 @@
+{
+ "network": "net50",
+ "name_filter": "confident",
+ "compression": {
+  "linear": {
+   "k": 109,
+   "df": 108,
+   "Q": 268.3,
+   "crit": 133.3,
+   "p": 1.2144666195198223e-15,
+   "pooled": 0.0178,
+   "pooled_se": 0.0058,
+   "i2": 60.0,
+   "tau": 0.074,
+   "per_gym": 0.0523,
+   "se_median": 0.074,
+   "n_obs": 18284,
+   "n_median": 112,
+   "span_median": 9.0,
+   "power": [
+    {
+     "tau": 0.01,
+     "power": 0.081
+    },
+    {
+     "tau": 0.02,
+     "power": 0.194
+    },
+    {
+     "tau": 0.03,
+     "power": 0.503
+    },
+    {
+     "tau": 0.04,
+     "power": 0.848
+    },
+    {
+     "tau": 0.05,
+     "power": 0.975
+    },
+    {
+     "tau": 0.075,
+     "power": 1.0
+    },
+    {
+     "tau": 0.1,
+     "power": 1.0
+    }
+   ],
+   "floor": 0.0386
+  },
+  "curvature": {
+   "k": 80,
+   "df": 79,
+   "Q": 169.7,
+   "crit": 100.7,
+   "p": 1.40544334562436e-08,
+   "pooled": 0.0035,
+   "pooled_se": 0.0024,
+   "i2": 53.0,
+   "tau": 0.023,
+   "per_gym": 0.0162,
+   "se_median": 0.0253,
+   "power": [
+    {
+     "tau": 0.005,
+     "power": 0.108
+    },
+    {
+     "tau": 0.01,
+     "power": 0.367
+    },
+    {
+     "tau": 0.02,
+     "power": 0.978
+    },
+    {
+     "tau": 0.03,
+     "power": 1.0
+    },
+    {
+     "tau": 0.05,
+     "power": 1.0
+    }
+   ],
+   "floor": 0.0171
+  },
+  "clean": {
+   "k": 135,
+   "df": 134,
+   "Q": 302.2,
+   "crit": 162.0,
+   "p": 5.199544258448419e-15,
+   "pooled": 0.016,
+   "pooled_se": 0.0058,
+   "i2": 56.0,
+   "tau": 0.0753,
+   "per_gym": 0.0532,
+   "se_median": 0.0903,
+   "n_climbers": 2430
+  },
+  "ability_p10": 3.0,
+  "ability_p90": 8.0,
+  "differential": 0.52,
+  "n_climbers_2plus": 4201,
+  "n_climbers_3plus": 2430
+ },
+ "drift": {
+  "het": {
+   "k": 121,
+   "df": 120,
+   "Q": 379.7,
+   "crit": 146.6,
+   "p": 9.914944569485555e-29,
+   "pooled": 0.0349,
+   "pooled_se": 0.0099,
+   "i2": 68.0,
+   "tau": 0.1629,
+   "per_gym": 0.1152,
+   "se_median": 0.2163,
+   "n_median": 107,
+   "span_median": 1.4,
+   "power": [
+    {
+     "tau": 0.02,
+     "power": 0.092
+    },
+    {
+     "tau": 0.05,
+     "power": 0.43
+    },
+    {
+     "tau": 0.075,
+     "power": 0.874
+    },
+    {
+     "tau": 0.1,
+     "power": 0.99
+    },
+    {
+     "tau": 0.15,
+     "power": 1.0
+    },
+    {
+     "tau": 0.2,
+     "power": 1.0
+    }
+   ],
+   "floor": 0.0708
+  },
+  "connectivity": {
+   "strict_threshold": 40,
+   "strict_components": [
+    16,
+    8,
+    3
+   ],
+   "used_threshold": 25,
+   "used_components": [
+    28
+   ]
+  },
+  "robust": [
+   {
+    "window_days": 90,
+    "gap_controlled": false,
+    "k": 121,
+    "Q": 379.7,
+    "df": 120,
+    "i2": 68.0,
+    "tau": 0.1629,
+    "gap_days": 22.0
+   },
+   {
+    "window_days": 90,
+    "gap_controlled": true,
+    "k": 121,
+    "Q": 367.7,
+    "df": 120,
+    "i2": 67.0,
+    "tau": 0.1605,
+    "gap_days": 22.0
+   },
+   {
+    "window_days": 45,
+    "gap_controlled": false,
+    "k": 108,
+    "Q": 450.8,
+    "df": 107,
+    "i2": 76.0,
+    "tau": 0.1832,
+    "gap_days": 12.0
+   },
+   {
+    "window_days": 45,
+    "gap_controlled": true,
+    "k": 108,
+    "Q": 456.6,
+    "df": 107,
+    "i2": 77.0,
+    "tau": 0.1854,
+    "gap_days": 12.0
+   }
+  ],
+  "span_years": 5.9,
+  "n_sends": 1191431,
+  "n_climbers": 16133,
+  "date_min": "2020-08-25",
+  "date_max": "2026-07-26",
+  "window_days": 90,
+  "per_gym_sd": 0.1049,
+  "per_gym_se_median": 0.0516,
+  "route1": 0.1152,
+  "accumulated_span": 0.62,
+  "mean_date_sd": 0.57,
+  "mean_date_range": 1.92,
+  "accum_sd": 0.063,
+  "correction_sd": 0.284,
+  "correction_range": 1.29,
+  "confound": {
+   "raw_r": 0.601,
+   "raw_slope": 0.809,
+   "adj_r": 0.678,
+   "adj_slope": 0.955,
+   "rate_vs_correction_r": 0.042,
+   "accum_vs_correction_r": -0.104
+  },
+  "stiffening": [
+   {
+    "name": "Movement Santa Clara",
+    "rate": 0.319,
+    "se": 0.037
+   },
+   {
+    "name": "Movement San Francisco",
+    "rate": 0.172,
+    "se": 0.057
+   },
+   {
+    "name": "Bouldering Project - Poplar",
+    "rate": 0.142,
+    "se": 0.068
+   },
+   {
+    "name": "Touchstone The Studio",
+    "rate": 0.115,
+    "se": 0.075
+   },
+   {
+    "name": "The Stronghold Lincoln Heights",
+    "rate": 0.102,
+    "se": 0.076
+   }
+  ],
+  "softening": [
+   {
+    "name": "Touchstone Team Training Center",
+    "rate": -0.171,
+    "se": 0.082
+   },
+   {
+    "name": "Movement Belmont",
+    "rate": -0.128,
+    "se": 0.052
+   },
+   {
+    "name": "Touchstone Dogpatch Boulders",
+    "rate": -0.11,
+    "se": 0.044
+   },
+   {
+    "name": "Touchstone Class 5",
+    "rate": -0.104,
+    "se": 0.051
+   },
+   {
+    "name": "Touchstone Berkeley Ironworks",
+    "rate": -0.098,
+    "se": 0.042
+   }
+  ]
+ }
+}

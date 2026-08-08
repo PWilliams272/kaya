@@ -231,7 +231,19 @@
   line-height: 1.6;
   margin: 20px 0;
 }
-.callout b { display: block; margin-bottom: 3px; }
+/* A callout opens with a bolded lead that reads as its heading, and longer
+   ones repeat that pattern after a <br><br> break. Those two positions get
+   their own line. Every OTHER bold in a callout is emphasis inside a sentence
+   -- the rule used to be a bare `.callout b`, which broke each of those onto
+   its own line and shredded the paragraph.
+
+   Authoring constraint from the second selector: `+` skips text nodes, so a
+   bold ANYWHERE in the first sentence after a <br><br> is treated as a lead
+   and forced onto its own line. If a paragraph after a break needs a bold
+   mid-sentence, put unbolded words before it in a preceding element, or lead
+   the paragraph with the bold deliberately. */
+.callout > div > b:first-child,
+.callout br + b { display: block; margin-bottom: 3px; }
 .callout.warn { border-left-color: var(--lg-warning); }
 
 /* ---- archive banner ----
@@ -1008,6 +1020,71 @@
 }
 .data-table td.bad { color: var(--lg-danger); font-weight: 620; }
 
+/* ---- sweep section: pass/under pills, sub-labels, paired tables ----
+   .pill-ok/.pill-warn borrow .pill-best's shape so a diagnostic verdict reads
+   as the same kind of object as a "best" marker, only in a different colour. */
+.pill-ok, .pill-warn {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 640;
+  padding: 1px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.pill-ok { color: var(--lg-success);
+  background: color-mix(in srgb, var(--lg-success) 16%, transparent); }
+.pill-warn { color: var(--lg-warning);
+  background: color-mix(in srgb, var(--lg-warning) 18%, transparent); }
+
+/* Which parameter was worst, under the number it belongs to. Small enough to
+   skip when scanning the column, present when a row is being read closely. */
+.cell-sub {
+  font-size: 0.68rem;
+  font-weight: 440;
+  opacity: 0.62;
+  margin-top: 2px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* The second half of a callout: the mechanism, for readers who want it. */
+.callout-note {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  opacity: 0.78;
+}
+
+/* Two small tables meant to be compared column-for-column. Stacks on narrow
+   screens rather than shrinking, because the point is reading them together
+   and two squeezed tables are worse than two sequential ones. */
+.split-tables {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+/* Each side needs its own border. Without one the two grids abut and read as a
+   single eight-column table, which is the exact misreading the pairing exists
+   to prevent -- the columns are only meaningful within their own half. */
+.split-tables > div {
+  border: 1px solid var(--lg-border, rgba(128, 128, 128, 0.22));
+  border-radius: var(--lg-radius-md, 6px);
+  padding: 12px 14px 4px;
+  /* .data-table carries min-width: 480px for the full-width tables, which is
+     wider than a half-width column. Let these shrink, and scroll inside their
+     own card if the content genuinely will not fit -- never widen the page. */
+  overflow-x: auto;
+}
+.split-tables h4 {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.72;
+}
+.split-tables .data-table { width: 100%; min-width: 0; }
+
 .read-guide td:first-child { width: 34%; }
 .read-guide .ok { color: var(--lg-success); font-weight: 640; }
 .read-guide .bad { color: var(--lg-danger); font-weight: 640; }
@@ -1237,4 +1314,179 @@
   width: 100%; max-width: 760px; height: auto;
   color: var(--lg-text);
   display: block; margin: 0 auto;
+}
+
+/* Run-log cards. The head is a single flex row so the step marker, the title
+   and the verdict pill sit on one baseline and wrap together on narrow
+   screens rather than the pill escaping to its own line. */
+.runlog-card {
+  padding: var(--lg-space-4, 1rem) var(--lg-space-5, 1.25rem);
+  margin-bottom: var(--lg-space-3, 0.75rem);
+}
+.runlog-card-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+.runlog-card-head h4 {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 1.02rem;
+}
+.runlog-card .prose { margin: 0 0 0.45rem; }
+.runlog-card .caption { margin: 0.35rem 0 0; }
+.runlog-card .callout-note { margin: 0.5rem 0; }
+
+/* The step/campaign marker. Fixed width so a numbered list and a `v10` label
+   line up down the left edge instead of ragging. */
+.runlog-step {
+  flex: 0 0 auto;
+  min-width: 2.4rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--lg-radius-sm, 4px);
+  background: var(--lg-surface-2, rgba(128, 128, 128, 0.12));
+  border: 1px solid var(--lg-border, rgba(128, 128, 128, 0.25));
+  font-family: var(--lg-font-mono, ui-monospace, monospace);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: center;
+  color: var(--lg-text-muted, inherit);
+}
+
+/* The run-log's fit table carries nine columns, several with a sub-label under
+   the value. At the shared 480px floor it fits the container by squeezing, and
+   the last column clips rather than scrolling. Giving it a realistic floor lets
+   .data-table-wrap's overflow-x do its job on narrow viewports instead. */
+#gm-runlog-table { min-width: 1150px; }
+#gm-runlog-table td:last-child { white-space: nowrap; }
+
+/* ---- persistent contents rail -------------------------------------------
+   Mirrors .glossary on the opposite edge: fixed, full height under the
+   topbar, its own scroll. Built by js/v2/15-pagenav.js from the DOM.
+
+   Below the breakpoint it is hidden entirely and the in-page <nav class="toc">
+   takes over — which is why that markup stays in the templates rather than
+   being deleted. A narrow window then needs no JavaScript at all. */
+.page-nav { display: none; }
+
+@media (min-width: 1180px) {
+  .page-nav {
+    display: block;
+    position: fixed;
+    /* Measured by pagenavSyncTop(); the token is a floor for first paint. */
+    top: var(--kaya-topbar-h, var(--lg-nav-h));
+    left: 0;
+    bottom: 0;
+    width: 264px;
+    z-index: 9;               /* below .topbar (10), same as .glossary */
+    border-right: 1px solid var(--lg-border);
+    background: var(--lg-surface);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .page-nav[hidden] { display: none; }
+
+  /* Shift the centred column out from under the rail so the two never
+     overlap. Padding rather than margin so .main-shell's own max-width
+     still applies to the remaining space. */
+  body.has-page-nav .main-shell { padding-left: 288px; }
+
+  /* The rail replaces it. Kept in the DOM for the narrow case above. */
+  body.has-page-nav .toc { display: none; }
+}
+
+.page-nav-inner { padding: 18px 14px 40px; }
+.page-nav-head {
+  padding: 0 8px 10px;
+  border-bottom: 1px solid var(--lg-border);
+  margin-bottom: 10px;
+}
+.page-nav-title {
+  margin-top: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--lg-text-muted);
+}
+.page-nav-list { display: flex; flex-direction: column; gap: 1px; }
+
+.page-nav-row { display: flex; align-items: stretch; gap: 2px; }
+.page-nav-link {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: block;
+  padding: 6px 8px;
+  border-radius: var(--lg-radius-sm, 4px);
+  border-left: 2px solid transparent;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--lg-text-muted);
+  text-decoration: none;
+}
+.page-nav-link:hover {
+  color: var(--lg-text);
+  background: var(--lg-surface-2, rgba(128, 128, 128, 0.1));
+}
+.page-nav-link.current {
+  color: var(--lg-gold);
+  border-left-color: var(--lg-gold);
+  background: var(--lg-surface-2, rgba(128, 128, 128, 0.1));
+}
+
+/* Disclosure caret. A CSS triangle rather than an inline SVG so it inherits
+   currentColor and needs no separate dark-theme handling. */
+.page-nav-toggle {
+  flex: 0 0 auto;
+  width: 24px;
+  border: 0;
+  border-radius: var(--lg-radius-sm, 4px);
+  background: transparent;
+  color: var(--lg-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.page-nav-toggle::before {
+  content: '';
+  border: 4px solid transparent;
+  border-left-color: currentColor;
+  transform: translateX(1px);
+  transition: transform 120ms ease;
+}
+.page-nav-toggle:hover { color: var(--lg-text); }
+.page-nav-group.open > .page-nav-row > .page-nav-toggle::before {
+  transform: rotate(90deg) translateX(1px);
+}
+
+.page-nav-sub { display: none; flex-direction: column; margin: 1px 0 3px 10px; }
+.page-nav-group.open > .page-nav-sub { display: flex; }
+.page-nav-sublink {
+  font-size: 12px;
+  padding-left: 12px;
+  border-left: 1px solid var(--lg-border);
+  border-radius: 0;
+}
+.page-nav-sublink.current { border-left-width: 2px; }
+
+/* An anchor must not land under the sticky topbar. Applied to the headings
+   the rail links to rather than globally, so nothing else shifts. */
+.article-section,
+.article-section > h3 { scroll-margin-top: calc(var(--lg-nav-h) + 16px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .page-nav-toggle::before { transition: none; }
+}
+
+/* Two levels of "you are here". .current is the heading being read; a
+   subsection also marks its parent group with .parent-current, quieter -- the
+   rail has to keep saying which section you are in after that section's own
+   heading has scrolled off the top. Colour without the bar or the fill, so the
+   two never read as equally current. */
+.page-nav-link.parent-current {
+  color: var(--lg-text);
+  font-weight: 600;
 }

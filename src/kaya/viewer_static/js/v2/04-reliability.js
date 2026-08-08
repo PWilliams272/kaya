@@ -468,14 +468,30 @@ async function renderV2Samplers() {
     }).join('')
     + '</tbody>';
   if (note) {
+    // The verdict sentence has to follow the number. An earlier version said
+    // "well under 1, so they agree" unconditionally, which would have read as
+    // a clean bill of health next to a 1.7-sd row.
+    const w = d.worst_frac_sd;
+    const verdict = w < 0.5
+      ? 'Every parameter lands well inside the width of its own posterior, so '
+        + 'the samplers agree on the answer even where Monte Carlo error is '
+        + 'small enough to make them "differ" statistically.'
+      // The full treatment lives on the current tab only. An anchor to it from
+      // the archived pane would be a dead link, so name the tab there instead.
+      : 'That is <b>not</b> within Monte Carlo noise, and it is one parameter '
+        + 'rather than a general drift &mdash; see '
+        + (V2_NS === 'gm-'
+          ? '<a href="#gm-samplers">A second sampler, and where it disagrees</a>'
+          : '<b>A second sampler, and where it disagrees</b> on the '
+            + '<i>Grading Model &mdash; Full Detail</i> tab')
+        + ', where the prior, the likelihood and the quadrature are each '
+        + 'eliminated as the cause.';
     note.innerHTML = `Posterior mean and standard deviation for every parameter `
       + `all ${S.length} samplers report. The last column is the largest `
       + 'disagreement between them, measured against the width of the '
       + 'posterior itself &mdash; the only scale on which the question has an '
-      + `answer. The worst case anywhere is <b>${d.worst_frac_sd.toFixed(3)} `
-      + 'standard deviations</b>. With enough draws two samplers always differ '
-      + '<i>statistically</i>; what matters is whether they differ by enough '
-      + 'to change a conclusion.';
+      + `answer. The worst case anywhere is <b>${w.toFixed(3)} standard `
+      + `deviations</b>. ${verdict}`;
   }
 }
 

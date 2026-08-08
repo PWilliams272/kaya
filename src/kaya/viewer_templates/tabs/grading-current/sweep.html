@@ -1,0 +1,68 @@
+<!-- The seven-form sweep. Rendered by
+     src/kaya/viewer_static/js/v2/12-sweep.js from v2_sweep.json, which
+     scripts/build_v2_sweep.py writes out of runs/traces/idata_v7_*.nc.
+     Hides itself if that payload is missing. -->
+<section class="article-section" id="gm-sweep">
+              <h2>Seven shapes for height, and a leaderboard that cannot be read</h2>
+              <p class="prose">
+                Does being tall help on a boulder problem? The honest answer is
+                that it depends what shape you let the answer take. A straight
+                line says taller is always better. A curve allows an optimum. A
+                saturating form says height helps until it stops helping. Each is
+                a different claim, and the only way to choose between them is to
+                fit all of them on the same data and compare how well each
+                predicts a send it has not seen.
+              </p>
+              <p class="prose">
+                So that is what this is: <b>seven height forms, refit
+                together</b>, on one network of 29 gyms, with a long warm-up so
+                that no form is handicapped by a sampler that had not settled.
+                Roughly a day of compute.
+              </p>
+              <div class="kpi-grid" id="gm-sweep-run"></div>
+
+              <h3>Read this before reading the table</h3>
+              <p class="prose">
+                Seven models each with a score invites exactly one behaviour:
+                sort the column and announce a winner. Everything about the
+                presentation of a leaderboard encourages it, which is why the
+                warning belongs above the table rather than beneath it.
+              </p>
+              <div id="gm-sweep-verdict"></div>
+
+              <h3>The sweep</h3>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gm-sweep-table"></table>
+              </div>
+              <p class="caption">
+                <b>R-hat</b> compares the variance between chains to the variance
+                within them; 1.00 is perfect agreement and lower is better.
+                <b>Effective draws</b> is how many genuinely independent samples
+                the chains produced, after discounting for the fact that
+                consecutive draws are correlated; higher is better. Both are
+                computed across the nine parameters this page actually quotes,
+                not across the 4,201 per-climber offsets nobody reads.
+              </p>
+
+              <h3>What the sampler was actually struggling with</h3>
+              <div id="gm-sweep-diagnosis"></div>
+
+              <h3>Chains or draws — the measurement that changed the plan</h3>
+              <p class="prose">
+                This sweep was deliberately run as four short chains rather than
+                four long ones, on the reasoning that chains can be added later
+                if the diagnostics demand it. That reasoning had never been
+                checked. Checking it required no new compute at all &mdash; the
+                finished traces can be subsetted, scored at one, two, three and
+                four chains, and again at a quarter, half, three quarters and all
+                of their length.
+              </p>
+              <div id="gm-sweep-scaling"></div>
+              <div id="gm-sweep-scaling-note"></div>
+              <p class="caption">
+                Measured on <code>v7_v3_quad</code>, the quadratic form, by
+                subsetting its own chains and draws &mdash; so this is a property
+                of this posterior on this data, not a general claim about
+                samplers.
+              </p>
+            </section>

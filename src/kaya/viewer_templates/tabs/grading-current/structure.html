@@ -1,0 +1,191 @@
+<!-- Grade compression and gym drift. Rendered by
+     src/kaya/viewer_static/js/v2/13-structure.js from v2_structure.json, which
+     scripts/build_v2_structure.py computes directly from the send logs.
+     Hides itself if that payload is missing.
+
+     Nothing in this section depends on a fit. Both effects come out of the same
+     paired-difference identity the model itself is built on, which is why they
+     can be measured before deciding whether to model them. -->
+<section class="article-section" id="gm-structure">
+              <h2>One number per gym is not enough</h2>
+              <p class="prose">
+                Everything above gives each gym a single grading correction: one
+                number saying how much harder or softer it grades than the
+                network average. That number carries two assumptions, and
+                neither has been checked. It assumes the gym's offset is the
+                same for a V2 climber and a V9 climber. And it assumes the
+                offset is the same in 2021 and in 2026.
+              </p>
+              <p class="prose">
+                Both are testable without fitting anything, and <b>both
+                fail</b>. The test is the same identity the whole model rests
+                on. For a climber who logs at two gyms, subtract their two
+                levels and the climber disappears entirely &mdash; ability,
+                height, gender, and any improvement all cancel, because it is
+                the same person on both sides:
+              </p>
+              <div class="eqn">$$\text{level}_A - \text{level}_B \;=\;
+                \text{correction}_A - \text{correction}_B \;+\; \text{noise}$$</div>
+              <p class="prose">
+                What is left is a statement about the two gyms and nothing else.
+                Regress it against <b>the climber's ability</b> and you are
+                asking whether a gym grades differently at the top of its range
+                than the bottom &mdash; <b>grade compression</b>. Regress the
+                same difference against <b>the calendar date</b> and you are
+                asking whether the gym's standard moved &mdash; <b>gym
+                drift</b>. Same trick, perpendicular axes.
+              </p>
+
+              <h3>Why a hundred slopes is not yet an answer</h3>
+              <p class="prose">
+                Run that regression for one pair of gyms and you get one number.
+                Run it for every pair with enough shared climbers and you get
+                about a hundred numbers, and they scatter. The temptation is to
+                report the spread of those numbers as the effect. That would be
+                wrong, and badly so: <b>two</b> things produce the scatter, and
+                only one of them is the finding.
+              </p>
+              <p class="prose">
+                The first is real differences between gyms. The second is
+                measurement noise &mdash; each of those hundred numbers came
+                from limited data and has its own error bar, and a hundred noisy
+                estimates of one identical quantity would still scatter. Here
+                the median error bar is nearly as large as the whole observed
+                spread, so most of what the eye reads as &ldquo;gyms
+                differ&rdquo; is noise.
+              </p>
+              <p class="prose">
+                Separating them is possible because <b>every regression reports
+                its own error bar</b>. The noise does not have to be guessed. The
+                procedure, used identically for both effects below:
+              </p>
+              <ul class="prose">
+                <li><b>Q</b> measures each estimate's distance from the average
+                  <i>in units of its own error bar</i>, squares it, and adds up.
+                  If a deviation is pure noise, that squared distance averages
+                  exactly 1 &mdash; so summing over \(k\) pairs should land near
+                  \(k-1\). Dividing by the error bar is what makes it fair: a
+                  wild estimate with a huge error bar contributes almost
+                  nothing.</li>
+                <li><b>df</b> is that \(k-1\). It is <b>where Q lands when
+                  nothing real is happening</b> &mdash; a prediction, not a pass
+                  mark. The comparison is Q against df.</li>
+                <li><b>I&sup2; = (Q &minus; df) / Q</b> is the excess as a share
+                  of the total: what fraction of the scatter is real. Higher
+                  means more signal.</li>
+                <li><b>&tau;</b> converts that excess back into interpretable
+                  units. Q lives in &ldquo;squared error bars&rdquo;; &tau; is
+                  grades, or grades per year.</li>
+              </ul>
+
+              <h3>Grade compression: gyms tilt across their own range</h3>
+              <div class="kpi-grid" id="gm-structure-comp-kpi"></div>
+              <div class="data-table-wrap" id="gm-structure-comp-het"></div>
+              <p class="caption">
+                Read top to bottom: the boring explanation predicts Q near df,
+                would rarely push it past the critical value, and Q came in far
+                above both. &tau; is the number to quote.
+              </p>
+
+              <div id="gm-structure-comp-power"></div>
+
+              <h3>A straight line is not enough either</h3>
+              <p class="prose">
+                If a gym's correction tilts with ability, the next question is
+                whether it tilts in a <i>straight line</i>. Gym setters
+                plausibly compress the top of their range specifically &mdash;
+                the hard problems bunch together because there are few of them
+                and nobody wants to grade the outlier &mdash; which is a curve,
+                not a tilt. Same design, one term further.
+              </p>
+              <div class="data-table-wrap" id="gm-structure-comp-curve"></div>
+
+              <h3>Gym drift: the standard moves</h3>
+              <p class="prose">
+                Nothing forces &ldquo;V6&rdquo; to mean the same thing in 2026
+                as it did in 2021. Setters change, management changes, a gym
+                decides its V6s have been too generous. The obstacle to
+                measuring it is that <b>three unrelated things push grades at a
+                gym upward over time</b>: climbers improve, the gym drifts, and
+                a different population shows up. Plotting average grade per year
+                cannot tell them apart.
+              </p>
+              <p class="prose">
+                The paired difference separates them. Compare <b>one climber</b>,
+                in <b>one 90-day window</b>, at <b>two gyms</b>. Same person, so
+                ability cancels. Same moment, so improvement cancels. Present at
+                both, so selection cancels. Then watch that difference across
+                calendar years.
+              </p>
+              <div class="kpi-grid" id="gm-structure-drift-kpi"></div>
+              <div class="data-table-wrap" id="gm-structure-drift-het"></div>
+
+              <h4>Does the 90-day window let improvement leak back in?</h4>
+              <p class="prose">
+                &ldquo;Same moment&rdquo; is an approximation &mdash; 90 days is
+                not zero, and beginners gain fastest of all, around 0.27 grades
+                a year. If a climber visits one gym early in a window and the
+                other late, part of the difference is their own gain. Two
+                checks: control for the within-window date gap directly, and
+                halve the window, which mechanically halves the gap.
+              </p>
+              <div class="data-table-wrap" id="gm-structure-drift-robust"></div>
+              <p class="caption">
+                Controlling the gap moves &tau; by under 1%. Halving the window
+                moves it <i>up</i>, not down &mdash; the decisive direction, since
+                contamination by improvement would have shrunk under a tighter
+                window. The rise is most likely a cleaner measurement rather than
+                a stronger effect.
+              </p>
+
+              <h4>Two routes to the same number</h4>
+              <p class="prose">
+                &tau; describes <i>pairs</i> of gyms, not gyms. Getting to each
+                gym's own rate can be done two entirely different ways, which
+                makes their agreement a genuine check on the arithmetic.
+              </p>
+              <div class="data-table-wrap" id="gm-structure-drift-routes"></div>
+
+              <h4>Why the network has to be connected</h4>
+              <div class="data-table-wrap" id="gm-structure-drift-connectivity"></div>
+
+              <h4>Which gyms moved</h4>
+              <div id="gm-structure-drift-leaders"></div>
+
+              <h4>Large or small? Both, on different axes</h4>
+              <div class="data-table-wrap" id="gm-structure-drift-scale"></div>
+
+              <h4>Does drift explain the timing confound?</h4>
+              <p class="prose">
+                A gym's correction correlates with <i>when</i> its climbers
+                logged, strongly enough to be worth explaining. Climber
+                improvement accounts for only about 8% of it. Drift was the
+                other obvious suspect &mdash; and the right test is not whether
+                fast-drifting gyms have odd corrections, but whether removing
+                each gym's <i>accumulated</i> drift shrinks the relationship.
+              </p>
+              <div class="data-table-wrap" id="gm-structure-drift-confound"></div>
+
+              <h3>What this means for the model</h3>
+              <p class="prose">
+                Three changes follow, none of them yet fitted. The correction
+                should be a <b>curve in climber ability</b> rather than a
+                constant, and it must be a function of the climber's
+                <i>latent</i> ability rather than the grade they logged &mdash;
+                using the observed grade to select its own correction is
+                circular. The correction should carry a <b>per-gym drift rate</b>
+                in calendar time. And both need a zero-sum constraint, because
+                only <i>relative</i> compression and <i>relative</i> drift are
+                identifiable: a shift shared by every gym is absorbed into the
+                ability scale, or cancels in the differences, and no amount of
+                data recovers it.
+              </p>
+              <p class="prose">
+                The drift term has a prerequisite the others do not. The model's
+                dataset is one row per climber per gym and carries no dates at
+                all, so fitting drift means rebuilding the dataset in
+                time-resolved form. That is the strongest argument for doing so
+                &mdash; not to fit how fast climbers improve, which is already
+                measured from better data than the model has.
+              </p>
+            </section>

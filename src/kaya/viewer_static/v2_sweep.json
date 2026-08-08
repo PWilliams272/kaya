@@ -1,0 +1,237 @@
+{
+ "generated_from": "runs/traces/idata_v7_*.nc",
+ "fits": [
+  {
+   "fit": "v7_v3_zero",
+   "form": "zero",
+   "terms": "no height term at all",
+   "note": "the null",
+   "rhat": 1.024534977995959,
+   "rhat_param": "delta2",
+   "ess": 222.93821822251186,
+   "ess_param": "sigma_gym",
+   "chains": 4,
+   "draws": 1000,
+   "minutes": 198.5,
+   "divergences": 0,
+   "loo": -32697.6,
+   "loo_se": 147.2,
+   "max_treedepth": 3,
+   "draws_total": 4000,
+   "rhat_ok": false,
+   "ess_ok": false,
+   "delta_loo": -32.69999999999709
+  },
+  {
+   "fit": "v7_v3_lin",
+   "form": "linear",
+   "terms": "one slope",
+   "note": "grades rise steadily with height",
+   "rhat": 1.039722165040026,
+   "rhat_param": "beta_gender",
+   "ess": 218.46869146202164,
+   "ess_param": "beta_gender",
+   "chains": 4,
+   "draws": 1000,
+   "minutes": 199.2,
+   "divergences": 0,
+   "loo": -32677.8,
+   "loo_se": 146.3,
+   "max_treedepth": 3,
+   "draws_total": 4000,
+   "rhat_ok": false,
+   "ess_ok": false,
+   "delta_loo": -12.899999999997817
+  },
+  {
+   "fit": "v7_v3_quad",
+   "form": "quadratic",
+   "terms": "slope + curvature",
+   "note": "allows an optimum rather than a trend",
+   "rhat": 1.0156499822302716,
+   "rhat_param": "beta0",
+   "ess": 242.1960647358989,
+   "ess_param": "delta1",
+   "chains": 4,
+   "draws": 1000,
+   "minutes": 213.3,
+   "divergences": 0,
+   "loo": -32670.1,
+   "loo_se": 146.3,
+   "max_treedepth": 2,
+   "draws_total": 4000,
+   "rhat_ok": false,
+   "ess_ok": false,
+   "delta_loo": -5.19999999999709
+  },
+  {
+   "fit": "v7_v4_linxg",
+   "form": "linear \u00d7 gender",
+   "terms": "one slope per gender",
+   "note": "lets the height effect differ by gender",
+   "rhat": 1.0328695461809643,
+   "rhat_param": "delta1",
+   "ess": 203.54673192100768,
+   "ess_param": "sigma_gym",
+   "chains": 4,
+   "draws": 1000,
+   "minutes": 206.9,
+   "divergences": 0,
+   "loo": -32666.2,
+   "loo_se": 146.2,
+   "max_treedepth": 2,
+   "draws_total": 4000,
+   "rhat_ok": false,
+   "ess_ok": false,
+   "delta_loo": -1.2999999999992724
+  },
+  {
+   "fit": "v7_v3_conf",
+   "form": "quadratic \u00d7 gender",
+   "terms": "curvature per gender",
+   "note": "the page primary",
+   "rhat": 1.0154245602455405,
+   "rhat_param": "beta0",
+   "ess": 242.94758968816885,
+   "ess_param": "sigma_gym",
+   "chains": 4,
+   "draws": 1000,
+   "minutes": 262.1,
+   "divergences": 0,
+   "loo": -32664.9,
+   "loo_se": 146.3,
+   "max_treedepth": 3,
+   "draws_total": 4000,
+   "rhat_ok": false,
+   "ess_ok": false,
+   "delta_loo": 0.0
+  },
+  {
+   "fit": "v7_v3_sat",
+   "form": "saturating",
+   "terms": "rises then flattens",
+   "note": "height helps until it stops helping",
+   "rhat": 1.0147235660624845,
+   "rhat_param": "beta_gender",
+   "ess": 241.593079338518,
+   "ess_param": "beta0",
+   "chains": 4,
+   "draws": 1000,
+   "minutes": 268.6,
+   "divergences": 0,
+   "loo": -32680.3,
+   "loo_se": 146.6,
+   "max_treedepth": 3,
+   "draws_total": 4000,
+   "rhat_ok": false,
+   "ess_ok": false,
+   "delta_loo": -15.399999999997817
+  },
+  {
+   "fit": "v7_v3_vtx",
+   "form": "vertex quadratic",
+   "terms": "quadratic in peak/curvature form",
+   "note": "same shape as quadratic, different parameters",
+   "rhat": 1.024565270246151,
+   "rhat_param": "delta1",
+   "ess": 211.1487449886356,
+   "ess_param": "sigma_gym",
+   "chains": 4,
+   "draws": 1000,
+   "minutes": 146.1,
+   "divergences": 0,
+   "loo": -32688.5,
+   "loo_se": 147.0,
+   "max_treedepth": 1,
+   "draws_total": 4000,
+   "rhat_ok": false,
+   "ess_ok": false,
+   "delta_loo": -23.599999999998545
+  }
+ ],
+ "missing": [],
+ "bars": {
+  "rhat": 1.01,
+  "ess": 400
+ },
+ "ranking": {
+  "spread_elpd": 32.69999999999709,
+  "noise_floor_elpd": 31.1,
+  "ratio": 1.051446945337527,
+  "verdict": "marginal",
+  "best_form": "quadratic \u00d7 gender"
+ },
+ "convergence": {
+  "n": 7,
+  "rhat_pass": 0,
+  "ess_pass": 0,
+  "divergences_total": 0,
+  "treedepth_fits": 7
+ },
+ "scaling": {
+  "fit": "v7_v3_quad",
+  "by_chain": [
+   {
+    "n": 1,
+    "ess": 1830.8736250673082,
+    "ratio": 1.0,
+    "rhat": null
+   },
+   {
+    "n": 2,
+    "ess": 3322.369099787691,
+    "ratio": 1.8146359499091866,
+    "rhat": 1.017678236715022
+   },
+   {
+    "n": 3,
+    "ess": 5759.887551744637,
+    "ratio": 3.1459776758392524,
+    "rhat": 1.0202625635860718
+   },
+   {
+    "n": 4,
+    "ess": 8191.969101042847,
+    "ratio": 4.474349834353906,
+    "rhat": 1.0156499822302716
+   }
+  ],
+  "by_draw": [
+   {
+    "n": 250,
+    "ess": 2135.636448041236,
+    "ratio": 1.0,
+    "rhat": 1.0508434377216562,
+    "ess_per_draw": 8.542545792164944
+   },
+   {
+    "n": 500,
+    "ess": 4070.516901325172,
+    "ratio": 1.905997111567641,
+    "rhat": 1.0358241628363223,
+    "ess_per_draw": 8.141033802650345
+   },
+   {
+    "n": 750,
+    "ess": 6175.194582736225,
+    "ratio": 2.891500839667722,
+    "rhat": 1.0207645717832905,
+    "ess_per_draw": 8.233592776981634
+   },
+   {
+    "n": 1000,
+    "ess": 8191.969101042847,
+    "ratio": 3.8358443959674697,
+    "rhat": 1.0156499822302716,
+    "ess_per_draw": 8.191969101042847
+   }
+  ]
+ },
+ "settings": {
+  "tune": 2000,
+  "draws": 1000,
+  "chains": 4,
+  "basis": "raw",
+  "network": "net50/confident"
+ }
+}

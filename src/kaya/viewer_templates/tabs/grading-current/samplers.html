@@ -1,0 +1,233 @@
+<!-- The independent-sampler check, in full. Rendered by
+     src/kaya/viewer_static/js/v2/11-emcee.js from v2_emcee.json, which
+     scripts/build_v2_emcee.py writes out of runs/results/emcee_lin2.npz.
+     Hides itself if that payload is missing. -->
+<section class="article-section" id="gm-samplers">
+              <h2>A second sampler, and the one number it will not agree on</h2>
+              <p class="prose">
+                Integrating the climber offsets out did something beyond fixing
+                the cross-validation: it took the model from 10,397 parameters
+                to <b>40</b>, which put it within reach of algorithms that could
+                not touch it before. That is worth spending a night of compute
+                on, because <b>a sampler agreeing with itself proves very
+                little</b>.
+              </p>
+              <p class="prose">
+                The concern is specific. The marginalized likelihood is a
+                numerical integral nested inside a distribution that is itself a
+                sum of two others, and it exists twice &mdash; once as a
+                PyTensor graph so PyMC can differentiate it, once in plain NumPy.
+                Code shaped like that does not usually fail loudly; it computes a
+                plausible wrong number. <b>One implementation converging says
+                nothing about whether it converged to the right thing.</b>
+              </p>
+              <p class="prose">
+                <b>emcee</b> is the check. It is an <i>ensemble</i> sampler: 128
+                walkers explore at once, each proposing its next move by looking
+                at where the other walkers currently are. It uses <b>no gradient
+                at all</b>, and it runs the NumPy implementation &mdash; so it
+                shares neither the algorithm nor the code with PyMC/NUTS. It also
+                needs more walkers than parameters and degrades badly past a few
+                tens of dimensions, which is why it was not merely slow on the
+                original model but unusable.
+              </p>
+              <div class="kpi-grid" id="gm-emcee-run"></div>
+              <p class="caption">
+                One run: <code>runs/results/emcee_lin2.npz</code>, the linear
+                height form on the same 29-gym confident-names network as
+                <code>v3_lin_marg</code>, the PyMC fit it is compared against
+                throughout this section.
+              </p>
+
+              <h3>Eleven parameters out of twelve, to three decimal places</h3>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gm-emcee-table"></table>
+              </div>
+              <p class="caption" id="gm-emcee-gap-note"></p>
+
+              <div class="callout warn" id="gm-emcee-discrepancy"></div>
+
+              <h3>The chains, as drawn</h3>
+              <p class="prose">
+                Every parameter emcee sampled, four ways. Note what is <i>not</i>
+                here: there is no R&#770; in the sense the rest of this page uses
+                it. 128 walkers are not 128 independent chains &mdash; they
+                propose moves from each other&rsquo;s positions by construction,
+                so between-walker variance is biased downward and a small
+                R&#770; here is weaker evidence than the same number would be for
+                NUTS. It is reported in the table above for the failure it does
+                still catch: a walker parked somewhere the ensemble never went.
+              </p>
+              <div class="controls-inline">
+                <label class="ctl">
+                  <span>Parameter</span>
+                  <select id="gm-emcee-param"></select>
+                </label>
+                <span class="param-verdict" id="gm-emcee-verdict"></span>
+              </div>
+              <div class="param-detail-grid">
+                <div>
+                  <div class="chart-head">
+                    <h4 class="chart-label">The chain</h4>
+                    <div class="chart-head-tools">
+                      <div class="infowrap">
+                        <button type="button" class="infodot"
+                                aria-label="How to read an ensemble trace">i</button>
+                        <div class="infopop" role="tooltip">
+                          <h5>How to read an ensemble trace</h5>
+                          <p>
+                            Eight of the 128 walkers, thinned to 400 steps. Same
+                            reading as any trace plot: you want <b>boring</b>
+                            &mdash; a dense even band with no trend and no flat
+                            stretches, with every line living in the same
+                            horizontal region.
+                          </p>
+                          <p>
+                            The one thing that reads differently here is
+                            <b>width</b>. Walkers in an ensemble sampler are not
+                            supposed to be independent, so lines moving together
+                            is normal rather than alarming. What matters is that
+                            the band stays put.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div id="gm-emcee-trace" class="chart-mid"></div>
+                </div>
+                <div>
+                  <h4 class="chart-label">The posterior, both samplers</h4>
+                  <div id="gm-emcee-dens" class="chart-mid"></div>
+                </div>
+                <div>
+                  <div class="chart-head">
+                    <h4 class="chart-label">Has it settled?</h4>
+                    <div class="chart-head-tools">
+                      <div class="infowrap">
+                        <button type="button" class="infodot"
+                                aria-label="How to read the running mean">i</button>
+                        <div class="infopop" role="tooltip">
+                          <h5>How to read the running mean</h5>
+                          <p>
+                            The running mean of every draw up to that step. The
+                            shaded band is the spread across the walkers&rsquo;
+                            own running means &mdash; where 90% of the 128
+                            individually sit.
+                          </p>
+                          <p>
+                            <b>Flat line, closing band</b> is what a settled
+                            chain looks like: the estimate has stopped moving and
+                            the walkers are converging on it. A line still
+                            trending at the right-hand edge means the warm-up was
+                            too short and the answer is still being found.
+                          </p>
+                          <p>
+                            The dotted line is PyMC&rsquo;s posterior mean for the
+                            same parameter, so the two samplers can be compared
+                            at a glance rather than through the table.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div id="gm-emcee-runmean" class="chart-mid"></div>
+                </div>
+                <div>
+                  <div class="chart-head">
+                    <h4 class="chart-label">Why 1.9 million draws are worth 3,500</h4>
+                    <div class="chart-head-tools">
+                      <div class="infowrap">
+                        <button type="button" class="infodot"
+                                aria-label="How to read the autocorrelation">i</button>
+                        <div class="infopop" role="tooltip">
+                          <h5>Autocorrelation, and what &tau; is</h5>
+                          <p>
+                            How correlated a draw is with the draw
+                            <i>n</i> steps earlier. It starts at 1 by definition
+                            and decays; the faster it falls to zero, the more
+                            each new step is telling you.
+                          </p>
+                          <p>
+                            <b>&tau;</b>, the integrated autocorrelation time, is
+                            the area under that curve &mdash; roughly, how many
+                            steps the ensemble takes to produce one draw&rsquo;s
+                            worth of genuinely new information. <b>Lower is
+                            better.</b> Effective sample size is just the raw
+                            draw count divided by it, which is why 1.92 million
+                            draws at &tau;&nbsp;=&nbsp;542 come to about 3,500.
+                          </p>
+                          <p>
+                            A slow, smooth decay means <b>correlated, not
+                            stuck</b>. Stuck looks different: a curve that stays
+                            near 1 and never comes down.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div id="gm-emcee-acf" class="chart-mid"></div>
+                </div>
+              </div>
+              <p class="caption" id="gm-emcee-converged"></p>
+
+              <h4 class="sub-head">Is any single walker misbehaving?</h4>
+              <div id="gm-emcee-walkers" class="chart-mid"></div>
+              <p class="caption">
+                Every walker, on two measures. <b>Left:</b> the fraction of
+                proposals each accepted &mdash; 0.2&ndash;0.4 is the healthy
+                band, too low means it is stuck and too high means it is barely
+                moving. <b>Right:</b> each walker&rsquo;s own posterior mean for
+                the selected parameter. A flat scatter is what agreement looks
+                like; one point sitting clear of the rest is a walker that found
+                somewhere the others did not, and would invalidate the pooled
+                mean.
+              </p>
+
+              <h3>The same 29 gyms, through both samplers</h3>
+              <div id="gm-emcee-gyms" class="chart-tall"></div>
+              <p class="caption" id="gm-emcee-gyms-note"></p>
+
+              <h3>Where a third and fourth sampler would go</h3>
+              <p class="prose">
+                Two samplers agreeing is much stronger than one converging, but
+                both of these are still <b>Markov chain</b> methods, and they
+                share the failure mode above: a posterior geometry that traps one
+                can trap the other. Two more are queued, and they are queued
+                because they fail differently.
+              </p>
+              <div class="callout">
+                <div>
+                  <b>Nested sampling</b> answers a different question entirely
+                  &mdash; it computes the <i>evidence</i>, which gives Bayes
+                  factors between height forms directly and touches none of the
+                  importance-sampling machinery where the cross-validation
+                  problems on this page live. Like emcee, it is unusable above a
+                  few tens of parameters, so it too only became possible once the
+                  climber offsets were integrated out.
+                  <br /><br />
+                  <b>Bridge sampling</b> estimates that same evidence from draws
+                  already in hand, by a completely different estimator, in
+                  minutes rather than hours. Agreement between the two is
+                  evidence for both; disagreement localises the problem to the
+                  estimator rather than the model.
+                </div>
+              </div>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gm-crosssampler-table"></table>
+              </div>
+              <p class="caption" id="gm-crosssampler-note"></p>
+
+              <div class="methodology-note">
+                <b>Reproducibility.</b> Sampler in
+                <code>scripts/run_emcee.py</code>; the payload behind every
+                figure in this section is built by
+                <code>scripts/build_v2_emcee.py</code> from
+                <code>runs/results/emcee_lin2.npz</code>. The NumPy likelihood
+                is <code>src/kaya/marginal_v2.py</code>, cross-checked against
+                the PyTensor graph by
+                <code>scripts/check_pymc_marginal.py</code>. Walker traces are
+                thinned to 8 walkers &times; 400 steps for transfer; every
+                statistic quoted is computed from the full 128&nbsp;&times;&nbsp;15,000
+                array.
+              </div>
+            </section>

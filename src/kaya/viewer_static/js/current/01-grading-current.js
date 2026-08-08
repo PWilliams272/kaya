@@ -327,6 +327,14 @@ async function renderCurrentTabInner() {
   await renderV2Inference();
   renderGmSampler();
 
+  // The independent-sampler check. Reads v2_emcee.json and hides its own
+  // section if that payload has not been built; renderV2Samplers fills the
+  // cross-sampler table at the bottom of the same section.
+  await renderV2Emcee();
+  await renderV2Sweep();
+  await renderV2Structure();
+  renderV2Samplers();
+
   bindV2Glossary();
 
   // The symbol table and the innerHTML-injected cards arrive after KaTeX's

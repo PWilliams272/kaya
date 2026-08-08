@@ -1,0 +1,493 @@
+<!-- The factor ledger. Numbers and charts come from v2_factors.json via
+     js/v2/16-factors.js; the prose here is the interpretation, which no
+     payload can carry. Numeric slots are <span data-fx="key"> and are filled
+     at render time, so nothing on this page is hand-typed.
+
+     One <h3> per factor, deliberately: the left contents rail is derived from
+     the DOM and builds itself from these headings, so the reader gets the
+     full list of factors as navigation without it being maintained twice. -->
+<section class="article-section" id="gf-factors">
+              <h2>Everything that could be fooling us</h2>
+              <p class="prose">
+                The headline number is one grading correction per gym. Anything
+                that makes two climbers&rsquo; logged grades differ for a reason
+                <i>other</i> than the gym&rsquo;s grading is a threat to it, and
+                the model has nowhere to put what it does not represent &mdash;
+                an effect it cannot express does not vanish, it gets absorbed
+                into the nearest parameter that can move, which is usually the
+                gym correction itself.
+              </p>
+              <p class="prose">
+                So this is the full list, whether or not anything is done about
+                each one. Four of these were found by accident while looking for
+                something else, which is the argument for enumerating them:
+                <b>a factor that is deliberately ignored is a decision; a factor
+                nobody wrote down is a bug waiting for someone else to find.</b>
+                Each entry states the empirical evidence, the competing mental
+                models, why it would contaminate a correction, how big it is in
+                grades, and what handling it would take.
+              </p>
+
+              <div class="callout-note">
+                <b>The scale everything is quoted against.</b> The gym
+                corrections themselves span
+                <b><span data-fx="corr_range">1.29</span> grades</b> end to end,
+                with a standard deviation of
+                <b><span data-fx="corr_sd">0.284</span></b>. A factor worth
+                <span data-fx="corr_sd">0.284</span> grades is as large as the
+                entire signal; one worth 0.03 is noise against it. Sizes below
+                are meaningless without that comparison, so it is repeated on
+                every row.
+              </div>
+
+              <h3>The ledger, ranked by size</h3>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gf-factors-table"></table>
+              </div>
+              <p class="caption">
+                <b>In the model</b> means the fitted likelihood represents it
+                today. <b>Measured, not modelled</b> means the effect has been
+                quantified without a sampler and confirmed real, but the model
+                has no parameter for it &mdash; so it is currently being
+                absorbed somewhere else. <b>Open</b> means not yet quantified.
+              </p>
+
+              <h3>Ceiling attainment &mdash; how many days they climbed there</h3>
+              <div class="finding confirmed">
+                <div class="finding-head">
+                  <span class="finding-title">The largest single correction in the model, and it is already in it</span>
+                  <span class="verdict-pill verdict-confirmed">In the model</span>
+                </div>
+                <p>
+                  A climber with three days at a gym has almost certainly not
+                  found their limit there. One with two hundred days has. The
+                  model must not read those two numbers as equally informative
+                  about ability, or every gym that people visit occasionally
+                  looks stiff.
+                </p>
+              </div>
+              <p class="prose">
+                <b>Evidence.</b> Exposure is wildly uneven and it is uneven
+                <i>within</i> the same person:
+                <span data-fx="exp_pct_le5">41</span>% of
+                (climber, gym) cells have five days or fewer while
+                <span data-fx="exp_pct_ge100">8.5</span>% have a hundred or more,
+                and for a typical climber who logs at several gyms the ratio
+                between their most-visited and least-visited gym is
+                <b><span data-fx="exp_ratio_median">7.5</span>&times;</b>
+                (<span data-fx="exp_ratio_p90">60</span>&times; at the 90th
+                percentile).
+              </p>
+              <p class="prose">
+                <b>Mental models.</b> Either the hardest logged grade <i>is</i>
+                the climber&rsquo;s ceiling at that gym &mdash; in which case
+                nothing needs doing &mdash; or it is a <i>sample</i> from below
+                the ceiling whose shortfall shrinks the more they climb. The
+                second is obviously right and the only question was its shape.
+              </p>
+              <p class="prose">
+                <b>How it is handled.</b> The likelihood is not Gaussian, it is
+                <b>ex-Gaussian</b>: a Normal plus an Exponential. The
+                Exponential term is the shortfall below the ceiling, and its
+                mean shrinks with exposure.
+              </p>
+              <div class="eqn">$$m_{u,g} = C_{u,g} - \mathrm{Exp}(\nu_{u,g}) + \mathcal{N}(0,\sigma)$$</div>
+              <div class="eqn">$$\nu_{u,g} = \exp\!\left(-\left[\lambda_0 + \kappa\, n^{\text{visits}}_{u,g} + \rho\, r_u\right]\right)$$</div>
+              <p class="prose">
+                More days &rarr; larger bracket &rarr; smaller
+                \(\nu\) &rarr; smaller assumed shortfall. Fitted on
+                <code><span data-fx="exp_fit">v10_lin_marg</span></code>:
+                \(\lambda_0=\)<span data-fx="exp_ll0">0.081</span>,
+                \(\kappa=\)<span data-fx="exp_kappa">0.277</span>.
+              </p>
+              <div id="gf-fx-exposure" class="chart-mid"></div>
+              <p class="caption" id="gf-fx-exposure-note"></p>
+
+              <h3>Climber advancement &mdash; they got better in between</h3>
+              <div class="finding open">
+                <div class="finding-head">
+                  <span class="finding-title">Measured, real, and currently not in the model at all</span>
+                  <span class="verdict-pill verdict-open">Measured, not modelled</span>
+                </div>
+                <p>
+                  There is no \(t\) anywhere in \(C_{u,g}\). A climber is one
+                  number for all time. So when someone logged at one gym two
+                  years ago and another last month, the improvement in between
+                  has nowhere to go except the second gym&rsquo;s correction.
+                </p>
+              </div>
+              <p class="prose">
+                <b>Evidence.</b> Climbers advance fast when new and barely at all
+                near their limit &mdash; about
+                <span data-gm="adv_v1">+0.28</span> grades/year at V1 falling to
+                <span data-gm="adv_v9">+0.04</span> at V9, fitted across every
+                watching period at once rather than read off a single window.
+                And the sends being compared really are far apart in time: the
+                median gap between a climber&rsquo;s two hardest sends at two
+                gyms is <b><span data-fx="adv_gap_median">0.31</span> years</b>,
+                with <span data-fx="adv_gap_1y">16</span>% more than a year apart.
+              </p>
+              <p class="prose">
+                <b>Mental models.</b> The naive one &mdash; take each
+                climber&rsquo;s first and last max and divide by the elapsed time
+                &mdash; is <i>broken</i>, and instructively so: it claims V11
+                climbers <i>lose</i> a grade a year. Being sorted into the top
+                bin requires a high first reading and a high reading is partly
+                luck, so the next reading is lower regardless. The rate above is
+                fitted across all windows precisely to remove that sorting.
+              </p>
+              <p class="prose">
+                <b>Why it matters &mdash; and the part that is easy to get
+                wrong.</b> A time gap only distorts a gym&rsquo;s correction if
+                that gym is <i>systematically</i> the later one. Where climbers
+                visit two gyms in no particular order the effect cancels. So the
+                right measurement is the mean gap <b>per gym pair</b>, not the
+                average gap overall &mdash; and it is much smaller than the raw
+                gap suggests, because people who climb at two gyms tend to climb
+                at both in the same era.
+              </p>
+              <p class="prose">
+                <b>How much.</b> Across
+                <span data-fx="adv_n_pairs">80</span> gym pairs sharing at least
+                <span data-fx="adv_min_shared">25</span> climbers, the median
+                pair carries <b><span data-fx="adv_bias_median">0.043</span>
+                grades</b> of advancement misread as grading &mdash; small. But
+                the worst carries
+                <b><span data-fx="adv_bias_max">0.279</span></b>, which is
+                <span data-fx="adv_bias_max_pct">98</span>% of the whole
+                standard deviation of the corrections. <b>It is the tail that
+                justifies fixing this, not the average.</b>
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gf-fx-adv-pairs"></table>
+              </div>
+              <p class="caption">
+                Converted at a flat
+                <span data-fx="adv_rate">0.185</span> grades per year of
+                separation, the empirical average across abilities. The true
+                rate falls with grade, so this understates the effect for weak
+                climbers and overstates it for strong ones.
+              </p>
+
+              <div class="callout-note">
+                <b>A limit on every dated number on this page &mdash; and it is
+                a pipeline problem, not a data problem.</b> The raw send history
+                in S3 is complete and current, and <i>every record carries a
+                full timestamp</i>. Nothing is missing at source. But the file
+                the model actually fits is a derived aggregate that <b>drops the
+                date</b> &mdash; it survives only as a visit count &mdash; and
+                no script in the repo rebuilds that file. So the numbers above
+                had to come from the one <i>local</i> dated copy, which was last
+                written 14 months before the aggregate and holds only
+                <b><span data-fx="cov_pct">50</span>%</b> of the modelled
+                (climber, gym) pairs
+                (<span data-fx="cov_dated">9,965</span> of
+                <span data-fx="cov_model">20,014</span>;
+                <span data-fx="cov_missing">10,049</span> missing). The
+                distribution of gaps is probably representative, but <b>the
+                worst-pair figure is selected from a smaller pool than the text
+                implies</b> and the per-pair means are noisier than a reader
+                would assume. Writing the dated base-snapshot builder is
+                therefore the first task &mdash; ahead of any modelling
+                decision, including the offset proposed above.
+              </div>
+              <p class="prose">
+                <b>How to handle it.</b> Cheaply, and &mdash; unlike gym drift
+                &mdash; <b>without rebuilding the dataset</b>. Each
+                (climber, gym) row already comes from one hardest send with one
+                date; that date is currently discarded at the aggregation step.
+                Carry it through and subtract a <b>fixed</b> offset:
+              </p>
+              <div class="eqn">$$C_{u,g} \;\rightarrow\; C_{u,g} + r(v_u)\,\bigl(t_{u,g} - \bar{t}_u\bigr), \qquad r(v) = 0.338 - 0.035\,v$$</div>
+              <p class="prose">
+                Fixed, never fitted. A free advancement parameter would absorb
+                <b>3.4&times; its true value</b> &mdash; the raw
+                correction-versus-date slope in this data is 0.827 grades/year
+                against a real improvement rate near 0.24 &mdash; and would drag
+                every gym correction with it. That is the one firm decision in
+                this section.
+              </p>
+
+              <h3>Gym grading drift &mdash; the gym itself changed</h3>
+              <div class="finding open">
+                <div class="finding-head">
+                  <span class="finding-title">The largest effect in the data, and nothing was looking for it</span>
+                  <span class="verdict-pill verdict-open">Measured, not modelled</span>
+                </div>
+                <p>
+                  A gym&rsquo;s correction is one number for all time, exactly as
+                  a climber&rsquo;s ability is. Setters change, standards move,
+                  a wall gets rebuilt.
+                </p>
+              </div>
+              <p class="prose">
+                <b>Evidence.</b> Same identity as everything else here: for a
+                climber at two gyms the difference of their two levels cancels
+                the climber entirely, so regressing that difference on
+                <i>calendar date</i> isolates the gyms&rsquo; relative movement.
+                Across <span data-fx="drift_k">121</span> gym pairs the scatter
+                is far beyond noise &mdash;
+                \(I^2=\)<span data-fx="drift_i2">68</span>% of it is real
+                &mdash; giving
+                <b>&tau; = <span data-fx="drift_tau">0.163</span> grades per
+                year</b>, against a simulated detection floor of
+                <span data-fx="drift_floor">0.071</span>. Two independent routes
+                agree: a per-gym solve gives
+                <span data-fx="drift_per_gym">0.105</span> where the pooled
+                route predicts <span data-fx="drift_route1">0.115</span>.
+              </p>
+              <p class="prose">
+                <b>Why it matters, and why it matters less than it looks.</b>
+                Over the <span data-fx="drift_span">5.9</span>-year span of the
+                data that rate accumulates to
+                <span data-fx="drift_accum">0.62</span> grades &mdash; half the
+                entire spread the corrections are trying to measure. But
+                <i>between</i> gyms only the difference in their mean dates
+                matters, and those differ by just
+                <span data-fx="drift_date_sd">0.57</span> years, so the
+                distortion actually injected into the correction comparison is
+                <b><span data-fx="drift_accum_sd">0.063</span> grades</b>.
+                Real, and an order of magnitude below the headline.
+              </p>
+              <p class="prose">
+                <b>An honest limit.</b> This design sees only <i>relative</i>
+                drift. If every gym in the network stiffened together, the
+                paired difference would cancel it exactly and this measurement
+                would read zero. Global drift is not ruled out &mdash; it is
+                unmeasurable with this data.
+              </p>
+              <p class="prose">
+                <b>How to handle it.</b> Give the correction a time argument.
+                This one <i>does</i> need the dataset rebuilt to one row per
+                (climber, gym, 90-day window), because a slope needs more than
+                one time point per gym.
+              </p>
+              <div class="eqn">$$\gamma_g \;\rightarrow\; \gamma_g + \delta_g\,\bigl(t - \bar{t}\bigr), \qquad \delta_g \sim \mathcal{N}(0, \tau_\delta),\;\; \textstyle\sum_g \delta_g = 0$$</div>
+              <p class="prose">
+                Zero-sum on \(\delta_g\) for the same reason as on \(\gamma_g\):
+                a common drift shared by every gym is absorbed into the overall
+                time trend and is not identifiable separately.
+              </p>
+
+              <h3>Grade compression &mdash; one number per gym is not enough</h3>
+              <div class="finding open">
+                <div class="finding-head">
+                  <span class="finding-title">A gym&rsquo;s correction depends on how strong the climber is</span>
+                  <span class="verdict-pill verdict-open">Measured, not modelled</span>
+                </div>
+                <p>
+                  The model assumes a gym is equally stiff for a V2 climber and
+                  a V9 climber. It is not. Some gyms bunch their top grades
+                  together; others stretch them out.
+                </p>
+              </div>
+              <p class="prose">
+                <b>Evidence.</b> The same paired difference, regressed on the
+                climber&rsquo;s <i>ability</i> instead of the date &mdash; the
+                identical trick on a perpendicular axis. Across
+                <span data-fx="comp_k">109</span> gym pairs,
+                \(I^2=\)<span data-fx="comp_i2">60</span>% of the scatter is real,
+                giving <b>&tau; = <span data-fx="comp_tau">0.074</span></b>
+                grades of correction change per grade of ability, against a
+                detection floor of <span data-fx="comp_floor">0.039</span>. It
+                replicates artifact-free at
+                <span data-fx="comp_clean_tau">0.0753</span> when ability is
+                measured from gyms <i>outside</i> the pair being compared, which
+                removes the shared-noise objection. <b>There is also real
+                curvature</b> &mdash; &tau; =
+                <span data-fx="curv_tau">0.023</span>,
+                \(I^2=\)<span data-fx="curv_i2">53</span>% &mdash; so the right
+                shape is a per-gym <i>quadratic</i>, not a line.
+              </p>
+              <p class="prose">
+                <b>How much.</b> Over the V<span data-fx="comp_p10">3</span> to
+                V<span data-fx="comp_p90">8</span> range where the data actually
+                lives, that is
+                <b><span data-fx="comp_diff">0.52</span> grades</b> of difference
+                between how a gym treats its weak and strong climbers &mdash;
+                <span data-fx="comp_diff_pct">40</span>% of the full spread of
+                the corrections.
+              </p>
+              <p class="prose">
+                <b>The constraint that shapes any fix.</b> The correction must
+                depend on the climber&rsquo;s <b>latent</b> ability, never their
+                observed grade at that gym. Using the outcome to select its own
+                correction is circular and will manufacture a slope from noise
+                alone. And only <i>relative</i> compression is identifiable: a
+                slope shared by every gym is absorbed into a rescaled ability
+                axis and cancels in the paired differences, so the per-gym
+                slopes need a zero-sum constraint just as the intercepts do.
+              </p>
+              <div class="eqn">$$\gamma_g \;\rightarrow\; a_g + b_g\bigl(C_u - \bar{C}\bigr) + c_g\bigl(C_u - \bar{C}\bigr)^2, \qquad \textstyle\sum_g b_g = \sum_g c_g = 0$$</div>
+
+              <h3>Height and arm span &mdash; and why the shape matters</h3>
+              <div class="finding confirmed">
+                <div class="finding-head">
+                  <span class="finding-title">Height belongs; the gender difference lives in the curvature, not the slope</span>
+                  <span class="verdict-pill verdict-confirmed">In the model</span>
+                </div>
+                <p>
+                  If tall climbers cluster at one gym and the model has the wrong
+                  shape for height, the residual lands in that gym&rsquo;s
+                  correction.
+                </p>
+              </div>
+              <p class="prose">
+                <b>Evidence.</b> Tested without a sampler, on
+                <span data-fx="h_n">8,695</span> climbers, by removing each
+                gym&rsquo;s grading with a two-way least-squares solve and then
+                cross-validating candidate height forms over climbers. Repeated
+                across <span data-fx="h_seeds">25</span> independent fold
+                assignments, because a verdict that moves with the shuffle is a
+                property of the shuffle.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gf-fx-height"></table>
+              </div>
+              <p class="caption">
+                Positive &sigma; favours the richer form; 2&sigma; is the bar.
+                <b><span data-fx="h_winner">quadratic_x_gender</span></b> wins on
+                <span data-fx="h_winner_count">25</span>/<span data-fx="h_seeds">25</span> seeds.
+              </p>
+              <p class="prose">
+                <b>The mechanism, which explains every row of that table.</b>
+                The two curvatures have <b>opposite signs</b>. So a form that
+                makes both genders share one bend averages them toward zero and
+                measures nothing, and a form with no bend at all leaves the
+                gender interaction nothing to act on &mdash; which is exactly why
+                adding gender to a <i>straight line</i> buys nothing while adding
+                it to a <i>curve</i> clears the bar.
+              </p>
+              <div id="gf-fx-height-chart" class="chart-mid"></div>
+              <p class="caption" id="gf-fx-height-note"></p>
+              <div class="finding open">
+                <div class="finding-head">
+                  <span class="finding-title">The form the data prefers is the form the sampler cannot reach</span>
+                  <span class="verdict-pill verdict-open">Unresolved tension</span>
+                </div>
+                <p>
+                  The cross-validation above needs no sampler, and it is
+                  unambiguous. The Bayesian fit of that same form is not: on
+                  identical settings to its siblings it returned
+                  <b>R-hat 1.53</b> against a bar of 1.01, an effective sample
+                  size of <b>7</b> against a floor of 400, and
+                  <b>1,500 divergent transitions</b> &mdash; a quarter of all
+                  draws. Its cross-validation score is therefore withheld rather
+                  than reported, because scoring chains that never mixed
+                  measures the chains, not the model.
+                </p>
+                <p>
+                  Notably this is <i>not</i> the failure that plagued the
+                  earlier fits. Those saturated the sampler&rsquo;s trajectory
+                  limit on every iteration; this one sits at 0% of the limit
+                  with a mean depth of 4. The geometry is pathological in a
+                  different way, and the likeliest reason is thin support: the
+                  four height parameters include two that act only on the
+                  <span data-fx="g_conf_female">29.0</span>% of climbers coded
+                  female, so the interaction terms are being asked for more than
+                  the data holds. <b>Two independent methods disagree about the
+                  same model, and that is stated rather than resolved by picking
+                  the one with the more convenient answer.</b>
+                </p>
+              </div>
+
+              <h3>Gender coding &mdash; inferred from a first name</h3>
+              <div class="finding open">
+                <div class="finding-head">
+                  <span class="finding-title">Not observed, estimated &mdash; and carried as a probability rather than a guess</span>
+                  <span class="verdict-pill verdict-open">Partly handled</span>
+                </div>
+              </div>
+              <p class="prose">
+                <b>Evidence and handling.</b> Kaya does not record gender, so it
+                is inferred from first name and refined by height. Rather than
+                force a coin flip on every ambiguous name, the model carries
+                \(w^{\text{female}}_u \in [0,1]\) &mdash; a probability, not a
+                flag. On top of that, every result on this page uses the
+                <i>confident-names-only</i> subset, which is why the modelled
+                population is already almost cleanly split:
+                <span data-fx="g_conf_male">69.6</span>% code confidently male,
+                <span data-fx="g_conf_female">29.0</span>% confidently female,
+                and only <span data-fx="g_ambiguous">1.5</span>% sit in between.
+                The ambiguous names were excluded up front rather than guessed
+                at &mdash; the residual uncertainty shown here is what survives
+                that filter, not the raw difficulty of the problem.
+              </p>
+              <p class="prose">
+                <b>Why it matters.</b> Misclassification attenuates any gender
+                effect toward zero. Since the height finding is <i>entirely</i> a
+                gender-interaction finding, that attenuation acts directly on the
+                one result it would most easily erase &mdash; which is the
+                argument for the confident-only subset despite the sample cost.
+              </p>
+
+              <h3>Grade quantization &mdash; V-grades are integers</h3>
+              <div class="finding open">
+                <div class="finding-head">
+                  <span class="finding-title">A ceiling is only ever observed to the nearest whole grade</span>
+                  <span class="verdict-pill verdict-open">Partly handled</span>
+                </div>
+              </div>
+              <p class="prose">
+                <b>Evidence.</b> Only
+                <span data-fx="q_pct_used">3.7</span>% of the network&rsquo;s
+                <span data-fx="q_n_sends">268,442</span> dated sends survive into
+                the model &mdash; one hardest climb per (climber, gym) and the
+                rest discarded. And that surviving number is fragile:
+                <b><span data-fx="q_pct_once">50.5</span>% of cells sent their
+                maximum exactly once</b>, which could be a soft climb or a lucky
+                day, while <span data-fx="q_pct_10">3.0</span>% sent it ten or
+                more times and are clearly plateaued there. Those two cases are
+                currently treated as equally reliable evidence of ability.
+              </p>
+              <p class="prose">
+                <b>How it is handled, and the gap.</b> The ex-Gaussian shortfall
+                absorbs the downward bias, and \(\sigma\) absorbs the rounding.
+                But <code>n_at_max</code> &mdash; how many times they repeated
+                their hardest grade, a far more direct signal of &ldquo;have they
+                found their ceiling&rdquo; than visit count &mdash; exists in
+                the data and is wired into the PyMC model behind a flag, yet is
+                <b>absent from the marginalized likelihood the current fits
+                actually sample</b>. It is available signal being left on the
+                floor.
+              </p>
+
+              <h3>Selection &mdash; who logs, and when</h3>
+              <div class="finding open">
+                <div class="finding-head">
+                  <span class="finding-title">The leading remaining explanation for the one confound that has not closed</span>
+                  <span class="verdict-pill verdict-open">Open &mdash; not quantified</span>
+                </div>
+              </div>
+              <p class="prose">
+                <b>The evidence that something is missing.</b> Gyms whose data is
+                more recent get stiffer corrections, at
+                <b>r = <span data-fx="conf_r">+0.60</span></b>. Three candidate
+                explanations have been tested and none closes it. Climber
+                advancement accounts for about <b>8%</b>. Relative gym drift
+                accounts for <b>none</b> &mdash; and fails in the informative
+                direction: removing accumulated drift makes the relationship
+                <i>stronger</i> (slope
+                <span data-fx="conf_raw_slope">0.809</span> &rarr;
+                <span data-fx="conf_adj_slope">0.955</span>), which rules it out
+                rather than leaving it open. Brand composition explains part:
+                within a single operating company the correlation falls to
+                <span data-gm="gt_r_wb">+0.34</span>.
+              </p>
+              <p class="prose">
+                <b>The mental model that has not been tested.</b> Who starts
+                logging, when, and at which gym is not random. A gym that opened
+                recently draws a different population than one with a decade of
+                regulars &mdash; newer app adopters, different ability mix,
+                different logging habits. None of that is in the model and none
+                of it has been measured. <b>This is the largest open question on
+                the page and it is stated rather than smoothed over.</b>
+              </p>
+
+              <h3>What follows from all of this</h3>
+              <p class="prose">
+                Ranked by what would move the headline number most per unit of
+                work, and stated as decisions rather than options:
+              </p>
+              <div id="gf-fx-plan"></div>
+            </section>

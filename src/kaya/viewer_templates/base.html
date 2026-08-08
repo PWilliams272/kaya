@@ -34,6 +34,7 @@
           <button class="tab-button" type="button" data-tab="data-overview">Data Overview</button>
           <button class="tab-button" type="button" data-tab="grading-findings">Findings</button>
           <button class="tab-button" type="button" data-tab="grading-current">Grading Model &mdash; Full Detail</button>
+          <button class="tab-button" type="button" data-tab="run-log">Run Log</button>
           <button class="tab-button tab-archived" type="button" data-tab="grading-model">Archive &mdash; v1 Model</button>
           <button class="tab-button tab-archived" type="button" data-tab="grading-v2">Archive &mdash; v2 Notes</button>
         </div>
@@ -44,6 +45,7 @@
         {% include 'tabs/data-overview.html' %}
         {% include 'tabs/grading-findings.html' %}
         {% include 'tabs/grading-current.html' %}
+        {% include 'tabs/run-log.html' %}
         {% include 'tabs/grading-model.html' %}
         {% include 'tabs/grading-v2.html' %}
       </main>
@@ -82,6 +84,12 @@
     <script src="/static/js/v2/08-psis.js?v=6"></script>
     <script src="/static/js/v2/09-arm-pairs.js?v=6"></script>
     <script src="/static/js/v2/10-design.js?v=6"></script>
+    <script src="/static/js/v2/11-emcee.js?v=1"></script>
+    <script src="/static/js/v2/12-sweep.js?v=1"></script>
+    <script src="/static/js/v2/13-structure.js?v=1"></script>
+    <script src="/static/js/v2/14-runlog.js?v=1"></script>
+    <script src="/static/js/v2/15-pagenav.js?v=1"></script>
+    <script src="/static/js/v2/16-factors.js?v=1"></script>
     <script src="/static/js/current/01-grading-current.js?v=6"></script>
     <script src="/static/js/findings/01-grading-findings.js?v=1"></script>
   </body>

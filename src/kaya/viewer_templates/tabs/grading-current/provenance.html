@@ -55,7 +55,17 @@
                     <tr>
                       <td class="label-cell"><code>v2_samplers.json</code></td>
                       <td><code>scripts/compare_samplers.py</code></td>
-                      <td>cross-sampler agreement <span class="muted">(pending the independent runs)</span></td>
+                      <td>cross-sampler agreement, shared parameters only</td>
+                    </tr>
+                    <tr>
+                      <td class="label-cell"><code>v2_emcee.json</code></td>
+                      <td><code>scripts/build_v2_emcee.py</code></td>
+                      <td>the emcee run in full &mdash; chains, posteriors, autocorrelation, walker health, and the 29 gym corrections as both samplers see them</td>
+                    </tr>
+                    <tr>
+                      <td class="label-cell"><code>runs/results/sigma_gym_check.json</code></td>
+                      <td><code>scripts/check_sigma_gym.py</code></td>
+                      <td>the three eliminated explanations for the <span>\(\sigma_{\text{gym}}\)</span> disagreement; folded into <code>v2_emcee.json</code></td>
                     </tr>
                   </tbody>
                 </table>

@@ -1,0 +1,140 @@
+<!-- The lab notebook. Rendered by
+     src/kaya/viewer_static/js/v2/14-runlog.js from v2_runlog.json, which
+     scripts/build_v2_runlog.py writes from runs/results/, runs/traces/, the
+     scheduler's STATUS.md, and a hand-maintained plan. Hides itself if that
+     payload is missing.
+
+     Ordered by what a reader wants first: what is happening now, what happens
+     next, then the record. The record is last because it is the longest and
+     the least urgent, not because it matters least. -->
+<section id="tab-run-log" class="tab-pane">
+          <div class="article-shell embedded">
+            <header class="masthead">
+              <div class="eyebrow">Lab notebook &middot; Runs, plans and dead ends</div>
+              <h1>What we ran, what we're running, what's next</h1>
+              <p class="dek">
+                Every fit that has been run against this data, what question it
+                was asked, and whether it answered one. Including &mdash;
+                especially &mdash; the ones that did not work, because a failed
+                run is only worth its compute if the reason is written down
+                next to it.
+              </p>
+              <div class="meta-row">
+                <span id="gm-runlog-built"></span>
+              </div>
+            </header>
+
+            <nav class="toc" aria-label="Contents">
+              <div class="toc-label">Contents</div>
+              <ol>
+                <li><a href="#rl-now">What is running right now</a></li>
+                <li><a href="#rl-next">What happens next</a></li>
+                <li><a href="#rl-totals">What it has cost so far</a></li>
+                <li><a href="#rl-campaigns">The campaigns, and what each settled</a></li>
+                <li><a href="#rl-measurements">Answers that needed no sampler</a></li>
+                <li><a href="#rl-table">Every fit, and where it is saved</a></li>
+              </ol>
+            </nav>
+
+            <section class="article-section" id="rl-now">
+              <h2>What is running right now</h2>
+              <div id="gm-runlog-now-head"></div>
+              <div class="data-table-wrap" id="gm-runlog-now"></div>
+              <p class="caption">
+                A fit occupies one core per chain for its whole life, so four
+                chains means four cores and this machine runs two fits at a
+                time. Three at a time was measured and it is not a mild
+                penalty: 370 minutes each against about 85 for the same model
+                run two at a time.
+              </p>
+            </section>
+
+            <section class="article-section" id="rl-next">
+              <h2>What happens next</h2>
+              <p class="prose">
+                In dependency order. Nothing downstream of an open question is
+                queued &mdash; if a step can invalidate the one after it, the
+                one after it does not get built until the answer is in.
+              </p>
+              <div id="gm-runlog-next"></div>
+            </section>
+
+            <section class="article-section" id="rl-totals">
+              <h2>What it has cost so far</h2>
+              <div class="kpi-grid" id="gm-runlog-totals"></div>
+              <p class="caption">
+                The converged count is the honest one and it is small on
+                purpose: a fit only counts if <b>R-hat</b> &mdash; which
+                compares variance between chains to variance within them, where
+                1.00 is perfect and <b>lower is better</b> &mdash; came in at or
+                under 1.01, <i>and</i> the <b>effective sample size</b> &mdash;
+                how many genuinely independent draws the chains produced, where
+                <b>higher is better</b> &mdash; cleared 400. Most of the compute
+                on this page bought a diagnosis rather than a result.
+              </p>
+            </section>
+
+            <section class="article-section" id="rl-campaigns">
+              <h2>The campaigns, and what each settled</h2>
+              <p class="prose">
+                Each campaign asked one question. Four of them answered it by
+                ruling something out, which is the outcome that is easiest to
+                stop recording and most expensive to rediscover.
+              </p>
+              <div id="gm-runlog-campaigns"></div>
+            </section>
+
+            <section class="article-section" id="rl-measurements">
+              <h2>Answers that needed no sampler</h2>
+              <p class="prose">
+                Not every question needs a fit, and the ones that don't tend to
+                be answered faster and more convincingly. These came out of the
+                same identity the model rests on: for a climber who logs at two
+                gyms, subtracting their two grades cancels the climber
+                completely, leaving a statement about the two gyms that can be
+                measured directly. No sampler, no priors, no convergence to
+                worry about.
+              </p>
+              <div id="gm-runlog-measurements"></div>
+            </section>
+
+            <section class="article-section" id="rl-table">
+              <h2>Every fit, and where it is saved</h2>
+              <p class="prose">
+                Newest first. <b>At depth cap</b> is the share of iterations
+                where the sampler ran out of trajectory instead of finishing
+                one &mdash; <b>lower is better</b>, and it is the diagnostic
+                that made the difference here, because it is invisible to both
+                R-hat and effective sample size. A run can sit at 100% with zero
+                divergences and look clean.
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table" id="gm-runlog-table"></table>
+              </div>
+              <p class="caption">
+                Traces live in <code>runs/traces/</code> and results in
+                <code>runs/results/</code>, both gitignored &mdash; 25 GB of
+                NetCDF does not belong in a repository. The table lists the
+                filename; the directory is the same for every row.
+              </p>
+              <p class="caption">
+                <b>elpd</b> (expected log pointwise predictive density) is the
+                cross-validation score &mdash; <b>higher is better</b>. Its unit
+                is not the same across this table: fits that integrate out every
+                climber offset are scored per <i>climber</i>, because doing so
+                makes that climber's rows conditionally dependent and
+                leave-one-row-out no longer exists in closed form. The two units
+                are not comparable to each other, which is why the column says
+                which one it is.
+              </p>
+            </section>
+
+            <footer class="article-footer">
+              Built from <code>runs/results/</code>, <code>runs/traces/</code>
+              and the scheduler's own status file by
+              <code>scripts/build_v2_runlog.py</code>. The plan and the
+              campaign verdicts are hand-maintained in that script &mdash;
+              &ldquo;what did we learn&rdquo; is not recoverable from an R-hat.
+            </footer>
+          </div>
+        </section>

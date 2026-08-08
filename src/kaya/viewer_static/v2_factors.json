@@ -1,0 +1,715 @@
+{
+ "built_at": "2026-08-07 15:41",
+ "network": "net50",
+ "name_filter": "confident",
+ "reference_fit": "v10_lin_marg",
+ "correction_sd": 0.284,
+ "correction_range": 1.29,
+ "coverage": {
+  "model_pairs": 20014,
+  "dated_pairs": 9965,
+  "pct": 49.8,
+  "missing": 10049,
+  "n_dated_sends": 268442
+ },
+ "exposure": {
+  "fit": "v10_lin_marg",
+  "log_lambda0": 0.0806,
+  "kappa": 0.2773,
+  "nv_scale": 8.0,
+  "curve": [
+   {
+    "days": 1,
+    "shortfall": 1.176
+   },
+   {
+    "days": 2,
+    "shortfall": 1.136
+   },
+   {
+    "days": 3,
+    "shortfall": 1.097
+   },
+   {
+    "days": 5,
+    "shortfall": 1.024
+   },
+   {
+    "days": 10,
+    "shortfall": 0.861
+   },
+   {
+    "days": 25,
+    "shortfall": 0.512
+   },
+   {
+    "days": 50,
+    "shortfall": 0.215
+   },
+   {
+    "days": 100,
+    "shortfall": 0.038
+   },
+   {
+    "days": 200,
+    "shortfall": 0.001
+   }
+  ],
+  "pct_le5": 41.4,
+  "pct_ge100": 8.5,
+  "nv_median": 8.0,
+  "nv_p90": 83.0,
+  "ratio_median": 7.5,
+  "ratio_p90": 60.0,
+  "contrast": 1.059,
+  "n_cells": 20014
+ },
+ "advancement": {
+  "fit": {
+   "slope": -0.035,
+   "intercept": 0.338
+  },
+  "debiased": [
+   {
+    "v": 1,
+    "mean": 0.283,
+    "sem": 0.076,
+    "chi2": 0.89,
+    "n": 544,
+    "n_h": 5
+   },
+   {
+    "v": 2,
+    "mean": 0.343,
+    "sem": 0.035,
+    "chi2": 0.19,
+    "n": 1927,
+    "n_h": 6
+   },
+   {
+    "v": 3,
+    "mean": 0.247,
+    "sem": 0.024,
+    "chi2": 1.06,
+    "n": 4506,
+    "n_h": 6
+   },
+   {
+    "v": 4,
+    "mean": 0.158,
+    "sem": 0.017,
+    "chi2": 0.62,
+    "n": 7993,
+    "n_h": 6
+   },
+   {
+    "v": 5,
+    "mean": 0.136,
+    "sem": 0.016,
+    "chi2": 0.79,
+    "n": 9890,
+    "n_h": 6
+   },
+   {
+    "v": 6,
+    "mean": 0.086,
+    "sem": 0.015,
+    "chi2": 1.01,
+    "n": 10805,
+    "n_h": 6
+   },
+   {
+    "v": 7,
+    "mean": 0.105,
+    "sem": 0.016,
+    "chi2": 1.75,
+    "n": 8765,
+    "n_h": 6
+   },
+   {
+    "v": 8,
+    "mean": 0.071,
+    "sem": 0.021,
+    "chi2": 1.37,
+    "n": 5335,
+    "n_h": 6
+   },
+   {
+    "v": 9,
+    "mean": 0.037,
+    "sem": 0.031,
+    "chi2": 0.8,
+    "n": 2276,
+    "n_h": 6
+   },
+   {
+    "v": 10,
+    "mean": 0.02,
+    "sem": 0.052,
+    "chi2": 1.07,
+    "n": 1028,
+    "n_h": 6
+   },
+   {
+    "v": 11,
+    "mean": -0.052,
+    "sem": 0.128,
+    "chi2": 0.17,
+    "n": 323,
+    "n_h": 4
+   }
+  ],
+  "n_climbers": 6001,
+  "n_pairs": 17845,
+  "timing": {
+   "n_pairs_total": 8956,
+   "gap_median": 0.18,
+   "gap_mean": 0.43,
+   "gap_over_1y": 13.0,
+   "gap_over_2y": 3.7,
+   "rate_used": 0.185,
+   "n_gym_pairs": 80,
+   "min_shared": 25,
+   "bias_median": 0.043,
+   "bias_p90": 0.145,
+   "bias_max": 0.279,
+   "worst": [
+    {
+     "a": "Touchstone Team Training Center",
+     "b": "Touchstone Pacific Pipe",
+     "n": 38,
+     "gap": -1.51,
+     "bias": 0.279
+    },
+    {
+     "a": "Touchstone The Oaks",
+     "b": "Touchstone Team Training Center",
+     "n": 27,
+     "gap": 1.2,
+     "bias": 0.222
+    },
+    {
+     "a": "Touchstone Sacramento Pipeworks",
+     "b": "Touchstone Pacific Pipe",
+     "n": 41,
+     "gap": -1.16,
+     "bias": 0.214
+    },
+    {
+     "a": "The Stronghold Echo Park",
+     "b": "Touchstone Verdigo Boulders",
+     "n": 25,
+     "gap": 1.13,
+     "bias": 0.209
+    },
+    {
+     "a": "Touchstone Hollywood Boulders",
+     "b": "Touchstone Pacific Pipe",
+     "n": 25,
+     "gap": -1.01,
+     "bias": 0.187
+    },
+    {
+     "a": "Touchstone LA Boulders",
+     "b": "Touchstone Pacific Pipe",
+     "n": 25,
+     "gap": -0.99,
+     "bias": 0.183
+    }
+   ],
+   "gym_date_sd": 0.6,
+   "gym_date_range": 2.2
+  }
+ },
+ "compression": {
+  "linear": {
+   "k": 109,
+   "df": 108,
+   "Q": 268.3,
+   "crit": 133.3,
+   "p": 1.2144666195198223e-15,
+   "pooled": 0.0178,
+   "pooled_se": 0.0058,
+   "i2": 60.0,
+   "tau": 0.074,
+   "per_gym": 0.0523,
+   "se_median": 0.074,
+   "n_obs": 18284,
+   "n_median": 112,
+   "span_median": 9.0,
+   "power": [
+    {
+     "tau": 0.01,
+     "power": 0.081
+    },
+    {
+     "tau": 0.02,
+     "power": 0.194
+    },
+    {
+     "tau": 0.03,
+     "power": 0.503
+    },
+    {
+     "tau": 0.04,
+     "power": 0.848
+    },
+    {
+     "tau": 0.05,
+     "power": 0.975
+    },
+    {
+     "tau": 0.075,
+     "power": 1.0
+    },
+    {
+     "tau": 0.1,
+     "power": 1.0
+    }
+   ],
+   "floor": 0.0386
+  },
+  "curvature": {
+   "k": 80,
+   "df": 79,
+   "Q": 169.7,
+   "crit": 100.7,
+   "p": 1.40544334562436e-08,
+   "pooled": 0.0035,
+   "pooled_se": 0.0024,
+   "i2": 53.0,
+   "tau": 0.023,
+   "per_gym": 0.0162,
+   "se_median": 0.0253,
+   "power": [
+    {
+     "tau": 0.005,
+     "power": 0.108
+    },
+    {
+     "tau": 0.01,
+     "power": 0.367
+    },
+    {
+     "tau": 0.02,
+     "power": 0.978
+    },
+    {
+     "tau": 0.03,
+     "power": 1.0
+    },
+    {
+     "tau": 0.05,
+     "power": 1.0
+    }
+   ],
+   "floor": 0.0171
+  },
+  "clean": {
+   "k": 135,
+   "df": 134,
+   "Q": 302.2,
+   "crit": 162.0,
+   "p": 5.199544258448419e-15,
+   "pooled": 0.016,
+   "pooled_se": 0.0058,
+   "i2": 56.0,
+   "tau": 0.0753,
+   "per_gym": 0.0532,
+   "se_median": 0.0903,
+   "n_climbers": 2430
+  },
+  "ability_p10": 3.0,
+  "ability_p90": 8.0,
+  "differential": 0.52,
+  "n_climbers_2plus": 4201,
+  "n_climbers_3plus": 2430
+ },
+ "drift": {
+  "het": {
+   "k": 121,
+   "df": 120,
+   "Q": 379.7,
+   "crit": 146.6,
+   "p": 9.914944569485555e-29,
+   "pooled": 0.0349,
+   "pooled_se": 0.0099,
+   "i2": 68.0,
+   "tau": 0.1629,
+   "per_gym": 0.1152,
+   "se_median": 0.2163,
+   "n_median": 107,
+   "span_median": 1.4,
+   "power": [
+    {
+     "tau": 0.02,
+     "power": 0.092
+    },
+    {
+     "tau": 0.05,
+     "power": 0.43
+    },
+    {
+     "tau": 0.075,
+     "power": 0.874
+    },
+    {
+     "tau": 0.1,
+     "power": 0.99
+    },
+    {
+     "tau": 0.15,
+     "power": 1.0
+    },
+    {
+     "tau": 0.2,
+     "power": 1.0
+    }
+   ],
+   "floor": 0.0708
+  },
+  "connectivity": {
+   "strict_threshold": 40,
+   "strict_components": [
+    16,
+    8,
+    3
+   ],
+   "used_threshold": 25,
+   "used_components": [
+    28
+   ]
+  },
+  "robust": [
+   {
+    "window_days": 90,
+    "gap_controlled": false,
+    "k": 121,
+    "Q": 379.7,
+    "df": 120,
+    "i2": 68.0,
+    "tau": 0.1629,
+    "gap_days": 22.0
+   },
+   {
+    "window_days": 90,
+    "gap_controlled": true,
+    "k": 121,
+    "Q": 367.7,
+    "df": 120,
+    "i2": 67.0,
+    "tau": 0.1605,
+    "gap_days": 22.0
+   },
+   {
+    "window_days": 45,
+    "gap_controlled": false,
+    "k": 108,
+    "Q": 450.8,
+    "df": 107,
+    "i2": 76.0,
+    "tau": 0.1832,
+    "gap_days": 12.0
+   },
+   {
+    "window_days": 45,
+    "gap_controlled": true,
+    "k": 108,
+    "Q": 456.6,
+    "df": 107,
+    "i2": 77.0,
+    "tau": 0.1854,
+    "gap_days": 12.0
+   }
+  ],
+  "span_years": 5.9,
+  "n_sends": 1191431,
+  "n_climbers": 16133,
+  "date_min": "2020-08-25",
+  "date_max": "2026-07-26",
+  "window_days": 90,
+  "per_gym_sd": 0.1049,
+  "per_gym_se_median": 0.0516,
+  "route1": 0.1152,
+  "accumulated_span": 0.62,
+  "mean_date_sd": 0.57,
+  "mean_date_range": 1.92,
+  "accum_sd": 0.063,
+  "correction_sd": 0.284,
+  "correction_range": 1.29,
+  "confound": {
+   "raw_r": 0.601,
+   "raw_slope": 0.809,
+   "adj_r": 0.678,
+   "adj_slope": 0.955,
+   "rate_vs_correction_r": 0.042,
+   "accum_vs_correction_r": -0.104
+  },
+  "stiffening": [
+   {
+    "name": "Movement Santa Clara",
+    "rate": 0.319,
+    "se": 0.037
+   },
+   {
+    "name": "Movement San Francisco",
+    "rate": 0.172,
+    "se": 0.057
+   },
+   {
+    "name": "Bouldering Project - Poplar",
+    "rate": 0.142,
+    "se": 0.068
+   },
+   {
+    "name": "Touchstone The Studio",
+    "rate": 0.115,
+    "se": 0.075
+   },
+   {
+    "name": "The Stronghold Lincoln Heights",
+    "rate": 0.102,
+    "se": 0.076
+   }
+  ],
+  "softening": [
+   {
+    "name": "Touchstone Team Training Center",
+    "rate": -0.171,
+    "se": 0.082
+   },
+   {
+    "name": "Movement Belmont",
+    "rate": -0.128,
+    "se": 0.052
+   },
+   {
+    "name": "Touchstone Dogpatch Boulders",
+    "rate": -0.11,
+    "se": 0.044
+   },
+   {
+    "name": "Touchstone Class 5",
+    "rate": -0.104,
+    "se": 0.051
+   },
+   {
+    "name": "Touchstone Berkeley Ironworks",
+    "rate": -0.098,
+    "se": 0.042
+   }
+  ]
+ },
+ "height": {
+  "n": 8695,
+  "n_seeds": 25,
+  "median_height": 68.0,
+  "comparisons": [
+   {
+    "label": "does height belong at all",
+    "median": 3.55,
+    "min": 3.37,
+    "max": 3.69,
+    "clears": 25
+   },
+   {
+    "label": "does height CURVE",
+    "median": 1.57,
+    "min": 0.81,
+    "max": 1.83,
+    "clears": 0
+   },
+   {
+    "label": "gender x slope",
+    "median": 0.16,
+    "min": -1.43,
+    "max": 0.95,
+    "clears": 0
+   },
+   {
+    "label": "gender x CURVE",
+    "median": 2.23,
+    "min": 1.63,
+    "max": 2.58,
+    "clears": 17
+   },
+   {
+    "label": "full height model vs none",
+    "median": 4.45,
+    "min": 4.23,
+    "max": 4.67,
+    "clears": 25
+   }
+  ],
+  "winner": "quadratic_x_gender",
+  "winner_count": 25,
+  "curves": [
+   {
+    "label": "male-coded",
+    "slope": -0.0545,
+    "curv": -0.00574,
+    "span": 0.93,
+    "x": [
+     -8.0,
+     -7.5,
+     -7.0,
+     -6.5,
+     -6.0,
+     -5.5,
+     -5.0,
+     -4.5,
+     -4.0,
+     -3.5,
+     -3.0,
+     -2.5,
+     -2.0,
+     -1.5,
+     -1.0,
+     -0.5,
+     0.0,
+     0.5,
+     1.0,
+     1.5,
+     2.0,
+     2.5,
+     3.0,
+     3.5,
+     4.0,
+     4.5,
+     5.0,
+     5.5,
+     6.0,
+     6.5,
+     7.0,
+     7.5,
+     8.0
+    ],
+    "y": [
+     0.1985,
+     0.2158,
+     0.2301,
+     0.2416,
+     0.2503,
+     0.256,
+     0.2589,
+     0.259,
+     0.2561,
+     0.2504,
+     0.2418,
+     0.2304,
+     0.2161,
+     0.1989,
+     0.1788,
+     0.1559,
+     0.1301,
+     0.1014,
+     0.0699,
+     0.0355,
+     -0.0018,
+     -0.0419,
+     -0.085,
+     -0.1309,
+     -0.1796,
+     -0.2312,
+     -0.2857,
+     -0.3431,
+     -0.4033,
+     -0.4664,
+     -0.5324,
+     -0.6012,
+     -0.673
+    ]
+   },
+   {
+    "label": "female-coded",
+    "slope": -0.0239,
+    "curv": 0.00537,
+    "span": 0.56,
+    "x": [
+     -8.0,
+     -7.5,
+     -7.0,
+     -6.5,
+     -6.0,
+     -5.5,
+     -5.0,
+     -4.5,
+     -4.0,
+     -3.5,
+     -3.0,
+     -2.5,
+     -2.0,
+     -1.5,
+     -1.0,
+     -0.5,
+     0.0,
+     0.5,
+     1.0,
+     1.5,
+     2.0,
+     2.5,
+     3.0,
+     3.5,
+     4.0,
+     4.5,
+     5.0,
+     5.5,
+     6.0,
+     6.5,
+     7.0,
+     7.5,
+     8.0
+    ],
+    "y": [
+     0.4131,
+     0.3596,
+     0.3087,
+     0.2605,
+     0.215,
+     0.1722,
+     0.1321,
+     0.0946,
+     0.0599,
+     0.0278,
+     -0.0016,
+     -0.0283,
+     -0.0524,
+     -0.0737,
+     -0.0924,
+     -0.1083,
+     -0.1216,
+     -0.1323,
+     -0.1402,
+     -0.1454,
+     -0.148,
+     -0.1479,
+     -0.1451,
+     -0.1396,
+     -0.1314,
+     -0.1206,
+     -0.107,
+     -0.0908,
+     -0.0719,
+     -0.0503,
+     -0.0261,
+     0.0009,
+     0.0305
+    ]
+   }
+  ]
+ },
+ "gender": {
+  "n": 10357,
+  "confident_female": 29.0,
+  "confident_male": 69.6,
+  "ambiguous": 1.5,
+  "mean": 0.296
+ },
+ "quantization": {
+  "pct_once": 50.5,
+  "pct_10plus": 3.0,
+  "n_cells": 9965,
+  "pct_sends_used": 3.7,
+  "n_sends": 268442
+ }
+}

@@ -210,6 +210,7 @@ GM_SECTIONS = [
     'gm-time',
     'gm-cv',
     'gm-marginal',
+    'gm-samplers',
     'gm-negatives',
     'gm-diagnostics',
     'gm-provenance',
@@ -374,3 +375,46 @@ def test_data_overview_carries_the_gym_directory(page: str) -> None:
     shell = (Path(viewer_app.STATIC_DIR) / 'js' / '09-shell.js').read_text()
     assert 'renderGymDirectory()' in shell, 'directory is never rendered'
     assert 'bindGymDirectory()' in shell, 'directory controls are never bound'
+
+
+# --- the independent-sampler section ----------------------------------------
+
+def test_current_page_carries_the_emcee_section(page: str) -> None:
+    """Every element 11-emcee.js writes into has to exist on the page.
+
+    The renderer hides its whole section when the payload is missing, which is
+    the right behaviour for an un-built payload and exactly the wrong failure
+    mode for a typo in an id: the section would silently disappear and nothing
+    would say why.
+    """
+    for element_id in ['gm-emcee-run', 'gm-emcee-param', 'gm-emcee-verdict',
+                       'gm-emcee-trace', 'gm-emcee-dens', 'gm-emcee-runmean',
+                       'gm-emcee-acf', 'gm-emcee-walkers', 'gm-emcee-table',
+                       'gm-emcee-discrepancy', 'gm-emcee-gyms',
+                       'gm-emcee-converged', 'gm-emcee-gap-note',
+                       'gm-emcee-gyms-note']:
+        assert f'id="{element_id}"' in page, f'missing {element_id}'
+    # The cross-sampler table moved onto this page with it; it used to exist
+    # only on the archived pane.
+    assert 'id="gm-crosssampler-table"' in page
+    assert 'id="gm-crosssampler-note"' in page
+
+
+def test_emcee_renderer_is_wired_into_the_current_tab() -> None:
+    """A section nobody calls renders as an empty shell, not an error."""
+    js = (Path(viewer_app.STATIC_DIR) / 'js' / 'current'
+          / '01-grading-current.js').read_text()
+    assert 'renderV2Emcee()' in js, 'the emcee section is never rendered'
+    assert 'renderV2Samplers()' in js, 'the cross-sampler table is never filled'
+
+
+def test_callout_bolds_are_not_all_block_level() -> None:
+    """`.callout b` as a bare selector broke every mid-sentence bold.
+
+    Callouts open with a bolded lead that reads as a heading, so that one is
+    block. A bare `.callout b` extended it to emphasis inside a sentence and
+    shredded the paragraph into one line per bold phrase.
+    """
+    css = (Path(viewer_app.STATIC_DIR) / 'research.css').read_text()
+    assert '.callout b {' not in css, 'the bare selector is back'
+    assert '.callout > div > b:first-child' in css

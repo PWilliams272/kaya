@@ -62,7 +62,12 @@ async function renderFindingsTabInner() {
   renderV2Advancement();
   renderV2TimeChart();
 
-  // 4 and 6. Both need v2_posterior.json, so they are loaded together even
+  // 6. The factor ledger. Its own payload, shared with nothing, and it sits
+  // after the time section because it generalises it: advancement is one row
+  // of a table of nine.
+  await renderV2Factors();
+
+  // 4 and 7. Both need v2_posterior.json, so they are loaded together even
   // though they sit either side of the time section on the page.
   await renderV2VsNull();
   await renderFindingsInference();
