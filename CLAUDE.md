@@ -63,17 +63,27 @@ the `modelling` extra, `pygam` in `payloads`, `matplotlib` in `notebooks`, `psyc
 
 ## Deploy
 
-Three workflows, and their triggers differ — check before assuming a push is inert:
+**`main` deploys nothing.** It runs CI and that is all. Shipping is a separate, deliberate act:
+merge to `prod`, or dispatch the workflow at a chosen ref. This reconciles the repo with the
+workspace-wide `prod`-deploy-only model, which it used to be the sole exception to (changed
+2026-08-07).
 
 | Workflow | Deploys | Trigger |
 | --- | --- | --- |
-| `deploy-lambda.yml` | updater Lambda | push to `main` **or** `prod` |
-| `deploy-viewer-app.yml` | viewer to EC2 (systemd `kaya-viewer.service`, port `8010`) | push to `main` |
+| `ci.yml` | nothing — ruff, mypy, pytest | every branch except `prod`, and every PR |
+| `deploy-lambda.yml` | updater Lambda | push to **`prod`**, or `workflow_dispatch` |
+| `deploy-viewer-app.yml` | viewer to EC2 (systemd `kaya-viewer.service`, port `8010`) | push to **`prod`**, or `workflow_dispatch` |
 | `deploy-viewer-cache-lambda.yml` | `kaya-viewer-cache` Lambda | `workflow_dispatch` only |
 
-**A push to `main` deploys the viewer and the updater Lambda.** That diverges from the workspace's
-`prod`-deploy-only branch model and is not yet reconciled — treat `main` as a deploy branch here
-until it is.
+The two deploy workflows are **path-filtered**, so a `prod` push only ships the surface it
+touched — a viewer copy change no longer redeploys the data pipeline. Both filters are
+allowlists derived from each entrypoint's transitive imports, and an allowlist goes stale
+silently (the deploy just stops firing). `tests/test_deploy_workflows.py` recomputes the import
+closure from source and fails if a filter, or the Lambda's packaging list, no longer covers it.
+**Add a module the handler imports, and that test tells you to list it — don't skip it.**
+
+The Lambda zip ships only the handler's closure (~400KB), not the whole `src/kaya/` tree (6.7MB);
+`viewer_static/` in particular has never been reachable from the updater.
 
 ## Rules
 

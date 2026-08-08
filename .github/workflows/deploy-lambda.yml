@@ -1,10 +1,46 @@
 name: Deploy Kaya Lambda
 
+# Path-filtered so the updater Lambda and the viewer app have independent
+# deploy streams. Both are built from the same src/kaya/ tree, so without
+# filters every viewer copy edit redeployed the data pipeline and every puller
+# fix restarted the web host — two unrelated production surfaces moving on one
+# commit, each carrying the other's risk.
+#
+# The list below is the Lambda handler's transitive import closure
+# (kaya/update_data_script.lambda_handler) plus the config it loads at runtime.
+# It is an allowlist, and an allowlist can go stale silently: add a module the
+# handler imports, forget to list it here, and the deploy simply stops firing
+# with no error. tests/test_deploy_workflows.py recomputes the closure from the
+# source and fails if this list no longer covers it.
+#
+# workflow_dispatch stays as the escape hatch — if a filter is ever wrong, a
+# manual run still deploys.
+#
+# DEPLOYS FROM `prod` ONLY. Until 2026-08-07 a push to `main` deployed this
+# Lambda *and* the viewer, which meant no way to integrate work without also
+# shipping it: a docs commit, a half-finished refactor and a genuine pipeline
+# fix all reached production the same way. `main` is now integration — CI runs
+# there (ci.yml) and nothing deploys. Shipping is an explicit act: merge to
+# `prod`, or dispatch this workflow at a chosen ref.
+#
+# This also matches the workspace-wide branch model (`main` stable, `prod`
+# deploy-only) that this repo was the sole exception to.
 on:
   push:
     branches:
-      - main
       - prod
+    paths:
+      - 'src/kaya/update_data_script.py'
+      - 'src/kaya/data_puller.py'
+      - 'src/kaya/gym_config.py'
+      - 'src/kaya/secrets.py'
+      - 'src/kaya/db_manager.py'
+      - 'src/kaya/s3_storage.py'
+      - 'src/kaya/data_access.py'
+      - 'src/kaya/__init__.py'
+      - 'src/kaya/config/**'
+      - 'lambda_deployment/requirements.txt'
+      - '.github/workflows/deploy-lambda.yml'
   workflow_dispatch:
     inputs:
       target_environment:
@@ -26,10 +62,12 @@ permissions:
 jobs:
   deploy:
     name: Deploy ${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || github.ref_name }} Lambda
+    # `main` is deliberately absent: it no longer triggers this workflow, and
+    # leaving a main clause here would quietly re-enable it for anyone who
+    # restored a push trigger without reading the header.
     if: >-
       github.ref_name == 'prod' ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.ref_name == 'main' && vars.LAMBDA_FUNCTION_NAME != '')
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: ${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || (github.ref_name == 'prod' && 'prod' || 'dev') }}
     env:
@@ -54,11 +92,25 @@ jobs:
         with:
           python-version: '3.11'
 
+      # Ship only what the handler imports. The previous rule was
+      # "everything in src/kaya except app/" (and app/ no longer exists), which
+      # put 5.7MB of viewer_static/ and viewer_templates/ into the zip along
+      # with the modelling code — none of it reachable from the handler, all of
+      # it inflating cold starts and making every viewer asset change look like
+      # a Lambda change.
+      #
+      # Keep this list in step with the `paths:` filter above;
+      # tests/test_deploy_workflows.py asserts both cover the import closure.
       - name: Create deployment package directory
         run: |
-          mkdir lambda_build
-          rsync -av --exclude 'app/' src/kaya/ lambda_build/kaya/
+          mkdir -p lambda_build/kaya
+          for m in __init__ update_data_script data_puller gym_config secrets \
+                   db_manager s3_storage data_access; do
+            cp "src/kaya/$m.py" lambda_build/kaya/
+          done
+          cp -r src/kaya/config lambda_build/kaya/config
           cp lambda_deployment/requirements.txt lambda_build/requirements.txt
+          echo "--- packaged ---" && find lambda_build/kaya -type f | sort
 
       - name: Install dependencies
         run: |

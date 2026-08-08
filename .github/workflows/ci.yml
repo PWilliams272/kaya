@@ -1,0 +1,67 @@
+name: CI
+
+# What `main` gets instead of a deploy.
+#
+# Until 2026-08-07 this repo had no CI at all, and a push to `main` went
+# straight to production — both the updater Lambda and the viewer host. So the
+# only thing standing between an untested commit and a live service was
+# whoever remembered to run pytest locally. Splitting the deploys off `main`
+# (see deploy-lambda.yml / deploy-viewer-app.yml) removes the danger but leaves
+# a gap: nothing would check `main` at all. This fills it.
+#
+# Runs on every branch and every PR, deliberately. Catching a broken test on a
+# feature branch is the cheap case; catching it after a merge to `prod` is not.
+#
+# The three gates match what the repo documents as its local workflow, so a
+# green CI run means the same thing as a clean local run — no second standard.
+on:
+  push:
+    branches-ignore:
+      # `prod` is what the deploy workflows watch. Its content has already been
+      # through CI on the branch it was merged from, and running the suite again
+      # here would gate nothing while adding minutes to every deploy.
+      - prod
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # Supersede in-flight runs for the same ref: on an active branch only the
+  # newest commit's result is meaningful, and cancelling the rest keeps the
+  # queue short.
+  group: kaya-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: lint, types, tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      # Core + dev only. The heavy extras (pymc, arviz, pygam, matplotlib) back
+      # the modelling scripts, and nothing under tests/ imports them — pulling
+      # them in would multiply install time to gate code CI never exercises.
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Lint
+        run: python -m ruff check .
+
+      - name: Types
+        run: python -m mypy
+
+      - name: Tests
+        run: python -m pytest -q

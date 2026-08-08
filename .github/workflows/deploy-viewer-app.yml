@@ -12,10 +12,35 @@ name: Deploy Viewer App to EC2
 # -i', no --delete) are used as-is — deliberately not adding --delete, since
 # multiple sources (src, pyproject.toml, README.md) land inside one TARGET
 # directory that also holds .venv/, which nothing here should ever touch.
+#
+# Path-filtered so this and deploy-lambda.yml have independent deploy streams.
+# Both build from the same src/kaya/ tree, so without filters a viewer copy
+# edit redeployed the data pipeline and a puller fix restarted this host.
+# db_manager/s3_storage are genuinely shared and deliberately appear in both
+# lists — a change there should move both surfaces.
+#
+# tests/test_deploy_workflows.py checks this list still covers what viewer_app
+# imports. workflow_dispatch stays as the escape hatch if a filter is wrong.
+# DEPLOYS FROM `prod` ONLY, as of 2026-08-07. A push to `main` used to restart
+# this host — so integrating any work shipped it, with no step in between.
+# `main` now runs CI (ci.yml) and deploys nothing; shipping means merging to
+# `prod` or dispatching this workflow at a chosen ref.
 on:
   push:
     branches:
-      - main
+      - prod
+    paths:
+      - 'src/kaya/viewer_app.py'
+      - 'src/kaya/viewer_payloads.py'
+      - 'src/kaya/viewer_paths.py'
+      - 'src/kaya/viewer_static/**'
+      - 'src/kaya/viewer_templates/**'
+      - 'src/kaya/data_access.py'
+      - 'src/kaya/db_manager.py'
+      - 'src/kaya/s3_storage.py'
+      - 'src/kaya/__init__.py'
+      - 'pyproject.toml'
+      - '.github/workflows/deploy-viewer-app.yml'
   workflow_dispatch:
 
 concurrency:

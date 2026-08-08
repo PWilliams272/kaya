@@ -55,7 +55,12 @@ dev = [
     "ruff>=0.6,<1.0",
     "mypy>=1.11,<2.0",
     "pytest>=8.0,<9.0",
-    "types-requests"
+    "types-requests",
+    # tests/test_deploy_workflows.py parses .github/workflows/*.yml to check the
+    # deploy path filters still cover each entrypoint's imports. PyYAML arrives
+    # transitively today, which is not a dependency — declare it so a clean
+    # `pip install -e ".[dev]"` can still run the suite.
+    "pyyaml>=6.0,<7.0",
 ]
 
 # Everything, for a local working environment.
