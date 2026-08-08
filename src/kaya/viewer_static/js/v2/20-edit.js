@@ -35,7 +35,8 @@ function pmUnmarkNotes(html) {
   const box = document.createElement('div');
   box.innerHTML = html;
   box.querySelectorAll('mark.pm-inline-note').forEach((el) => {
-    el.replaceWith(document.createTextNode(`@claude ${el.textContent.trim()}@`));
+    const tag = el.dataset.state === 'done' ? '@done' : '@claude';
+    el.replaceWith(document.createTextNode(`${tag} ${el.textContent.trim()}@`));
   });
   return box.innerHTML;
 }

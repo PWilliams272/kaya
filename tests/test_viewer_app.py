@@ -398,4 +398,4 @@ def test_an_inline_note_never_reaches_the_public_page(monkeypatch) -> None:
     dev = _load_viewer_app('development')
     monkeypatch.setattr(dev.viewer_copy, 'load_copy', lambda page: dict(stored))
     _, dev_body = _get_body(dev.app, '/prelim')
-    assert 'pm-inline-note">SECRETNOTE</mark>' in dev_body
+    assert 'data-state="open">SECRETNOTE</mark>' in dev_body

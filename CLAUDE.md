@@ -43,7 +43,10 @@ viewer's structural conventions here has downstream consequences.
   a restore control in development. Deleting an **added** block removes its record instead.
   `@claude ...@` written anywhere in the copy is an inline note to the agent: marked in
   development, **stripped in production**, and listed by `viewer_copy.inline_notes('prelim')` —
-  read that at the start of a session on this page, alongside `prelim_notes.json`.
+  read that at the start of a session on this page, alongside `prelim_notes.json`. After making
+  the change a note asked for, call `viewer_copy.resolve_inline_notes('prelim')`: `@claude` becomes
+  `@done` and the mark turns green, which is the author's cue that it is ready to review.
+  **Never delete a note** — that is the author's call, not ours.
   **Every write path is development-only** (`POST /api/prelim-{copy,blocks,notes,layout,hidden}` on `dev_api`) because
   `kaya.peterwilliams.dev` is public and unauthenticated — a live page that can rewrite its own
   text is a defacement vector. Stored copy renders unescaped, so it goes through the allowlist
@@ -131,6 +134,9 @@ The Lambda zip ships only the handler's closure (~400KB), not the whole `src/kay
 - `BAYESIAN_GRADING_MODEL.md` — the grading model's methodology.
 - `docs/run-plan.md` — which fits are queued, what question each one settles, and what is
   deliberately not being run. Decision-driven: nothing downstream of an open question runs.
+- `docs/page-editing-toolkit.md` — the in-page editing system: what the author can do, the
+  dev-only write boundary, the note protocol, and the plan for extracting it into a shared
+  package. Written to travel; read it before changing `viewer_copy.py` or `v2/20`–`21`.
 - `docs/inference-toolkit.md` — portable reference on choosing and diagnosing a sampler:
   what R-hat and ESS measure, affine invariance, nested sampling, and which fix each
   diagnostic signature points at. Written to travel to another repo; keep it self-contained.

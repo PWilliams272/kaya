@@ -395,7 +395,8 @@ def test_the_real_hidden_store_is_valid() -> None:
 def test_an_inline_note_is_marked_for_the_author(store) -> None:
     viewer_copy.save_copy('demo', {'ab-lede': 'Text. @claude tighten this@ More.'})
     out = viewer_copy.render_copy('demo', keep_notes=True)['ab-lede']
-    assert out == 'Text. <mark class="pm-inline-note">tighten this</mark> More.'
+    assert out == (
+        'Text. <mark class="pm-inline-note" data-state="open">tighten this</mark> More.')
 
 
 def test_an_inline_note_is_stripped_for_the_public_page(store) -> None:
@@ -417,7 +418,10 @@ def test_notes_are_listed_with_the_block_they_are_in(store) -> None:
         'ab-gap': 'z @claude third@',
     })
     assert viewer_copy.inline_notes('demo') == [
-        ('ab-gap', 'third'), ('ab-lede', 'first'), ('ab-lede', 'second')]
+        ('ab-gap', 'open', 'third'),
+        ('ab-lede', 'open', 'first'),
+        ('ab-lede', 'open', 'second'),
+    ]
 
 
 def test_copy_without_a_note_is_untouched(store) -> None:
@@ -426,3 +430,33 @@ def test_copy_without_a_note_is_untouched(store) -> None:
     for keep in (True, False):
         assert viewer_copy.render_copy('demo', keep_notes=keep)['ab-lede'] == (
             'mail me at a@b.com, or not')
+
+
+def test_resolving_a_note_turns_it_green_rather_than_deleting_it(store) -> None:
+    """The author deletes it, not the agent -- only they know if they liked it."""
+    viewer_copy.save_copy('demo', {'ab-lede': 'x @claude tighten this@ y'})
+    assert viewer_copy.resolve_inline_notes('demo') == 1
+    assert viewer_copy.load_copy('demo')['ab-lede'] == 'x @done tighten this@ y'
+    assert viewer_copy.inline_notes('demo') == [('ab-lede', 'done', 'tighten this')]
+    out = viewer_copy.render_copy('demo', keep_notes=True)['ab-lede']
+    assert 'data-state="done"' in out
+
+
+def test_resolving_is_idempotent(store) -> None:
+    """A second pass must not re-count notes it already handled."""
+    viewer_copy.save_copy('demo', {'ab-lede': 'x @claude one@'})
+    viewer_copy.resolve_inline_notes('demo')
+    assert viewer_copy.resolve_inline_notes('demo') == 0
+
+
+def test_one_block_can_be_resolved_without_touching_the_others(store) -> None:
+    viewer_copy.save_copy('demo', {'ab-lede': '@claude a@', 'ab-gap': '@claude b@'})
+    assert viewer_copy.resolve_inline_notes('demo', key='ab-lede') == 1
+    assert dict(((k, st) for k, st, _ in viewer_copy.inline_notes('demo'))) == {
+        'ab-lede': 'done', 'ab-gap': 'open'}
+
+
+def test_a_handled_note_is_still_stripped_in_production(store) -> None:
+    """Handled means 'ready to review', not 'safe to publish'."""
+    viewer_copy.save_copy('demo', {'ab-lede': 'Kept. @done tightened@ Also kept.'})
+    assert viewer_copy.render_copy('demo', keep_notes=False)['ab-lede'] == 'Kept. Also kept.'

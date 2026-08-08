@@ -503,6 +503,22 @@ code {
   color: var(--lg-highlight);
 }
 
+/* Handled. The colour is the whole signal: orange means the agent has not
+   looked at it, green means the change has been made and is waiting to be
+   checked. The note stays until the author deletes it -- the agent cannot
+   know whether they liked the result. */
+.pm-inline-note[data-state='done'] {
+  background: color-mix(in srgb, var(--lg-success) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lg-success) 40%, transparent);
+  font-style: normal;
+  color: var(--lg-text-2);
+}
+
+.pm-inline-note[data-state='done']::before {
+  content: '✓ handled — ';
+  color: var(--lg-success);
+}
+
 /* A deleted DRAFTED block. It is gone from the published page; here it stays
    struck through so the author can see what they removed and put it back. Dim
    enough to read as absent, legible enough to still be read. */

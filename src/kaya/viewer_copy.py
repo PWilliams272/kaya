@@ -494,7 +494,11 @@ def save_hidden(page: str, keys: object) -> List[str]:
 # The transform runs after sanitising, so the <mark> it inserts is ours, not
 # something copy could have smuggled in.
 
-INLINE_NOTE_RE = re.compile(r'@claude\b(.*?)@', re.DOTALL | re.IGNORECASE)
+INLINE_NOTE_RE = re.compile(r'@(claude|done)\b(.*?)@', re.DOTALL | re.IGNORECASE)
+
+
+def _note_state(word: str) -> str:
+    return 'done' if word.lower() == 'done' else 'open'
 
 
 def strip_inline_notes(fragment: str) -> str:
@@ -505,7 +509,8 @@ def strip_inline_notes(fragment: str) -> str:
 def mark_inline_notes(fragment: str) -> str:
     """Wrap agent notes so they stand out from the copy around them."""
     return INLINE_NOTE_RE.sub(
-        lambda m: f'<mark class="pm-inline-note">{m.group(1).strip()}</mark>',
+        lambda m: (f'<mark class="pm-inline-note" data-state="{_note_state(m.group(1))}">'
+                   f'{m.group(2).strip()}</mark>'),
         fragment,
     )
 
@@ -516,13 +521,47 @@ def render_copy(page: str, *, keep_notes: bool) -> Dict[str, str]:
     return {k: transform(v) for k, v in load_copy(page).items()}
 
 
-def inline_notes(page: str) -> List[Tuple[str, str]]:
-    """Every agent note in a page's copy, as (block key, note text).
+def inline_notes(page: str) -> List[Tuple[str, str, str]]:
+    """Every agent note in a page's copy, as (block key, state, note text).
 
     The point of entry for the next session: one call says what the author
-    asked for and exactly which block they asked it about.
+    asked for, which block they asked it about, and whether it has been
+    handled yet. Read the `open` ones; leave the `done` ones alone -- they are
+    waiting on the author to check the change and delete the note.
     """
-    found: List[Tuple[str, str]] = []
+    found: List[Tuple[str, str, str]] = []
     for key, value in sorted(load_copy(page).items()):
-        found.extend((key, m.group(1).strip()) for m in INLINE_NOTE_RE.finditer(value))
+        found.extend(
+            (key, _note_state(m.group(1)), m.group(2).strip())
+            for m in INLINE_NOTE_RE.finditer(value)
+        )
     return found
+
+
+def resolve_inline_notes(page: str, key: str | None = None) -> int:
+    """Mark notes handled: `@claude ...@` becomes `@done ...@`. Returns the count.
+
+    Call this AFTER making the change the note asked for. The note does not go
+    away -- it turns green and reads "handled", which is the author's cue that
+    the change is ready to look at. Deleting it is their call, not ours: we
+    cannot tell whether they liked the result.
+    """
+    resolved = 0
+
+    def flip(m: 're.Match[str]') -> str:
+        nonlocal resolved
+        if _note_state(m.group(1)) == 'done':
+            return m.group(0)
+        resolved += 1
+        return f'@done{m.group(2)}@'
+
+    updates = {}
+    for k, value in load_copy(page).items():
+        if key is not None and k != key:
+            continue
+        flipped = INLINE_NOTE_RE.sub(flip, value)
+        if flipped != value:
+            updates[k] = flipped
+    if updates:
+        save_copy(page, updates)
+    return resolved
