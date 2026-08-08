@@ -754,6 +754,28 @@ Stiffening fastest: Movement Santa Clara (+0.319 ± 0.037), Movement San Francis
 Bouldering Project Poplar (+0.142 ± 0.068). Softening fastest: Touchstone Team Training Center
 (−0.171 ± 0.082), Movement Belmont (−0.128 ± 0.052), Touchstone Dogpatch (−0.110 ± 0.044).
 
+**Reproducible as of 2026-08-07: `scripts/probe_gym_drift.py`.** Until then every number in §6.5
+lived only in this prose — the measurement had no script, could not be re-run when gyms were
+added, and could not be checked. It now rebuilds from the live mirror and writes
+`runs/results/gym_drift.json` plus `runs/time_resolved_cells.pkl`, the (climber, gym, 90-day
+window) dataset a drift-carrying model needs and which `base_bouldering.pkl` does not contain.
+
+The paired half reproduces exactly: 1,191,431 dated sends, 16,133 climbers, 11,902 multi-gym
+(climber, window) cells, I² 68%, **τ 0.163 grades/yr**. Q/df comes out 381.8/122 against 379.7/120
+because two more pairs clear the 25-observation threshold under the rebuilt cells.
+
+**The per-gym solve only reproduces with the pooling made explicit, and that is worth recording.**
+"Partial pooling at the measured τ" is not weighting — weights alone leave 123 noisy contrasts
+free to absorb their own sampling error into 29 unknowns, and the spread comes out at **0.276
+grades/yr against a τ/√2 of 0.115, 2.4× too large**, with a range of −0.47 to +0.68 that is mostly
+noise wearing a gym's name. It is the ~19,000-standard-error failure of the first attempt, one
+notch milder: there the graph was disconnected, here it is connected but unconstrained. Each rate
+needs its own prior, `rate_g ~ N(0, τ²/2)`, as extra rows pulling toward zero — ridge with the
+penalty fixed by a measurement rather than chosen. τ/√2 because τ is the spread of *differences*,
+and a difference of two independent rates has twice the variance of one. With it in place: sd
+**0.101** (table says 0.105), median SE **0.053** (0.052), range −0.170 to +0.305 (−0.171 to
++0.319), accumulated **0.60 grades** (0.62).
+
 **Six years of drift is about half the entire spread the gym corrections are trying to measure.**
 A single number per gym is an average over a moving target.
 
