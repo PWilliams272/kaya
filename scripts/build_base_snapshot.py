@@ -1,4 +1,4 @@
-"""Rebuild `runs/base_bouldering.pkl` from the authoritative S3 history.
+"""Rebuild `runs/base_bouldering.pkl`, the input every fit reads.
 
 Why this script had to exist
 ----------------------------
@@ -17,30 +17,39 @@ that silently treats a send from 2022 and one from 2025 as simultaneous. See
 docs/two-stage-and-grade-compression.md for what that costs in grades.
 
 Both are fixed here. `prepare_base_data` now carries `max_send_date`,
-`first_send` and `last_send`, and reads from S3 rather than the local mirror.
+`first_send` and `last_send`, and takes a `source`.
 
-Local mirror vs S3
-------------------
-`data/kaya_data.db` is a sqlite mirror that was last written in June 2025. The
-Aug 2026 snapshot contains 20,014 (climber, gym) pairs; the mirror covers 9,965
-of them — 49.8%. Every dated measurement made before this script existed was
-therefore made on half the data. S3 (`kaya/raw/sends/`) is the pull history
-itself, complete and current, and the only source that includes the gyms
-backfilled since the mirror went stale.
+Which source, and a warning about the wrong one
+-----------------------------------------------
+`local_db` resolves through LOCAL_DB_URL to the live sqlite mirror
+(~/.kaya/kaya_data.db, 702MB): 2.46M sends, **zero** null dates, and 100%
+coverage of the modelled pairs. It is complete for every gym that has been
+synced, and it is fast.
 
-Duplicate sends
----------------
-Raw S3 is **not** deduplicated, and it genuinely contains duplicates: a
-backfill killed mid-gym leaves its already-written batches under an orphan
-run_id, and the redo writes the same sends again under a new one. Nothing
-errors and nothing warns — the rows are simply counted twice by anything
-reading raw S3. `--dedupe` (on by default) drops repeated send_ids before
-aggregating, and reports how many it found, because a large count means orphans
-worth cleaning up with `backfill_new_gyms.py --clean-orphans`.
+`s3_raw` is the pull history itself, and it is the only source that includes
+gyms backfilled since the mirror was last synced. Slower — thousands of gzipped
+JSONL objects — but authoritative and current.
 
-    python scripts/build_base_snapshot.py --dry-run     # report, write nothing
-    python scripts/build_base_snapshot.py               # rebuild from S3
-    python scripts/build_base_snapshot.py --source local_db   # the old, stale path
+Do NOT reach for `data/kaya_data.db`. It is an abandoned June 2025 copy that
+still sits in the tree at a third the size, and reading it instead of the live
+mirror is how a "49.8% date coverage gap" got measured, published, and believed
+on 2026-08-07. There is no such gap. Nothing here opens a sqlite file by path;
+go through the accessor so LOCAL_DB_URL decides.
+
+Duplicate sends under s3_raw
+----------------------------
+Raw S3 is not deduplicated, and it genuinely contains duplicates: a backfill
+killed mid-gym leaves its already-written batches under an orphan run_id, and
+the redo writes the same sends again under a new one. Nothing errors and nothing
+warns. `prepare_base_data` reduces to one row per (climber, gym) by max grade,
+so duplicate send rows cannot inflate the observation count — but they do
+inflate `n_visits` and `n_sends_gym`, which the exposure term reads. Prefer
+`local_db` unless you specifically need gyms the mirror has not seen, and clean
+orphans with `backfill_new_gyms.py --clean-orphans` before an s3_raw rebuild.
+
+    python scripts/build_base_snapshot.py --dry-run             # report only
+    python scripts/build_base_snapshot.py --source local_db     # fast, complete
+    python scripts/build_base_snapshot.py --source s3_raw       # includes new gyms
 
 Writes `runs/base_bouldering.pkl`, keeping a timestamped backup of whatever was
 there before — that file is the input to every fit, so it does not get replaced
@@ -76,10 +85,14 @@ DATE_COLS = {'max_send_date', 'first_send', 'last_send'}
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    p.add_argument('--source', default='s3_raw',
-                   choices=['s3_raw', 'local_db', 'aws_db'],
-                   help='where sends come from (default: s3_raw, the '
-                        'authoritative history)')
+    # local_db by default: it goes through LOCAL_DB_URL to the live mirror,
+    # which is complete, fully dated and far faster than re-reading thousands
+    # of S3 objects. Switch to s3_raw when the mirror has not seen a recent
+    # backfill.
+    p.add_argument('--source', default='local_db',
+                   choices=['local_db', 's3_raw', 'aws_db'],
+                   help='where sends come from (default: local_db, the live '
+                        'mirror via LOCAL_DB_URL)')
     p.add_argument('--discipline', default='bouldering',
                    choices=['bouldering', 'routes'])
     p.add_argument('--out', default=str(OUT))
@@ -153,6 +166,9 @@ def main(argv=None) -> int:
     print(f'building {args.discipline} snapshot from source={args.source!r}')
     if args.source == 's3_raw':
         print('  (reading the full S3 pull history — this takes a few minutes)')
+    elif args.source == 'local_db':
+        from kaya.db_manager import _get_local_db_url
+        print(f'  via LOCAL_DB_URL -> {_get_local_db_url()}')
 
     base = prepare_base_data(discipline=args.discipline, source=args.source)
     describe(base)
