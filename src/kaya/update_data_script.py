@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from datetime import datetime
 from typing import Any, Dict, Optional, Sequence
 
 import boto3
@@ -120,6 +121,59 @@ def _send_failed_job_to_dlq(
         QueueUrl=dlq_url,
         MessageBody=json.dumps(payload),
     )
+
+
+# A gym that has not updated for this long is stuck, not unlucky. The pull
+# runs nightly and a dead-lettered gym is normally re-covered the next night,
+# so two consecutive misses is already unusual and three is a standing failure
+# -- gym 944 sat at 37 days.
+STALE_AFTER_HOURS = 72
+
+
+def report_pull_health(now: Optional[datetime] = None) -> Dict[str, Any]:
+    """Publish how stale the per-gym pulls are, as a CloudWatch metric.
+
+    Alarming on Lambda errors or DLQ depth cannot catch a stuck gym: the
+    updater dead-letters its own failures, so the error count is always zero,
+    and DLQ depth is dominated by failures that the next night fixes by itself.
+    The signal that works is the age of each gym's state object, because that
+    is written only on success.
+
+    Emits three metrics into `Kaya/Pull`:
+      StaleGyms   gyms whose last successful update is older than the threshold
+      MaxGymAgeHours  the worst one, so the alarm message carries the severity
+      GymsTracked how many gyms have state at all -- a sudden drop means the
+                  roster shrank, which is its own kind of failure
+    """
+    from kaya.s3_storage import list_gym_state_ages
+
+    ages = list_gym_state_ages(now=now)
+    stale = [r for r in ages if r['age_hours'] > STALE_AFTER_HOURS]
+    worst = max((r['age_hours'] for r in ages), default=0.0)
+    summary = {
+        'gyms_tracked': len(ages),
+        'stale_gyms': [
+            {'gym_id': r['gym_id'], 'age_hours': round(r['age_hours'], 1)}
+            for r in sorted(stale, key=lambda r: -r['age_hours'])
+        ],
+        'max_age_hours': round(worst, 1),
+        'stale_after_hours': STALE_AFTER_HOURS,
+    }
+    if stale:
+        logger.error('STALE GYMS: %s', summary['stale_gyms'])
+    else:
+        logger.info('all %s gyms updated within %sh', len(ages),
+                    STALE_AFTER_HOURS)
+
+    boto3.client('cloudwatch').put_metric_data(
+        Namespace='Kaya/Pull',
+        MetricData=[
+            {'MetricName': 'StaleGyms', 'Value': len(stale), 'Unit': 'Count'},
+            {'MetricName': 'MaxGymAgeHours', 'Value': worst, 'Unit': 'Count'},
+            {'MetricName': 'GymsTracked', 'Value': len(ages), 'Unit': 'Count'},
+        ],
+    )
+    return summary
 
 
 def dispatch_gym_updates(
@@ -279,6 +333,11 @@ def lambda_handler(
     """
     if 'Records' in event:
         return process_sqs_records(event['Records'])
+
+    # Scheduled separately from the pull, an hour behind it, so it measures the
+    # run that just happened rather than the one before.
+    if event.get('health_check'):
+        return report_pull_health()
 
     mode = event.get('mode', 'incremental')
     batch_size = event.get('batch_size', 1000)

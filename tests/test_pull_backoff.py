@@ -351,3 +351,89 @@ def test_the_lambda_handler_does_not_hold_its_own_retry_literal():
         'the handler must fall back to the shared budget'
     )
     assert DEFAULT_OFFSET_RETRIES > 3
+
+
+# --- knowing a gym is stuck --------------------------------------------------
+#
+# The failure that cost 37 days was not that gym 944 broke. It was that nothing
+# could tell: the updater dead-letters its own failures, so Lambda errors read
+# zero, and DLQ depth is dominated by gyms the next night fixes anyway.
+
+
+def test_staleness_is_measured_from_the_state_object(monkeypatch):
+    """State objects are written only on success, so their age IS the signal."""
+    from datetime import datetime, timedelta, timezone
+
+    from kaya import s3_storage
+
+    now = datetime(2026, 8, 8, tzinfo=timezone.utc)
+    objs = [
+        {'Key': 'kaya/state/gym_id=100.json', 'LastModified': now - timedelta(hours=4)},
+        {'Key': 'kaya/state/gym_id=944.json', 'LastModified': now - timedelta(days=37)},
+        {'Key': 'kaya/state/backfill/new-gyms.json', 'LastModified': now},
+    ]
+
+    class FakePaginator:
+        def paginate(self, **kw):
+            return [{'Contents': objs}]
+
+    class FakeClient:
+        def get_paginator(self, _name):
+            return FakePaginator()
+
+    monkeypatch.setattr(s3_storage, '_get_s3_client', lambda: FakeClient())
+    monkeypatch.setattr(s3_storage, '_get_bucket', lambda: 'b')
+    monkeypatch.setattr(s3_storage, '_get_prefix', lambda: 'kaya')
+
+    rows = s3_storage.list_gym_state_ages(now=now)
+    assert [r['gym_id'] for r in rows] == ['100', '944'], (
+        'the backfill object is not a gym and must not be counted as one'
+    )
+    assert rows[1]['age_hours'] > 800
+
+
+def test_a_stuck_gym_raises_the_metric_an_alarm_can_see(monkeypatch):
+    from kaya import update_data_script as uds
+
+    monkeypatch.setattr(
+        'kaya.s3_storage.list_gym_state_ages',
+        lambda now=None: [{'gym_id': '100', 'age_hours': 4.0},
+                          {'gym_id': '944', 'age_hours': 888.0}])
+    published = {}
+    monkeypatch.setattr(uds.boto3, 'client',
+                        lambda _svc: type('C', (), {
+                            'put_metric_data': lambda self, **kw: published.update(kw)
+                        })())
+
+    summary = uds.report_pull_health()
+    assert summary['stale_gyms'] == [{'gym_id': '944', 'age_hours': 888.0}]
+    assert summary['gyms_tracked'] == 2
+    metrics = {m['MetricName']: m['Value'] for m in published['MetricData']}
+    assert metrics['StaleGyms'] == 1
+    assert metrics['GymsTracked'] == 2
+    assert published['Namespace'] == 'Kaya/Pull'
+
+
+def test_a_healthy_pull_publishes_zero_rather_than_nothing(monkeypatch):
+    """An alarm on a metric that stops being published goes INSUFFICIENT_DATA,
+    not OK. Zero has to be sent explicitly."""
+    from kaya import update_data_script as uds
+
+    monkeypatch.setattr('kaya.s3_storage.list_gym_state_ages',
+                        lambda now=None: [{'gym_id': '100', 'age_hours': 4.0}])
+    published = {}
+    monkeypatch.setattr(uds.boto3, 'client',
+                        lambda _svc: type('C', (), {
+                            'put_metric_data': lambda self, **kw: published.update(kw)
+                        })())
+    uds.report_pull_health()
+    metrics = {m['MetricName']: m['Value'] for m in published['MetricData']}
+    assert metrics['StaleGyms'] == 0
+
+
+def test_the_health_check_is_reachable_from_the_handler(monkeypatch):
+    """It runs on its own schedule, so the handler must route to it."""
+    from kaya import update_data_script as uds
+
+    monkeypatch.setattr(uds, 'report_pull_health', lambda: {'ok': True})
+    assert uds.lambda_handler({'health_check': True}, None) == {'ok': True}

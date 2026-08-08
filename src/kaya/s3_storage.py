@@ -312,3 +312,38 @@ class S3HistoricalSendExporter:
             ContentType="application/json",
         )
         return key
+
+
+def list_gym_state_ages(now: Optional[datetime] = None) -> List[Dict[str, Any]]:
+    """Age of every gym's state object, newest write first.
+
+    THE STATE OBJECT IS THE ONLY HONEST FRESHNESS SIGNAL. It is written at the
+    END of a successful run, so its age is "hours since this gym last updated",
+    which is the question. The Lambda error metric cannot answer it -- the
+    updater catches its own failures and dead-letters them, so that metric is
+    structurally zero however badly the pull is doing. DLQ depth cannot answer
+    it either: most dead-lettered gyms are re-covered by the next night's run,
+    so depth is dominated by noise that fixes itself.
+
+    Gym 944 sat 37 days stale while both of those signals looked perfect.
+    """
+    now = now or datetime.now(timezone.utc)
+    client = _get_s3_client()
+    prefix = f"{_get_prefix()}/state/gym_id="
+    rows: List[Dict[str, Any]] = []
+    paginator = client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=_get_bucket(), Prefix=prefix):
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            # Belt and braces against the prefix: `state/` also holds
+            # backfill bookkeeping, and rsplit on a missing separator returns
+            # the whole key, which would silently enter the roster as a gym
+            # named "kaya/state/backfill/new-gyms".
+            if not key.endswith(".json") or "gym_id=" not in key:
+                continue
+            gym_id = key.rsplit("gym_id=", 1)[-1][: -len(".json")]
+            age = (now - obj["LastModified"]).total_seconds() / 3600.0
+            rows.append({"gym_id": gym_id, "age_hours": age,
+                         "last_modified": obj["LastModified"].isoformat()})
+    rows.sort(key=lambda r: r["age_hours"])
+    return rows
