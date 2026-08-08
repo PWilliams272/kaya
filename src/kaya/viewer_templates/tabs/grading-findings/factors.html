@@ -170,27 +170,31 @@
               </p>
 
               <div class="callout-note">
-                <b>A limit on every dated number on this page &mdash; and it is
-                a pipeline problem, not a data problem.</b> The raw send history
-                in S3 is complete and current, and <i>every record carries a
-                full timestamp</i>. Nothing is missing at source. But the file
-                the model actually fits is a derived aggregate that <b>drops the
-                date</b> &mdash; it survives only as a visit count &mdash; and
-                no script in the repo rebuilds that file. So the numbers above
-                had to come from the one <i>local</i> dated copy, which was last
-                written 14 months before the aggregate and holds only
-                <b><span data-fx="cov_pct">50</span>%</b> of the modelled
+                <b>Where these dates come from.</b> Every figure above is
+                computed on
+                <b><span data-fx="cov_pct">100</span>%</b> of the modelled
                 (climber, gym) pairs
-                (<span data-fx="cov_dated">9,965</span> of
-                <span data-fx="cov_model">20,014</span>;
-                <span data-fx="cov_missing">10,049</span> missing). The
-                distribution of gaps is probably representative, but <b>the
-                worst-pair figure is selected from a smaller pool than the text
-                implies</b> and the per-pair means are noisier than a reader
-                would assume. Writing the dated base-snapshot builder is
-                therefore the first task &mdash; ahead of any modelling
-                decision, including the offset proposed above.
+                (<span data-fx="cov_dated">20,014</span> of
+                <span data-fx="cov_model">20,014</span>, spanning
+                <span data-fx="cov_min">2020-08-25</span> to
+                <span data-fx="cov_max">2026-07-26</span>). The date used is
+                <code>max_send_date</code> &mdash; the date of the very send the
+                model turns into an observation, carried through the
+                aggregation rather than joined back on afterwards, so there is
+                no second source that can fall out of step.
               </div>
+              <p class="caption">
+                That was not true until 2026-08-07. The aggregate every fit
+                reads kept dates only as a visit count, which is why the model
+                has no <i>t</i> in it at all, and no script in the repo rebuilt
+                that aggregate &mdash; so the single input the project rests on
+                had no reproducible provenance.
+                <code>scripts/build_base_snapshot.py</code> now writes it, and
+                <code>prepare_base_data</code> carries three date columns
+                through. The rebuild reproduced the previous snapshot row for
+                row, so nothing about the fitted results changed &mdash; only
+                what is now answerable.
+              </p>
               <p class="prose">
                 <b>How to handle it.</b> Cheaply, and &mdash; unlike gym drift
                 &mdash; <b>without rebuilding the dataset</b>. Each

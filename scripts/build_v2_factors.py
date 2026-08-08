@@ -38,7 +38,6 @@ bit generator imports, so running from inside src/kaya breaks numpy.
 import itertools
 import json
 import pickle
-import sqlite3
 import warnings
 from pathlib import Path
 
@@ -47,13 +46,12 @@ warnings.filterwarnings('ignore')
 import numpy as np
 import pandas as pd
 
-from kaya.grading_model_v2 import BOULDER_GRADE_TO_NUM, make_dataset
+from kaya.grading_model_v2 import make_dataset
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNS = ROOT / 'runs'
 STATIC = ROOT / 'src' / 'kaya' / 'viewer_static'
 OUT = STATIC / 'v2_factors.json'
-DB = ROOT / 'data' / 'kaya_data.db'
 
 NETWORK = 'net50'
 NAME_FILTER = 'confident'
@@ -67,53 +65,72 @@ PAIR_MIN_SHARED = 25          # climbers a gym pair needs before its gap means a
 FLAT_RATE = 0.185
 
 
-def coverage(obs, sends):
-    """How much of the modelled data actually has a date attached.
+def _gym_names():
+    """gym_id -> name, from the discovery roster rather than the send rows.
 
-    This is not a detail, it is a limit on every time-based number on the page.
-    The model fits `runs/base_bouldering.pkl`, whose observation table carries
-    no date column at all -- dates survive the aggregation only as visit
-    COUNTS. The one dated source is the local send database, and it has drifted
-    from the pickle: it holds only about half the (climber, gym) pairs the model
-    fits. So anything measured here from dates is measured on that half, and the
-    gaps themselves are probably representative while the extremes are selected
-    from a smaller pool than the text implies.
-
-    Reconciling the two sources is the real first task before any time-resolved
-    model, ahead of any modelling decision.
+    A static config file, so it cannot go stale relative to a database or pick
+    up a gym's renamed variant the way a mode over the send rows can.
     """
-    model_pairs = set(map(tuple, obs[['user_id', 'gym_id']].values))
-    dated_pairs = set(map(tuple, sends[['user_id', 'gym_id']]
-                          .drop_duplicates().values))
-    covered = len(model_pairs & dated_pairs)
+    roster = json.loads(
+        (ROOT / 'src' / 'kaya' / 'config' / 'gyms_available.json').read_text())
+    return {str(g['id']): g['name'] for g in roster}
+
+
+def coverage(obs):
+    """Confirm the snapshot is fully dated before anything trusts its dates.
+
+    This used to report a 49.8% shortfall and describe it as the blocker ahead
+    of all time-resolved work. That was wrong, and worth recording why: the
+    figure came from reading `data/kaya_data.db`, an abandoned June 2025 copy,
+    instead of the live mirror at LOCAL_DB_URL. The live mirror holds 2.46M
+    sends with zero null dates and covers 100% of the modelled pairs. There
+    was never a data gap — only an aggregation that discarded dates and a
+    stale path that made the loss look like missing data.
+
+    Kept as an assertion rather than deleted: `max_send_date` is now load
+    bearing, and a snapshot rebuilt from a partial source would quietly
+    reintroduce exactly the problem that did not exist.
+    """
+    d = pd.to_datetime(obs.max_send_date, errors='coerce')
+    dated = int(d.notna().sum())
     return {
-        'model_pairs': len(model_pairs),
-        'dated_pairs': covered,
-        'pct': round(100 * covered / len(model_pairs), 1),
-        'missing': len(model_pairs) - covered,
-        'n_dated_sends': int(len(sends)),
+        'model_pairs': int(len(obs)),
+        'dated_pairs': dated,
+        'pct': round(100 * dated / len(obs), 1),
+        'missing': int(len(obs)) - dated,
+        'date_min': str(d.min().date()) if dated else None,
+        'date_max': str(d.max().date()) if dated else None,
     }
 
 
-def _sends():
-    """Raw boulder sends restricted to the modelled network, with dates kept."""
+def _observations():
+    """The modelled observations, which now carry their own dates.
+
+    Earlier this opened a sqlite file directly. That was a mistake with a
+    consequence: the path it used, `data/kaya_data.db`, is an abandoned June
+    2025 copy, while the live mirror lives at LOCAL_DB_URL and is four times
+    the size. Every dated figure computed from it covered about half the
+    modelled pairs, and the shortfall looked like a real data gap rather than a
+    wrong filename.
+
+    There is no database here any more. `prepare_base_data` carries
+    `max_send_date`, `first_send` and `last_send` through the aggregation, so
+    the dates arrive with the observations and cannot disagree with the rows
+    they belong to. Rebuild the snapshot with scripts/build_base_snapshot.py.
+    """
     with open(RUNS / 'base_bouldering.pkl', 'rb') as f:
         base = pickle.load(f)
     nets = json.loads((RUNS / 'networks.json').read_text())['networks']
-    ds = make_dataset(base, nets[NETWORK], name_filter=NAME_FILTER, label='factors')
-    obs, users = ds.observations, ds.users
-
-    con = sqlite3.connect(DB)
-    s = pd.read_sql('select user_id,gym_id,gym,date,grade,climb_type from sends', con)
-    con.close()
-    s = s[s.climb_type.fillna('').str.lower().str.contains('boulder')].copy()
-    s['m'] = s.grade.map(BOULDER_GRADE_TO_NUM)
-    s['user_id'] = s.user_id.astype(str)
-    s['gym_id'] = s.gym_id.astype(str)
-    s = s[s.m.notna() & s.user_id.isin(set(obs.user_id))
-          & s.gym_id.isin(set(obs.gym_id))].copy()
-    s['date'] = pd.to_datetime(s.date, errors='coerce')
-    return obs, users, s[s.date.notna()]
+    ds = make_dataset(base, nets[NETWORK], name_filter=NAME_FILTER,
+                      label='factors')
+    obs = ds.observations.copy()
+    if 'max_send_date' not in obs.columns:
+        raise SystemExit(
+            'base_bouldering.pkl carries no dates. Rebuild it first:\n'
+            '    python scripts/build_base_snapshot.py'
+        )
+    obs['max_send_date'] = pd.to_datetime(obs.max_send_date, errors='coerce')
+    return obs, ds.users
 
 
 # ------------------------------------------------------------------ exposure
@@ -162,7 +179,7 @@ def exposure(obs):
 
 # ---------------------------------------------------------------- advancement
 
-def timing_bias(sends):
+def timing_bias(obs):
     """Grades of climber improvement that land in a gym correction.
 
     The model compares a climber's hardest send at gym A with their hardest at
@@ -170,19 +187,25 @@ def timing_bias(sends):
     are years apart the climber improved in between, and that improvement is
     booked as grading. This measures the date gap PER GYM PAIR, because a gap
     only biases a correction insofar as one gym is systematically the later one
-    -- a pair whose ordering is symmetric cancels.
-    """
-    hard = (sends.sort_values(['user_id', 'gym_id', 'm'])
-            .groupby(['user_id', 'gym_id']).tail(1))
-    names = sends.groupby('gym_id').gym.agg(lambda x: x.mode().iat[0])
+    -- a pair whose ordering is symmetric cancels, and the average gap across
+    all pairs would badly overstate the damage.
 
-    per_gym = hard.groupby('gym_id').agg(n=('m', 'size'), mean_date=('date', 'mean'))
+    Reads `max_send_date` straight off the observations: that is by definition
+    the date of the row the model turns into a number, so there is no join to
+    get wrong and no second source to fall out of step with.
+    """
+    names = _gym_names()
+    per_gym = obs.groupby('gym_id').agg(
+        n=('m', 'size'), mean_date=('max_send_date', 'mean'))
     per_gym['yr'] = (per_gym.mean_date.dt.year
                      + per_gym.mean_date.dt.dayofyear / 365.25)
 
     rows = []
-    for _, g in hard.groupby('user_id'):
-        ids, dts = g.gym_id.values, g.date.values
+    for _, g in obs.groupby('user_id'):
+        if len(g) < 2:
+            continue
+        ids = g.gym_id.values
+        dts = g.max_send_date.values
         for i, j in itertools.combinations(range(len(g)), 2):
             a, b = (i, j) if ids[i] < ids[j] else (j, i)
             rows.append((ids[a], ids[b],
@@ -192,8 +215,6 @@ def timing_bias(sends):
     agg = agg[agg.n >= PAIR_MIN_SHARED].copy()
     agg['bias'] = agg.mean_dt.abs() * FLAT_RATE
     agg = agg.sort_values('bias', ascending=False)
-
-    # the raw per-pair gaps, for the distribution shown on the page
     gaps = df.dt.abs().values
 
     worst = [{'a': str(names.get(a, a))[:34], 'b': str(names.get(b, b))[:34],
@@ -295,26 +316,27 @@ def gender(users, obs):
 
 # --------------------------------------------------------------- quantization
 
-def quantization(sends):
-    """Grades are integers, so a ceiling is only ever observed to the nearest V."""
-    hard = (sends.sort_values(['user_id', 'gym_id', 'm'])
-            .groupby(['user_id', 'gym_id']).tail(1))
-    mx = sends.merge(hard[['user_id', 'gym_id', 'm']].rename(columns={'m': '_mx'}),
-                     on=['user_id', 'gym_id'], how='left')
-    at_max = (mx[mx.m == mx._mx].groupby(['user_id', 'gym_id']).size())
+def quantization(obs):
+    """Grades are integers, so a ceiling is only ever seen to the nearest V.
+
+    `n_at_max` and `n_sends_gym` already ride on the observations, so this needs
+    no send-level data -- which also means it cannot disagree with the rows the
+    model actually fits.
+    """
+    at_max = obs.n_at_max.to_numpy(float)
     return {
         'pct_once': round(100 * float((at_max == 1).mean()), 1),
         'pct_10plus': round(100 * float((at_max >= 10).mean()), 1),
-        'n_cells': int(len(at_max)),
-        'pct_sends_used': round(100 * len(hard) / len(sends), 1),
-        'n_sends': int(len(sends)),
+        'n_cells': int(len(obs)),
+        'pct_sends_used': round(100 * len(obs) / float(obs.n_sends_gym.sum()), 1),
+        'n_sends': int(obs.n_sends_gym.sum()),
     }
 
 
 def main():
     struct = json.loads((STATIC / 'v2_structure.json').read_text())
     tm = json.loads((STATIC / 'v2_time.json').read_text())
-    obs, users, sends = _sends()
+    obs, users = _observations()
 
     payload = {
         'built_at': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M'),
@@ -323,18 +345,18 @@ def main():
         # every magnitude on the page is quoted against this
         'correction_sd': struct['drift']['correction_sd'],
         'correction_range': struct['drift']['correction_range'],
-        'coverage': coverage(obs, sends),
+        'coverage': coverage(obs),
         'exposure': exposure(obs),
         'advancement': {'fit': tm['advancement']['fit'],
                         'debiased': tm['advancement']['debiased'],
                         'n_climbers': tm['advancement']['n_climbers'],
                         'n_pairs': tm['advancement']['n_pairs'],
-                        'timing': timing_bias(sends)},
+                        'timing': timing_bias(obs)},
         'compression': struct['compression'],
         'drift': struct['drift'],
         'height': height(users, obs),
         'gender': gender(users, obs),
-        'quantization': quantization(sends),
+        'quantization': quantization(obs),
     }
     OUT.write_text(json.dumps(payload, indent=1))
     a = payload['advancement']['timing']

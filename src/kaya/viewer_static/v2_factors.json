@@ -1,5 +1,5 @@
 {
- "built_at": "2026-08-07 15:41",
+ "built_at": "2026-08-07 17:53",
  "network": "net50",
  "name_filter": "confident",
  "reference_fit": "v10_lin_marg",
@@ -7,10 +7,11 @@
  "correction_range": 1.29,
  "coverage": {
   "model_pairs": 20014,
-  "dated_pairs": 9965,
-  "pct": 49.8,
-  "missing": 10049,
-  "n_dated_sends": 268442
+  "dated_pairs": 20014,
+  "pct": 100.0,
+  "missing": 0,
+  "date_min": "2020-08-25",
+  "date_max": "2026-07-26"
  },
  "exposure": {
   "fit": "v10_lin_marg",
@@ -162,63 +163,63 @@
   "n_climbers": 6001,
   "n_pairs": 17845,
   "timing": {
-   "n_pairs_total": 8956,
-   "gap_median": 0.18,
-   "gap_mean": 0.43,
-   "gap_over_1y": 13.0,
-   "gap_over_2y": 3.7,
+   "n_pairs_total": 22257,
+   "gap_median": 0.32,
+   "gap_mean": 0.54,
+   "gap_over_1y": 16.1,
+   "gap_over_2y": 4.0,
    "rate_used": 0.185,
-   "n_gym_pairs": 80,
+   "n_gym_pairs": 158,
    "min_shared": 25,
-   "bias_median": 0.043,
-   "bias_p90": 0.145,
-   "bias_max": 0.279,
+   "bias_median": 0.059,
+   "bias_p90": 0.153,
+   "bias_max": 0.292,
    "worst": [
     {
-     "a": "Touchstone Team Training Center",
-     "b": "Touchstone Pacific Pipe",
-     "n": 38,
-     "gap": -1.51,
-     "bias": 0.279
+     "a": "Movement Sunnyvale",
+     "b": "Touchstone Sacramento Pipeworks",
+     "n": 25,
+     "gap": 1.58,
+     "bias": 0.292
     },
     {
-     "a": "Touchstone The Oaks",
-     "b": "Touchstone Team Training Center",
-     "n": 27,
-     "gap": 1.2,
-     "bias": 0.222
+     "a": "Touchstone Hyperion",
+     "b": "Touchstone Sacramento Pipeworks",
+     "n": 38,
+     "gap": 1.57,
+     "bias": 0.291
+    },
+    {
+     "a": "Movement Santa Clara",
+     "b": "Touchstone Sacramento Pipeworks",
+     "n": 39,
+     "gap": 1.5,
+     "bias": 0.278
+    },
+    {
+     "a": "Movement Mountain View",
+     "b": "Touchstone Sacramento Pipeworks",
+     "n": 38,
+     "gap": 1.45,
+     "bias": 0.268
     },
     {
      "a": "Touchstone Sacramento Pipeworks",
-     "b": "Touchstone Pacific Pipe",
-     "n": 41,
-     "gap": -1.16,
-     "bias": 0.214
+     "b": "Touchstone Dogpatch Boulders",
+     "n": 38,
+     "gap": -1.43,
+     "bias": 0.264
     },
     {
-     "a": "The Stronghold Echo Park",
-     "b": "Touchstone Verdigo Boulders",
-     "n": 25,
-     "gap": 1.13,
-     "bias": 0.209
-    },
-    {
-     "a": "Touchstone Hollywood Boulders",
+     "a": "Touchstone Team Training Center",
      "b": "Touchstone Pacific Pipe",
-     "n": 25,
-     "gap": -1.01,
-     "bias": 0.187
-    },
-    {
-     "a": "Touchstone LA Boulders",
-     "b": "Touchstone Pacific Pipe",
-     "n": 25,
-     "gap": -0.99,
-     "bias": 0.183
+     "n": 65,
+     "gap": -1.39,
+     "bias": 0.258
     }
    ],
-   "gym_date_sd": 0.6,
-   "gym_date_range": 2.2
+   "gym_date_sd": 0.61,
+   "gym_date_range": 2.13
   }
  },
  "compression": {
@@ -706,10 +707,10 @@
   "mean": 0.296
  },
  "quantization": {
-  "pct_once": 50.5,
-  "pct_10plus": 3.0,
-  "n_cells": 9965,
-  "pct_sends_used": 3.7,
-  "n_sends": 268442
+  "pct_once": 50.6,
+  "pct_10plus": 3.6,
+  "n_cells": 20014,
+  "pct_sends_used": 2.7,
+  "n_sends": 738978
  }
 }

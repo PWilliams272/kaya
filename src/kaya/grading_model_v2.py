@@ -61,17 +61,31 @@ APE_PLAUSIBLE = (-12.0, 12.0)       # wingspan minus height
 def prepare_base_data(
     discipline: str = 'bouldering',
     accessor: Optional[KayaDataAccessor] = None,
+    source: str = 'local_db',
 ) -> Dict[str, pd.DataFrame]:
     """Read sends once and build the full (all-gym) observation/user tables.
 
     Expensive (reads the whole sends table), so callers should cache the
     result and subset it with `make_dataset` rather than calling this per fit.
+
+    `source` selects where the sends come from, and the two available answers
+    are not equivalent:
+
+      'local_db'  the sqlite mirror. Fast, and **stale** — as of 2026-08-07 it
+                  was last written in June 2025 and covered about half the
+                  (climber, gym) pairs the S3 history holds.
+      's3_raw'    the authoritative pull history. Slower (thousands of gzipped
+                  JSONL objects) but complete and current, and the only source
+                  that includes gyms backfilled since the mirror went stale.
+
+    Anything time-based must be built from 's3_raw'; see
+    scripts/build_base_snapshot.py, which is the supported way to do it.
     """
     import nomquamgender as nqg
 
     accessor = accessor or KayaDataAccessor()
     sends = accessor.read_sends(
-        source='local_db',
+        source=source,
         columns=['user_id', 'gym_id', 'date', 'grade', 'climb_type', 'climb_id',
                  'height', 'ape_index', 'first_name'],
         parse_dates=False,
@@ -91,13 +105,28 @@ def prepare_base_data(
         sends[c] = sends[c].astype(str)
 
     gcols = ['user_id', 'gym_id']
+    # Dates survive the aggregation as three columns, not just as counts.
+    #
+    # They used to survive only as `n_visits`, which made the whole dataset
+    # timeless: one number per (climber, gym) with no when. That is why the
+    # model has no `t` in it, why climber advancement lands in a gym's
+    # correction, and why gym drift has nowhere to live. Carrying the dates
+    # costs three columns and unblocks all of it — see
+    # docs/two-stage-and-grade-compression.md.
+    #
+    # `max_send_date` is the one that matters: it is the date of the very row
+    # the model turns into an observation, so it is the timestamp an
+    # advancement offset must be computed against. first/last bound the
+    # climber's span at that gym, which is what a windowed formulation needs.
     per_pair = sends.groupby(gcols, as_index=False).agg(
-        n_visits=('date', 'nunique'), n_sends_gym=('m', 'size'))
+        n_visits=('date', 'nunique'), n_sends_gym=('m', 'size'),
+        first_send=('date', 'min'), last_send=('date', 'max'))
     # NOTE: ties at the max grade are broken arbitrarily by tail(1). Harmless
     # for `m` (tied climbs share the grade) but it does pin the observation to
     # one arbitrary climb_id, which matters for climb-level quantization.
     hardest = (sends.sort_values(gcols + ['m']).groupby(gcols, as_index=False)
-               .tail(1)[gcols + ['climb_id', 'm']])
+               .tail(1)[gcols + ['climb_id', 'm', 'date']]
+               .rename(columns={'date': 'max_send_date'}))
     obs = hardest.merge(per_pair, on=gcols, how='left')
 
     # n_at_max: how many times the climber actually sent their hardest grade

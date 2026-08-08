@@ -212,17 +212,15 @@ function renderFxPlan(F) {
   const el = fxEl('plan');
   if (!el) return;
   const steps = [
-    { title: 'Write the dated base-snapshot builder',
-      why: `Everything time-based below depends on this, and it is data `
-        + `plumbing rather than a modelling question. The raw send history in `
-        + `S3 is complete and every record carries a timestamp; the aggregate `
-        + `the model fits throws that date away, and no script in the repo `
-        + `rebuilds the aggregate. Read S3, filter to bouldering, aggregate to `
-        + `the model's unit <i>keeping the date</i>. Until that exists, an `
-        + `advancement offset can only be applied to the ${F.coverage.pct}% of `
-        + `pairs covered by a 14-month-old local copy — and a correction `
-        + `applied to half the data is its own bias, not a partial fix.`,
-      state: 'next' },
+    { title: 'Dated base snapshot <i>(done)</i>',
+      why: `The aggregate every fit reads now carries max_send_date, `
+        + `first_send and last_send, and <code>build_base_snapshot.py</code> `
+        + `rebuilds it — previously nothing in the repo wrote that file at `
+        + `all. Coverage is ${F.coverage.pct}% of modelled pairs `
+        + `(${F.coverage.date_min} to ${F.coverage.date_max}), and the rebuild `
+        + `reproduced the old snapshot row for row, so no fitted result moved. `
+        + `This was the blocker under the two items below.`,
+      state: 'done' },
     { title: 'Add climber advancement as a fixed offset',
       why: `The best ratio of correction to effort on this page. It needs only `
         + `the send date carried through an aggregation that currently discards `
@@ -257,7 +255,8 @@ function renderFxPlan(F) {
         + `than a task.`,
       state: 'open' },
   ];
-  const pills = { next: ['pill-ok', 'do next'], queued: ['pill-warn', 'queued'],
+  const pills = { done: ['pill-ok', 'done'], next: ['pill-ok', 'do next'],
+    queued: ['pill-warn', 'queued'],
     open: ['pill-warn', 'needs a decision'] };
   el.innerHTML = steps.map((s, i) => {
     const [cls, label] = pills[s.state];
@@ -309,6 +308,7 @@ function renderFxInline(F) {
     cov_pct: F.coverage.pct, cov_dated: F.coverage.dated_pairs.toLocaleString(),
     cov_model: F.coverage.model_pairs.toLocaleString(),
     cov_missing: F.coverage.missing.toLocaleString(),
+    cov_min: F.coverage.date_min, cov_max: F.coverage.date_max,
     conf_r: d.confound.raw_r.toFixed(2),
     conf_raw_slope: d.confound.raw_slope.toFixed(3),
     conf_adj_slope: d.confound.adj_slope.toFixed(3),
