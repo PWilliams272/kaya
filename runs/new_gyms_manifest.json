@@ -1,0 +1,367 @@
+{
+  "created_for": "expand the pull roster: overlap, chains, cities",
+  "min_boulders": 20,
+  "min_followers": 60,
+  "gyms": [
+    {
+      "gym_id": "1222",
+      "name": "Movement Fishtown",
+      "place": "Philadelphia, Pennsylvania",
+      "why": "overlap: we already pull Philadelphia, Pennsylvania; chain: movement",
+      "boulder_count": 174,
+      "follower_count": 326
+    },
+    {
+      "gym_id": "1322",
+      "name": "Bouldering Project - Upper Walls",
+      "place": "Seattle, Washington",
+      "why": "overlap: we already pull Seattle, Washington; chain: project",
+      "boulder_count": 64,
+      "follower_count": 205
+    },
+    {
+      "gym_id": "479",
+      "name": "Vertical Hold San Marcos",
+      "place": "San Marcos, California",
+      "why": "overlap: we already pull San Marcos, California; chain: vertical",
+      "boulder_count": 67,
+      "follower_count": 168
+    },
+    {
+      "gym_id": "421",
+      "name": "Vertical Endeavors Twin Cities Bouldering",
+      "place": "Minneapolis, Minnesota",
+      "why": "overlap: we already pull Minneapolis, Minnesota; chain: vertical",
+      "boulder_count": 40,
+      "follower_count": 194
+    },
+    {
+      "gym_id": "1067",
+      "name": "Portland Rock Gym Beaverton",
+      "place": "Portland, Oregon",
+      "why": "overlap: we already pull Portland, Oregon",
+      "boulder_count": 243,
+      "follower_count": 861
+    },
+    {
+      "gym_id": "368",
+      "name": "Portland Rock Gym",
+      "place": "Portland, Oregon",
+      "why": "overlap: we already pull Portland, Oregon",
+      "boulder_count": 174,
+      "follower_count": 856
+    },
+    {
+      "gym_id": "295",
+      "name": "Tufas Bouldering Lounge",
+      "place": "Philadelphia, Pennsylvania",
+      "why": "overlap: we already pull Philadelphia, Pennsylvania",
+      "boulder_count": 74,
+      "follower_count": 839
+    },
+    {
+      "gym_id": "262",
+      "name": "MetroRock Bushwick",
+      "place": "Brooklyn, New York",
+      "why": "overlap: we already pull Brooklyn, New York",
+      "boulder_count": 82,
+      "follower_count": 514
+    },
+    {
+      "gym_id": "315",
+      "name": "BaseCamp Reno",
+      "place": "Reno, Nevada",
+      "why": "overlap: we already pull Reno, Nevada",
+      "boulder_count": 95,
+      "follower_count": 476
+    },
+    {
+      "gym_id": "898",
+      "name": "Half Moon Bouldering",
+      "place": "Seattle, Washington",
+      "why": "overlap: we already pull Seattle, Washington",
+      "boulder_count": 45,
+      "follower_count": 476
+    },
+    {
+      "gym_id": "662",
+      "name": "The Boulder Field",
+      "place": "Sacramento, California",
+      "why": "overlap: we already pull Sacramento, California",
+      "boulder_count": 233,
+      "follower_count": 287
+    },
+    {
+      "gym_id": "350",
+      "name": "Central Rock Gym Riverside",
+      "place": "New York, New York",
+      "why": "overlap: we already pull New York, New York",
+      "boulder_count": 111,
+      "follower_count": 405
+    },
+    {
+      "gym_id": "300",
+      "name": "ABC Kids",
+      "place": "Boulder, Colorado",
+      "why": "overlap: we already pull Boulder, Colorado",
+      "boulder_count": 83,
+      "follower_count": 380
+    },
+    {
+      "gym_id": "366",
+      "name": "Denver Bouldering Club Central",
+      "place": "Denver, Colorado",
+      "why": "overlap: we already pull Denver, Colorado",
+      "boulder_count": 40,
+      "follower_count": 314
+    },
+    {
+      "gym_id": "1184",
+      "name": "Armadillo Boulders Stone Oak",
+      "place": "San Antonio, Texas",
+      "why": "overlap: we already pull San Antonio, Texas",
+      "boulder_count": 127,
+      "follower_count": 213
+    },
+    {
+      "gym_id": "498",
+      "name": "Boulder Rock Club",
+      "place": "Boulder, Colorado",
+      "why": "overlap: we already pull Boulder, Colorado",
+      "boulder_count": 121,
+      "follower_count": 219
+    },
+    {
+      "gym_id": "658",
+      "name": "Climb Capuchin",
+      "place": "Houston, Texas",
+      "why": "overlap: we already pull Houston, Texas",
+      "boulder_count": 35,
+      "follower_count": 261
+    },
+    {
+      "gym_id": "1291",
+      "name": "Central Rock Gym Chelsea",
+      "place": "New York, New York",
+      "why": "overlap: we already pull New York, New York",
+      "boulder_count": 126,
+      "follower_count": 89
+    },
+    {
+      "gym_id": "1253",
+      "name": "Crux South Austin",
+      "place": "Austin, Texas",
+      "why": "overlap: we already pull Austin, Texas",
+      "boulder_count": 114,
+      "follower_count": 99
+    },
+    {
+      "gym_id": "921",
+      "name": "\u00dcbergrippen Denver",
+      "place": "Denver, Colorado",
+      "why": "overlap: we already pull Denver, Colorado",
+      "boulder_count": 54,
+      "follower_count": 83
+    },
+    {
+      "gym_id": "909",
+      "name": "University of Texas at San Antonio ",
+      "place": "San Antonio, Texas",
+      "why": "overlap: we already pull San Antonio, Texas",
+      "boulder_count": 22,
+      "follower_count": 98
+    },
+    {
+      "gym_id": "324",
+      "name": "Vertical Ventures",
+      "place": "St. Petersburg, Florida",
+      "why": "chain: vertical",
+      "boulder_count": 98,
+      "follower_count": 1774
+    },
+    {
+      "gym_id": "36",
+      "name": "Vertical World North",
+      "place": "Lynnwood, Washington",
+      "why": "chain: vertical",
+      "boulder_count": 113,
+      "follower_count": 845
+    },
+    {
+      "gym_id": "341",
+      "name": "Vertical View Climbing Gym",
+      "place": "Meridian, Idaho",
+      "why": "chain: vertical",
+      "boulder_count": 81,
+      "follower_count": 405
+    },
+    {
+      "gym_id": "1232",
+      "name": "Bouldering Project - St. Paul",
+      "place": "St. Paul, Minnesota",
+      "why": "chain: project",
+      "boulder_count": 152,
+      "follower_count": 290
+    },
+    {
+      "gym_id": "1084",
+      "name": "The Spot Thornton",
+      "place": "Thornton, Colorado",
+      "why": "chain: spot",
+      "boulder_count": 54,
+      "follower_count": 268
+    },
+    {
+      "gym_id": "390",
+      "name": "Vertical Endeavors Glendale Heights",
+      "place": "Glendale Heights, Illinois",
+      "why": "chain: vertical",
+      "boulder_count": 34,
+      "follower_count": 285
+    },
+    {
+      "gym_id": "1223",
+      "name": "inSPIRE Climbing Lubbock",
+      "place": "Lubbock, Texas",
+      "why": "chain: inspire",
+      "boulder_count": 155,
+      "follower_count": 130
+    },
+    {
+      "gym_id": "873",
+      "name": "Vertical Hold Poway",
+      "place": "Poway, California",
+      "why": "chain: vertical",
+      "boulder_count": 21,
+      "follower_count": 252
+    },
+    {
+      "gym_id": "583",
+      "name": "Memphis Rox",
+      "place": "Memphis, Tennessee",
+      "why": "new metro cluster: Memphis, Tennessee",
+      "boulder_count": 139,
+      "follower_count": 1470
+    },
+    {
+      "gym_id": "877",
+      "name": "Latitude Norfolk",
+      "place": "Norfolk, Virginia",
+      "why": "new metro cluster: Norfolk, Virginia",
+      "boulder_count": 112,
+      "follower_count": 1355
+    },
+    {
+      "gym_id": "184",
+      "name": "High Point Downtown",
+      "place": "Chattanooga, Tennessee",
+      "why": "new metro cluster: Chattanooga, Tennessee",
+      "boulder_count": 87,
+      "follower_count": 2577
+    },
+    {
+      "gym_id": "183",
+      "name": "High Point Riverside",
+      "place": "Chattanooga, Tennessee",
+      "why": "new metro cluster: Chattanooga, Tennessee",
+      "boulder_count": 52,
+      "follower_count": 2027
+    },
+    {
+      "gym_id": "314",
+      "name": "Blue Swan",
+      "place": "Orlando, Florida",
+      "why": "new metro cluster: Orlando, Florida",
+      "boulder_count": 25,
+      "follower_count": 1227
+    },
+    {
+      "gym_id": "28",
+      "name": "Reach Climbing and Fitness",
+      "place": "Bridgeport, Pennsylvania",
+      "why": "new metro cluster: Bridgeport, Pennsylvania",
+      "boulder_count": 190,
+      "follower_count": 958
+    },
+    {
+      "gym_id": "198",
+      "name": "Spire Climbing + Fitness",
+      "place": "Bozeman, Montana",
+      "why": "new metro cluster: Bozeman, Montana",
+      "boulder_count": 104,
+      "follower_count": 1042
+    },
+    {
+      "gym_id": "89",
+      "name": "High Point Memphis",
+      "place": "Memphis, Tennessee",
+      "why": "new metro cluster: Memphis, Tennessee",
+      "boulder_count": 96,
+      "follower_count": 926
+    },
+    {
+      "gym_id": "182",
+      "name": "High Point Huntsville",
+      "place": "Huntsville, Alabama",
+      "why": "new metro cluster: Huntsville, Alabama",
+      "boulder_count": 106,
+      "follower_count": 886
+    },
+    {
+      "gym_id": "951",
+      "name": "Session Climbing",
+      "place": "Santa Rosa, California",
+      "why": "new metro cluster: Santa Rosa, California",
+      "boulder_count": 157,
+      "follower_count": 825
+    },
+    {
+      "gym_id": "473",
+      "name": "Iron City Boulders",
+      "place": "Pittsburgh, Pennsylvania",
+      "why": "new metro cluster: Pittsburgh, Pennsylvania",
+      "boulder_count": 196,
+      "follower_count": 768
+    },
+    {
+      "gym_id": "169",
+      "name": "Terra Firma Grand Rapids",
+      "place": "Grand Rapids, Michigan",
+      "why": "new metro cluster: Grand Rapids, Michigan",
+      "boulder_count": 71,
+      "follower_count": 843
+    },
+    {
+      "gym_id": "1243",
+      "name": "Central Rock Gym Atlanta Bouldering",
+      "place": "Atlanta, Georgia",
+      "why": "new metro cluster: Atlanta, Georgia",
+      "boulder_count": 557,
+      "follower_count": 462
+    },
+    {
+      "gym_id": "1242",
+      "name": "Central Rock Gym Atlanta",
+      "place": "Atlanta, Georgia",
+      "why": "new metro cluster: Atlanta, Georgia",
+      "boulder_count": 726,
+      "follower_count": 394
+    },
+    {
+      "gym_id": "333",
+      "name": "Ascent Studio",
+      "place": "Fort Collins, Colorado",
+      "why": "new metro cluster: Fort Collins, Colorado",
+      "boulder_count": 133,
+      "follower_count": 594
+    },
+    {
+      "gym_id": "434",
+      "name": "Whetstone Climbing",
+      "place": "Fort Collins, Colorado",
+      "why": "new metro cluster: Fort Collins, Colorado",
+      "boulder_count": 204,
+      "follower_count": 507
+    }
+  ]
+}
