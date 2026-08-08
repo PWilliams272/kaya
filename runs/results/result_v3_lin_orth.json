@@ -1,0 +1,269 @@
+{
+  "name": "v3_lin_orth",
+  "args": {
+    "name": "v3_lin_orth",
+    "data_dir": null,
+    "out_dir": null,
+    "network": "net50",
+    "name_filter": "confident",
+    "height_form": "linear",
+    "gender_mode": "point",
+    "climb_quant": false,
+    "ape_x_gender": false,
+    "ape_linear": false,
+    "fixed_sigma_link": true,
+    "zero_sum_users": false,
+    "marginalize_singles": true,
+    "orthogonal_design": true,
+    "draws": 500,
+    "tune": 600,
+    "chains": 4,
+    "target_accept": 0.9
+  },
+  "dataset": {
+    "label": "net50/confident",
+    "n_obs": 20014,
+    "n_users": 10357,
+    "n_gyms": 29,
+    "n_climbs": 11187,
+    "pct_multi_gym": 0.40561938785362556,
+    "median_visits": 8.0
+  },
+  "elapsed_min": 57.63309621810913,
+  "divergences": 0,
+  "max_rhat": 1.39,
+  "min_ess": 9.0,
+  "params": {
+    "beta0": {
+      "mean": 5.635,
+      "sd": 0.023,
+      "hdi_5.5%": 5.599,
+      "hdi_94.5%": 5.671,
+      "mcse_mean": 0.006,
+      "mcse_sd": 0.002,
+      "ess_bulk": 13.0,
+      "ess_tail": 34.0,
+      "r_hat": 1.24
+    },
+    "beta_gender": {
+      "mean": -1.437,
+      "sd": 0.049,
+      "hdi_5.5%": -1.527,
+      "hdi_94.5%": -1.364,
+      "mcse_mean": 0.013,
+      "mcse_sd": 0.007,
+      "ess_bulk": 15.0,
+      "ess_tail": 22.0,
+      "r_hat": 1.2
+    },
+    "log_lambda0": {
+      "mean": 0.079,
+      "sd": 0.015,
+      "hdi_5.5%": 0.054,
+      "hdi_94.5%": 0.103,
+      "mcse_mean": 0.002,
+      "mcse_sd": 0.0,
+      "ess_bulk": 55.0,
+      "ess_tail": 706.0,
+      "r_hat": 1.06
+    },
+    "gamma1": {
+      "mean": -0.186,
+      "sd": 0.022,
+      "hdi_5.5%": -0.223,
+      "hdi_94.5%": -0.154,
+      "mcse_mean": 0.002,
+      "mcse_sd": 0.001,
+      "ess_bulk": 89.0,
+      "ess_tail": 259.0,
+      "r_hat": 1.05
+    },
+    "delta1": {
+      "mean": 0.282,
+      "sd": 0.03,
+      "hdi_5.5%": 0.236,
+      "hdi_94.5%": 0.326,
+      "mcse_mean": 0.007,
+      "mcse_sd": 0.001,
+      "ess_bulk": 15.0,
+      "ess_tail": 48.0,
+      "r_hat": 1.2
+    },
+    "delta2": {
+      "mean": -0.011,
+      "sd": 0.01,
+      "hdi_5.5%": -0.026,
+      "hdi_94.5%": 0.004,
+      "mcse_mean": 0.002,
+      "mcse_sd": 0.001,
+      "ess_bulk": 21.0,
+      "ess_tail": 157.0,
+      "r_hat": 1.15
+    },
+    "sigma_user": {
+      "mean": 1.626,
+      "sd": 0.014,
+      "hdi_5.5%": 1.604,
+      "hdi_94.5%": 1.647,
+      "mcse_mean": 0.001,
+      "mcse_sd": 0.001,
+      "ess_bulk": 196.0,
+      "ess_tail": 371.0,
+      "r_hat": 1.02
+    },
+    "sigma_gym": {
+      "mean": 0.303,
+      "sd": 0.043,
+      "hdi_5.5%": 0.239,
+      "hdi_94.5%": 0.373,
+      "mcse_mean": 0.005,
+      "mcse_sd": 0.002,
+      "ess_bulk": 70.0,
+      "ess_tail": 294.0,
+      "r_hat": 1.06
+    },
+    "lambda0": {
+      "mean": 1.082,
+      "sd": 0.017,
+      "hdi_5.5%": 1.056,
+      "hdi_94.5%": 1.108,
+      "mcse_mean": 0.002,
+      "mcse_sd": 0.0,
+      "ess_bulk": 55.0,
+      "ess_tail": 706.0,
+      "r_hat": 1.06
+    },
+    "kappa": {
+      "mean": 0.278,
+      "sd": 0.01,
+      "hdi_5.5%": 0.262,
+      "hdi_94.5%": 0.294,
+      "mcse_mean": 0.0,
+      "mcse_sd": 0.0,
+      "ess_bulk": 666.0,
+      "ess_tail": 896.0,
+      "r_hat": 1.0
+    },
+    "rho": {
+      "mean": -0.008,
+      "sd": 0.07,
+      "hdi_5.5%": -0.115,
+      "hdi_94.5%": 0.106,
+      "mcse_mean": 0.005,
+      "mcse_sd": 0.002,
+      "ess_bulk": 167.0,
+      "ess_tail": 244.0,
+      "r_hat": 1.02
+    },
+    "beta_h_missing": {
+      "mean": -0.452,
+      "sd": 0.061,
+      "hdi_5.5%": -0.551,
+      "hdi_94.5%": -0.354,
+      "mcse_mean": 0.017,
+      "mcse_sd": 0.005,
+      "ess_bulk": 14.0,
+      "ess_tail": 120.0,
+      "r_hat": 1.2
+    },
+    "beta_a_missing": {
+      "mean": -0.626,
+      "sd": 0.049,
+      "hdi_5.5%": -0.711,
+      "hdi_94.5%": -0.555,
+      "mcse_mean": 0.017,
+      "mcse_sd": 0.008,
+      "ess_bulk": 9.0,
+      "ess_tail": 16.0,
+      "r_hat": 1.39
+    }
+  },
+  "orth": {
+    "max_rhat": 1.39,
+    "min_ess": 9.0,
+    "params": {
+      "beta_gender_orth": {
+        "mean": -1.293,
+        "sd": 0.042,
+        "hdi_5.5%": -1.356,
+        "hdi_94.5%": -1.222,
+        "mcse_mean": 0.013,
+        "mcse_sd": 0.008,
+        "ess_bulk": 14.0,
+        "ess_tail": 15.0,
+        "r_hat": 1.24
+      },
+      "gamma1_orth": {
+        "mean": -0.154,
+        "sd": 0.018,
+        "hdi_5.5%": -0.186,
+        "hdi_94.5%": -0.128,
+        "mcse_mean": 0.002,
+        "mcse_sd": 0.001,
+        "ess_bulk": 94.0,
+        "ess_tail": 261.0,
+        "r_hat": 1.05
+      },
+      "delta1_orth": {
+        "mean": 0.382,
+        "sd": 0.021,
+        "hdi_5.5%": 0.349,
+        "hdi_94.5%": 0.416,
+        "mcse_mean": 0.002,
+        "mcse_sd": 0.001,
+        "ess_bulk": 151.0,
+        "ess_tail": 357.0,
+        "r_hat": 1.06
+      },
+      "delta2_orth": {
+        "mean": 0.007,
+        "sd": 0.008,
+        "hdi_5.5%": -0.006,
+        "hdi_94.5%": 0.019,
+        "mcse_mean": 0.002,
+        "mcse_sd": 0.0,
+        "ess_bulk": 18.0,
+        "ess_tail": 85.0,
+        "r_hat": 1.17
+      },
+      "beta_h_missing_orth": {
+        "mean": -0.832,
+        "sd": 0.049,
+        "hdi_5.5%": -0.905,
+        "hdi_94.5%": -0.752,
+        "mcse_mean": 0.005,
+        "mcse_sd": 0.002,
+        "ess_bulk": 92.0,
+        "ess_tail": 480.0,
+        "r_hat": 1.04
+      },
+      "beta_a_missing_orth": {
+        "mean": -0.534,
+        "sd": 0.042,
+        "hdi_5.5%": -0.606,
+        "hdi_94.5%": -0.473,
+        "mcse_mean": 0.014,
+        "mcse_sd": 0.007,
+        "ess_bulk": 9.0,
+        "ess_tail": 16.0,
+        "r_hat": 1.39
+      }
+    }
+  },
+  "convergence": {
+    "converged": false,
+    "usable": false,
+    "max_rhat": 1.39,
+    "min_ess": 9.0,
+    "divergences": 0,
+    "reasons": [
+      "R-hat 1.390 exceeds the gate of 1.2",
+      "effective sample size 9 below 400"
+    ]
+  },
+  "loo": {
+    "elpd_loo": -32653.960421163243,
+    "se": 147.01526706769585,
+    "p_loo": 4227.651617540752
+  }
+}

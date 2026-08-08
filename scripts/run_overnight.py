@@ -60,7 +60,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from run_batch import CORES_PER_FIT, HEIGHT_FORMS, SINGLE_THREAD_BLAS  # noqa: E402
+from run_batch import CORES_PER_FIT, SINGLE_THREAD_BLAS  # noqa: E402
 
 RUNS = ROOT / 'runs'
 # Module level so the scheduler can be exercised against a stub. The thing
@@ -68,14 +68,24 @@ RUNS = ROOT / 'runs'
 # eleven real fits to test it.
 RUN_FIT = ROOT / 'scripts' / 'run_fit.py'
 
+# Base seed for the sweep; each form gets SWEEP_SEED + i. A top-up run must use
+# a DIFFERENT base -- see build_jobs and scripts/merge_chains.py. Recorded here
+# rather than passed in so a re-run of the same plan is reproducible.
+SWEEP_SEED = 20260806
+# A DIFFERENT base for the 2026-08-06 night, so none of its fits can collide
+# with a v7 seed -- a repeated seed is the same chains twice.
+NIGHT_SEED = 20260807
+
 # Baseline to beat, from v3_conf_marg: quadratic_x_gender, marginalized, raw
 # basis, tune 600 / draws 500. Both numbers are on the raw-basis coefficient
 # names, which is why run_fit.py reports the orthogonal fit under those names
 # too -- the comparison would be meaningless otherwise.
 BASELINE = {'fit': 'v3_conf_marg', 'max_rhat': 1.069, 'min_ess': 48}
 
+# Chain count is per-job now, not shared: 8-chain fits need the whole machine
+# and 4-chain fits pair up, so it has to travel with the job's core budget.
 COMMON = ['--network', 'net50', '--name-filter', 'confident',
-          '--fixed-sigma-link', '--marginalize-singles', '--chains', '4']
+          '--fixed-sigma-link', '--marginalize-singles']
 
 
 @dataclass
@@ -85,6 +95,10 @@ class Job:
     after: str = ''          # must finish before this one is eligible
     gate: str = ''           # name of a gate function in GATES
     note: str = ''
+    # One core per chain. Admission is by core budget rather than a fixed slot
+    # count, so an 8-chain fit takes the machine alone while 4-chain fits still
+    # pair up -- measured at ~85 min each for two, versus 370 for three.
+    cores: int = CORES_PER_FIT
     state: str = 'pending'   # pending | running | done | failed | skipped
     rc: int | None = None
     minutes: float = 0.0
@@ -96,12 +110,13 @@ class Job:
         return [sys.executable, str(RUN_FIT), '--name', self.name] + self.args
 
 
-def fit(name, height_form, *, extra=(), tune=600, draws=500, **kw):
-    return Job(name=name,
-               args=COMMON + ['--height-form', height_form,
-                              '--tune', str(tune), '--draws', str(draws)]
-                    + list(extra),
-               **kw)
+def fit(name, height_form, *, extra=(), tune=600, draws=500,
+        chains=CORES_PER_FIT, seed=None, **kw):
+    args = COMMON + ['--height-form', height_form, '--tune', str(tune),
+                     '--draws', str(draws), '--chains', str(chains)]
+    if seed is not None:
+        args += ['--seed', str(seed)]
+    return Job(name=name, args=args + list(extra), cores=chains, **kw)
 
 
 # ---- the gate ------------------------------------------------------------
@@ -138,36 +153,183 @@ def orthogonal_helped(_):
     return ok, detail
 
 
-GATES = {'orthogonal_helped': orthogonal_helped}
+def _tree_depth_from_trace(name, limit):
+    """Recover the tree-depth summary from the trace when the result lacks it.
+
+    run_fit only started recording this on 2026-08-06, and a probe launched
+    minutes earlier does not have it. The trace does -- it is the same numbers
+    from the same run -- so read them rather than discarding a finished fit and
+    idling the machine, which is exactly what happened that night.
+    """
+    p = RUNS / 'traces' / f'idata_{name}.nc'
+    if not p.exists():
+        return None
+    import arviz as az
+    import numpy as np
+    ss = az.from_netcdf(str(p)).sample_stats
+    if 'tree_depth' not in ss:
+        return None
+    td = np.asarray(ss['tree_depth'].values)
+    return {'mean': float(td.mean()), 'max': int(td.max()), 'limit': limit,
+            'frac_at_limit': float((td >= limit).mean()),
+            'step_size': float(np.asarray(ss['step_size'].values).mean())}
+
+
+def _result(name):
+    p = RUNS / 'results' / f'result_{name}.json'
+    return json.loads(p.read_text()) if p.exists() else None
+
+
+# The v7 linear fit, which is the form this is trying to rescue. Both numbers
+# come from runs/results/result_v7_v3_lin.json.
+LINEAR_BASELINE = {'max_rhat': 1.040, 'min_ess': 151.0}
+
+
+def centering_helped(_):
+    """Did centering the climber offsets improve the worst form?
+
+    Measured before this was queued: the likelihood dominates the prior 21-64x
+    for every one of the 4,201 multi-row climbers, which is the regime where
+    the centered parameterisation samples better. corr(log sigma_user, spread
+    of epsilon_raw) = -0.847 is what the mismatch looked like.
+
+    An OR, not an AND, for the same reason the old orthogonal gate was: R-hat
+    and ESS are both noisy at 1,000 draws, and requiring both to improve would
+    reject a real improvement about as often as it caught a real regression.
+    """
+    r = _result('v8_lin_centered')
+    if r is None:
+        return False, 'no result file -- the centered probe did not finish'
+    if not r.get('args', {}).get('center_user_offsets'):
+        return False, ('result_v8_lin_centered.json is from a NON-centered '
+                       'run -- stale file, refusing to gate on it')
+    rhat, ess = float(r['max_rhat']), float(r['min_ess'])
+    td = r.get('tree_depth', {})
+    detail = (f"R-hat {rhat:.3f} vs {LINEAR_BASELINE['max_rhat']:.3f}, "
+              f"ESS {ess:.0f} vs {LINEAR_BASELINE['min_ess']:.0f}, "
+              f"{100 * td.get('frac_at_limit', 1.0):.0f}% at tree-depth limit "
+              f"(was 100%)")
+    ok = (rhat <= LINEAR_BASELINE['max_rhat']
+          or ess >= LINEAR_BASELINE['min_ess'])
+    return ok, detail
+
+
+def quadrature_viable(_):
+    """Is the fully-marginalized model fast enough to be worth a night?
+
+    It is 28x slower per gradient (53 ms at 31 nodes vs 1.9 ms with sampled
+    offsets), so it only wins if the better geometry lets NUTS finish
+    trajectories early instead of burning its whole step budget. The probe runs
+    with max_treedepth 7, so "not saturating 7" means it is U-turning inside
+    127 steps -- against 1,023 for the sampled-offset model.
+    """
+    r = _result('v9_probe_margall')
+    if r is None:
+        return False, 'no result file -- the quadrature probe did not finish'
+    if not r.get('args', {}).get('marginalize_all'):
+        return False, ('result_v9_probe_margall.json is not from a '
+                       'marginalize-all run -- stale file, refusing to gate')
+    td = r.get('tree_depth') or _tree_depth_from_trace(r['name'],
+                                                       r['args']['max_treedepth'])
+    if not td:
+        return False, 'no tree-depth record -- cannot tell if it saturated'
+    frac = float(td['frac_at_limit'])
+    detail = (f"{100 * frac:.0f}% of iterations at the depth-{td['limit']} "
+              f"limit, mean depth {td['mean']:.1f}, "
+              f"step size {td['step_size']:.4f}")
+    # Under half the iterations saturating means most trajectories complete,
+    # which is the whole bet. At 100% it is strictly worse than what we have.
+    return frac < 0.5, detail
+
+
+GATES = {'orthogonal_helped': orthogonal_helped,
+         'centering_helped': centering_helped,
+         'quadrature_viable': quadrature_viable}
 
 
 # ---- the plan ------------------------------------------------------------
 
 def build_jobs():
-    jobs = [
-        # Q2 -- the long-warm-up cell. Raw basis on purpose: each cell of the
-        # 2x2 changes one thing, and its baseline is a raw-basis fit.
-        fit('v5_conf_marg_long', 'quadratic_x_gender', tune=2000, draws=2000,
-            note='Q2: does a long warm-up alone fix R-hat?'),
-        # Q3 -- the orthogonal cell, at baseline settings so it is directly
-        # comparable to v3_conf_marg.
-        fit('v6_conf_orth', 'quadratic_x_gender', extra=['--orthogonal-design'],
-            note='Q3: does an orthogonal design fix the height block?'),
-    ]
-    # Q4 -- the sweep, if Q3 earned it. quadratic_x_gender is already covered
-    # by v6_conf_orth itself, so it is not refitted here.
-    for prefix, form in HEIGHT_FORMS.items():
-        if form == 'quadratic_x_gender':
-            continue
-        jobs.append(fit(f'{prefix}_orth', form, extra=['--orthogonal-design'],
-                        after='v6_conf_orth', gate='orthogonal_helped',
-                        note=f'Q4: {form}, orthogonal basis'))
-    # The fallback branch. Same gate, opposite sense -- see the module
-    # docstring for why this cannot just run alongside.
-    for tag in 'fgh':
-        jobs.append(fit(f'v5_conf_marg_{tag}', 'quadratic_x_gender',
-                        after='v6_conf_orth', gate='!orthogonal_helped',
-                        note='Phase 3: noise floor, raw basis'))
+    """2026-08-07, rebuilt after the probes came back and reversed the ranking.
+
+    Both geometry fixes were probed on the linear form, matched settings
+    (4 chains x 1,000 draws, 2,000 warm-up) against the v7 baseline:
+
+    | fit                | R-hat | ESS | min | step size | at depth limit |
+    | ------------------ | ----- | --- | --- | --------- | -------------- |
+    | v7 (non-centered)  | 1.040 | 151 | 199 | 0.00307   | 100%           |
+    | v8 (centered)      | 1.030 | 194 | 125 | 0.00287   | 100%           |
+    | v9 probe (quad)    |   --  |  -- |  49 | **0.141** | 42% (of 7)     |
+
+    **Centering barely moved anything.** R-hat 1.040 -> 1.030 and ESS 151 ->
+    194 are inside the noise on these diagnostics, the step size did not budge,
+    and it still burned its whole step budget on 100% of iterations. The
+    likelihood:prior ratio argument said centered should win; measured, it
+    does not. Whatever is stiff here is not the sigma_user/epsilon coupling
+    alone. The 37% speedup is real but it is speed, not mixing.
+
+    **The quadrature fixed the geometry outright.** Step size 0.00307 ->
+    0.141, a **46x** increase, and trajectories that finish: mean depth 6.4
+    against an artificial cap of 7, versus 1,023 steps every single iteration.
+    Removing the 4,201 offsets removed the problem rather than re-coordinatising
+    it.
+
+    So the order is reversed from last night's plan: the quadrature arm leads
+    and gets the breadth, the centered arm follows as the fallback that is
+    known to at least fit. Per-iteration the quadrature is ~2x slower (90 steps
+    x 40 ms against 1,023 x 1.9 ms) but each draw is worth far more, and that
+    trade is what these fits measure.
+
+    Ordering matters more than usual: the night of 2026-08-06 was lost to a
+    gate that could not be satisfied, so the highest-value fits go first and
+    nothing waits on anything that has not already been measured.
+    """
+    MARGALL = ['--marginalize-all', '--n-quad', '21']
+    jobs = []
+
+    # 1. The quadrature arm, leading with the two forms brute force could not
+    #    reach and then the page primary.
+    for i, (prefix, form) in enumerate([('lin', 'linear'),
+                                        ('linxg', 'linear_x_gender'),
+                                        ('conf', 'quadratic_x_gender'),
+                                        ('quad', 'quadratic'),
+                                        ('zero', 'zero'),
+                                        ('sat', 'saturating'),
+                                        ('vtx', 'vertex_quadratic')]):
+        jobs.append(fit(f'v10_{prefix}_marg', form, extra=MARGALL,
+                        tune=1500, draws=1500, chains=4,
+                        seed=NIGHT_SEED + 100 + i, gate='quadrature_viable',
+                        note=f'{form}, all offsets integrated out — 40 sampled '
+                             'parameters, step size 46x the v7 fits'))
+
+    # 2. The noise floor, on the geometry the sweep above actually ran on.
+    #
+    #    This replaced a centered fallback arm on 2026-08-07. The centered arm
+    #    was queued as insurance in case the quadrature proved slow; it did
+    #    not, and v10_lin_marg came back R-hat 1.0000, ESS 762, 0 divergences,
+    #    0% at the tree-depth limit against the centered probe's 1.030 / 194 /
+    #    100%. Spending ~10 core-hours reproducing a strictly worse
+    #    parameterisation to insure against an outcome that already resolved is
+    #    not insurance.
+    #
+    #    What that budget buys instead is the measurement without which the
+    #    seven-form sweep cannot be READ. Seven elpds sort into a leaderboard
+    #    whether or not the ordering means anything, and the v7 sweep already
+    #    demonstrated what happens when nobody checks: a 32.7-elpd spread
+    #    against a 31.1-elpd floor of pure seed-to-seed noise, i.e. no ranking
+    #    at all. That floor does not carry over here -- it was measured per
+    #    OBSERVATION on chains that never mixed, and these fits are per CLIMBER
+    #    on chains that did. Neither the unit nor the geometry transfers, so it
+    #    has to be measured again.
+    #
+    #    Identical to v10_lin_marg in every respect except the seed. That is
+    #    the point: the gap between the two IS the noise floor.
+    jobs.append(fit('v10_lin_marg_s2', 'linear', extra=MARGALL,
+                    tune=1500, draws=1500, chains=4,
+                    seed=NIGHT_SEED + 200, gate='quadrature_viable',
+                    note='linear, same settings as v10_lin_marg, different '
+                         'seed — the elpd gap between the two is the noise '
+                         'floor the sweep must clear to be a ranking'))
     return jobs
 
 
@@ -218,7 +380,6 @@ def eligible(job, jobs, gate_cache, log):
 
 
 def run(jobs, cores, log_dir, poll=15):
-    slots = max(1, cores // CORES_PER_FIT)
     log_dir.mkdir(parents=True, exist_ok=True)
     env = {**os.environ, 'PYTHONPATH': str(ROOT / 'src'), **SINGLE_THREAD_BLAS}
     gate_cache = {}
@@ -229,7 +390,8 @@ def run(jobs, cores, log_dir, poll=15):
         print(line, flush=True)
         logfile.write(line + '\n')
 
-    log(f'{len(jobs)} jobs, {slots} slots ({cores} cores / {CORES_PER_FIT} per fit)')
+    log(f'{len(jobs)} jobs, {cores} cores; '
+        f'{sorted({j.cores for j in jobs})} core(s) per fit')
     while True:
         running = [j for j in jobs if j.state == 'running']
         for j in list(running):
@@ -240,9 +402,13 @@ def run(jobs, cores, log_dir, poll=15):
             log(f'{j.state.upper():6s} {j.name}  {j.minutes:.0f} min')
             running.remove(j)
             write_status(jobs, log_dir, 'in progress')
-        while len(running) < slots:
-            nxt = next((j for j in jobs if eligible(j, jobs, gate_cache, log)),
-                       None)
+        while True:
+            free = cores - sum(j.cores for j in running)
+            # A job wanting more cores than the machine has would never start
+            # and would spin here forever; give it the whole machine instead.
+            nxt = next((j for j in jobs
+                        if (j.cores <= free or (not running and j.cores >= cores))
+                        and eligible(j, jobs, gate_cache, log)), None)
             if nxt is None:
                 break
             fh = open(log_dir / f'{nxt.name}.log', 'w')
@@ -307,11 +473,14 @@ def main():
 
     jobs = build_jobs()
     log_dir = Path(args.log_dir)
-    slots = max(1, args.cores // CORES_PER_FIT)
 
     if args.dry_run:
-        print(f'{len(jobs)} jobs, {slots} slots '
-              f'({args.cores} cores / {CORES_PER_FIT} per fit)\n')
+        widest = max(j.cores for j in jobs)
+        concurrent = max(1, args.cores // widest)
+        est = -(-len(jobs) // concurrent)
+        print(f'{len(jobs)} jobs, {args.cores} cores, '
+              f'{widest} core(s) per fit -> {concurrent} at a time '
+              f'({est} wave(s))\n')
         for j in jobs:
             dep = f'  after {j.after}' if j.after else ''
             gate = f'  gate {j.gate}' if j.gate else ''

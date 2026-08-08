@@ -46,6 +46,7 @@ import pymc as pm
 import pytensor.tensor as pt
 
 from kaya.data_access import BOULDER_GRADE_TO_NUM, KayaDataAccessor, route_grade_to_num
+from kaya.marginal_pt import build_layout, multi_log_integral_pt
 
 # Plausible adult ranges, in inches. Values outside these are treated as
 # missing rather than believed -- see prepare_base_data.
@@ -220,6 +221,57 @@ PRIOR_SD = {'beta_gender': 2.0, 'gamma1': 1.0, 'gamma2': 0.3,
             'beta_h_missing': 1.0, 'beta_a_missing': 1.0}
 
 
+def zerosum_basis_matrix(model, key: str, n_free: int) -> np.ndarray:
+    """PyMC's ZeroSumNormal basis, recovered by probing it with unit vectors.
+
+    A ZeroSumNormal over n categories stores n-1 coordinates in a basis of
+    PyMC's own choosing. Those coordinates are NOT the first n-1 elements of
+    the zero-sum vector, and they are not `marginal_v2.zero_sum_basis`'s
+    coordinates either -- both bases are valid and they are different.
+
+    Any code that wants to evaluate the PyMC model at a gym configuration
+    specified some other way therefore needs the map between them. The
+    transform is linear, so evaluating it on e_0..e_{n_free-1} recovers its
+    matrix exactly. Recovered rather than reimplemented on purpose: assuming
+    the two bases agree is the mistake this exists to prevent.
+
+    Returns an ``(n_categories, n_free)`` matrix ``M`` with ``M @ z`` the
+    zero-sum vector for coordinates ``z``. Pair with `zerosum_coords` to go
+    the other way.
+    """
+    fn = model.compile_fn(
+        model.replace_rvs_by_values([model[key.split('_zerosum__')[0]]]),
+        inputs=model.value_vars, on_unused_input='ignore')
+    ip = model.initial_point()
+    cols = []
+    for i in range(n_free):
+        pt = {k: np.zeros_like(np.asarray(v, dtype=float)) for k, v in ip.items()}
+        z = np.zeros(n_free)
+        z[i] = 1.0
+        pt[key] = z
+        cols.append(np.asarray(fn(pt)[0]).ravel())
+    m = np.column_stack(cols)
+    if np.abs(m.sum(axis=0)).max() > 1e-9:
+        raise ValueError('recovered basis does not produce zero-sum vectors')
+    return m
+
+
+def zerosum_coords(basis: np.ndarray, target: np.ndarray) -> np.ndarray:
+    """Coordinates in `basis` that reproduce the zero-sum vector `target`.
+
+    Raises if `target` is not in the basis's span -- which means it was not
+    zero-sum, and silently projecting it would hand the model a different
+    configuration from the one asked for.
+    """
+    z, *_ = np.linalg.lstsq(basis, np.asarray(target, dtype=float), rcond=None)
+    err = float(np.abs(basis @ z - target).max())
+    if err > 1e-9:
+        raise ValueError(
+            f'target is not in the zero-sum span (residual {err:.2e}); '
+            'it is probably not a zero-sum vector')
+    return z
+
+
 def orthogonal_transform(Xc: np.ndarray) -> np.ndarray:
     """Gram-Schmidt the *centred* design, returned as a change of basis.
 
@@ -382,16 +434,33 @@ def _height_term(form, h, gender, prefix=''):
         # When curvature is weak, kappa -> 0 and p becomes unidentified; that
         # shows up honestly as a very wide posterior on p rather than a
         # confident-looking number.
+        #
+        # vq_peak was N(0, 1.5) until 2026-08-06, and that number was quietly
+        # doing the work this form exists to avoid. The posterior wanted the
+        # optimum at -2.55 SD (~10 in below median height) -- 1.7 PRIOR SDs
+        # out, with the prior only 3x wider than the posterior, contributing
+        # ~12% of its precision and dragging the estimate in from about -2.9.
+        # A form whose whole selling point is estimating the peak directly,
+        # instead of propagating error through -gamma1/(2 gamma2), cannot have
+        # a prior deciding where the peak may be. N(0, 3) spans the observed
+        # height range, so the data locates it.
         kappa_h = pm.HalfNormal(f'{prefix}vq_curv', 0.3)
-        peak = pm.Normal(f'{prefix}vq_peak', 0, 1.5)   # in SDs from median height
+        peak = pm.Normal(f'{prefix}vq_peak', 0, 3.0)   # in SDs from median height
         return -kappa_h * (h - peak) ** 2
     if form == 'saturating':
         # A * logistic((h - h0)/s): monotone, bounded, saturating. Encodes
         # "reach helps until you have enough of it, then stops paying."
         # h is in z-units here, so the knee and width priors are too.
-        amp = pm.Normal(f'{prefix}sat_amp', 0, 1)
-        h0 = pm.Normal(f'{prefix}sat_h0', 0, 1.5)    # knee, in SDs from median height
-        s = pm.HalfNormal(f'{prefix}sat_scale', 1.0)
+        #
+        # Widened 2026-08-06 from N(0,1) / N(0,1.5) / HalfNormal(1.0) for the
+        # same reason as vq_peak: all three sat parameters came back with the
+        # prior only 2-3x wider than the posterior, so this form was being
+        # compared against the others under materially tighter regularisation.
+        # Three weakly-identified parameters make that easy to miss -- the
+        # symptom is a well-behaved-looking posterior that is mostly prior.
+        amp = pm.Normal(f'{prefix}sat_amp', 0, 2.0)
+        h0 = pm.Normal(f'{prefix}sat_h0', 0, 3.0)    # knee, in SDs from median height
+        s = pm.HalfNormal(f'{prefix}sat_scale', 2.0)
         return amp * pm.math.sigmoid((h - h0) / (s + 1e-6))
     raise ValueError(f'unknown height_form {form!r}')
 
@@ -413,6 +482,9 @@ def build_model_v2(
     store_user_terms: bool = False,
     zero_sum_users: bool = False,
     marginalize_singles: bool = False,
+    center_user_offsets: bool = False,
+    marginalize_all: bool = False,
+    n_quad: int = 31,
     orthogonal_design: bool = False,
 ) -> pm.Model:
     """Build the v2 PyMC model.
@@ -494,6 +566,12 @@ def build_model_v2(
 
     coords = {'user': user_ids, 'gym': gym_ids, 'climb': climb_ids, 'obs': np.arange(len(obs))}
 
+    if marginalize_all:
+        # Integrating every climber out is the same closed form for the
+        # singles plus quadrature for the rest, so it needs everything
+        # marginalize_singles needs and then some.
+        marginalize_singles = True
+
     if marginalize_singles:
         if gender_mode != 'point':
             raise NotImplementedError(
@@ -516,6 +594,10 @@ def build_model_v2(
         coords['obs_single'] = single_obs
         coords['obs_multi'] = multi_obs
         coords['user_multi'] = [user_ids[i] for i in multi_users]
+        if marginalize_all:
+            # Reorders multi_obs so each climber's rows are contiguous; the
+            # likelihood below must index with layout.obs, not multi_obs.
+            layout = build_layout(obs_u, multi_obs, n_quad=n_quad)
 
     with pm.Model(coords=coords) as model:
         beta0 = pm.Normal('beta0', mu=median_m, sigma=5)
@@ -529,13 +611,42 @@ def build_model_v2(
         # ESS 45, chain means 5.61/5.63/5.63/5.64 sitting on distinct levels),
         # while the ZeroSumNormal gym corrections converged at r_hat 1.00-1.04.
         # Off by default so the queued height-form comparison stays like-for-like.
-        if marginalize_singles:
+        if marginalize_all:
+            # No climber offset is sampled at all -- see marginal_pt. This is
+            # what takes the model from 4,241 parameters to 40 and removes the
+            # sigma_user/epsilon funnel entirely rather than re-coordinatising
+            # around it.
+            eps_multi = None
+            epsilon = None
+        elif marginalize_singles:
             # Offsets exist only for climbers who have more than one row. The
             # rest are integrated out in closed form at the likelihood, so
             # sampling them would be sampling a parameter the data cannot
             # distinguish from noise.
-            eps_raw = pm.Normal('epsilon_raw', 0, 1, dims='user_multi')
-            eps_multi = sigma_user * eps_raw
+            if center_user_offsets:
+                # CENTERED. Which parameterization samples better is not a
+                # matter of taste -- it depends on how much data each climber
+                # carries. Non-centered wins when groups are data-poor;
+                # centered wins when the likelihood dominates the prior
+                # (Betancourt & Girolami 2015).
+                #
+                # Measured on net50/confident: the likelihood:prior information
+                # ratio is 21x at the 10th percentile and 64x at the 90th, and
+                # the data dominates for 100% of the 4,201 multi-row climbers.
+                # That is the centered regime by a wide margin, and the
+                # non-centered fits show exactly the damage: corr(log
+                # sigma_user, spread of epsilon_raw) = -0.847, because a
+                # tightly-pinned epsilon forces z = epsilon/sigma to shrink as
+                # sigma grows. Step size collapsed to 0.003 and 100% of
+                # iterations truncated at the tree-depth ceiling.
+                #
+                # The usual objection -- centered funnels as sigma -> 0 -- does
+                # not apply here: sigma_user's posterior is 1.627 +/- 0.015,
+                # far from zero and tightly determined.
+                eps_multi = pm.Normal('epsilon', 0, sigma_user, dims='user_multi')
+            else:
+                eps_raw = pm.Normal('epsilon_raw', 0, 1, dims='user_multi')
+                eps_multi = sigma_user * eps_raw
             epsilon = None
         elif zero_sum_users:
             eps_raw = pm.ZeroSumNormal('epsilon_raw', sigma=1, dims='user')
@@ -709,6 +820,27 @@ def build_model_v2(
             if store_user_terms:
                 pm.Deterministic('p_female_post',
                                  pt.exp(logw_f + user_ll_f - per_user), dims='user')
+        elif marginalize_all:
+            # Singles in closed form, exactly as the marginalize_singles branch
+            # below. The multi-observation climbers get a one-dimensional
+            # adaptive Gauss-Hermite quadrature over their shared offset --
+            # a Potential rather than an observed node, because the quantity
+            # is a per-CLIMBER marginal and PyMC has no distribution for it.
+            ability0 = ability_for(w_female, use_static=True)   # no epsilon
+            ceiling0 = ability0[obs_u] + correction
+            sigma_single = pt.sqrt(sigma_link ** 2 + sigma_user ** 2)
+            pm.ExGaussian('m_single', mu=-ceiling0[single_obs],
+                          sigma=sigma_single, nu=nu[single_obs],
+                          observed=-m[single_obs], dims='obs_single')
+            o = layout.obs
+            per_user = multi_log_integral_pt(
+                pt.as_tensor_variable(m[o]), ceiling0[o], nu[o],
+                sigma_link, sigma_user, layout)
+            # Named so az.loo and the diagnostics can find it; the pointwise
+            # unit here is a climber, not an observation, which is the honest
+            # unit once a climber's rows share an integrated-out offset.
+            pm.Deterministic('log_lik_multi', per_user)
+            pm.Potential('m_multi_marginal', pt.sum(per_user))
         elif marginalize_singles:
             # 59% of climbers contribute exactly one observation, and their
             # offset can absorb that observation entirely -- which is what

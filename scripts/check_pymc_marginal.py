@@ -28,7 +28,12 @@ from pathlib import Path
 warnings.filterwarnings('ignore')
 import numpy as np
 
-from kaya.grading_model_v2 import build_model_v2, make_dataset
+from kaya.grading_model_v2 import (
+    build_model_v2,
+    make_dataset,
+    zerosum_basis_matrix,
+    zerosum_coords,
+)
 from kaya.marginal_v2 import MarginalModel, exgaussian_logpdf
 
 TMP = Path('/Users/peterwilliams/.claude/jobs/e4f1b508/tmp')
@@ -83,8 +88,17 @@ def main():
         elif base_name == 'epsilon_raw':
             pt_[k] = np.zeros(ip[k].shape)
         elif base_name == 'gym_correction_raw':
-            # ZeroSumNormal stores n-1 free coordinates.
-            pt_[k] = p['gym_raw'][:ip[k].shape[0]]
+            # ZeroSumNormal stores n-1 coordinates in PyMC's OWN basis, which
+            # is neither the first n-1 elements of the zero-sum vector nor
+            # marginal_v2's basis. Slicing one into the other put the PyMC
+            # model at some other valid gym configuration -- harmless here,
+            # because the corrections are read back below and handed to NumPy,
+            # but it meant the check ran at an unspecified point rather than
+            # at theta. Map properly and the two sides are pinned to the same
+            # configuration by construction, which the assertion below now
+            # verifies instead of assuming.
+            pt_[k] = zerosum_coords(
+                zerosum_basis_matrix(model, k, ip[k].shape[0]), p['gym_raw'])
         elif base_name == 'log_lambda0':
             pt_[k] = np.array(p['log_lambda0'])
         elif base_name == 'kappa':
@@ -121,6 +135,10 @@ def main():
     assert abs(float(su_pymc) - p['sigma_user']) < 1e-12, (
         f'point not applied: PyMC sigma_user {float(su_pymc)} '
         f'vs NumPy {p["sigma_user"]}')
+    # The gym block, now that the coordinates are mapped rather than sliced.
+    assert np.abs(gym_raw - p['gym_raw']).max() < 1e-9, (
+        'PyMC and NumPy are on different gym configurations: max difference '
+        f'{np.abs(gym_raw - p["gym_raw"]).max():.2e}')
     user_term = p['beta0'] + mm.Xc @ p['beta']
     gym_term = p['sigma_gym'] * gym_raw
     c = user_term[mm.obs_u] + gym_term[mm.obs_g]

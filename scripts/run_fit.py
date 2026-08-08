@@ -47,6 +47,18 @@ def main():
     p.add_argument('--zero-sum-users', action='store_true')
     p.add_argument('--marginalize-singles', action='store_true',
                    help='integrate out the offsets of climbers with one row')
+    p.add_argument('--marginalize-all', action='store_true',
+                   help='integrate out EVERY climber offset -- singles in '
+                        'closed form, the rest by adaptive Gauss-Hermite '
+                        'quadrature. Samples 40 parameters instead of 4,241 '
+                        'and removes the sigma_user/epsilon funnel outright')
+    p.add_argument('--n-quad', type=int, default=31,
+                   help='quadrature nodes per climber for --marginalize-all')
+    p.add_argument('--center-user-offsets', action='store_true',
+                   help='sample epsilon ~ Normal(0, sigma_user) directly '
+                        'instead of sigma_user * Normal(0,1). The data '
+                        'dominates the prior 21-64x per climber, which is the '
+                        'regime where centered samples better')
     p.add_argument('--orthogonal-design', action='store_true',
                    help='sample the covariate block on a Gram-Schmidt '
                         'orthogonalised basis; raw-basis coefficients are '
@@ -55,6 +67,19 @@ def main():
     p.add_argument('--tune', type=int, default=1000)
     p.add_argument('--chains', type=int, default=4)
     p.add_argument('--target-accept', type=float, default=0.9)
+    p.add_argument('--max-treedepth', type=int, default=10,
+                   help='NUTS doubles its trajectory up to 2**this steps. The '
+                        'v7 sweep saturated the default on 100%% of iterations, '
+                        'so raising it is the direct fix for truncation -- at '
+                        'up to 2x cost per level')
+    p.add_argument('--seed', type=int, default=None,
+                   help='PyMC random_seed. Left unset every fit draws a fresh '
+                        'one, which makes runs irreproducible AND makes a '
+                        'top-up indistinguishable from a repeat. Set it, '
+                        'record it (it lands in the result JSON), and give a '
+                        'top-up run a DIFFERENT one -- chains merged from two '
+                        'runs that shared a seed are the same chains twice, '
+                        'and R-hat computed over them would be a fiction.')
     args = p.parse_args()
 
     data_dir = Path(args.data_dir) if args.data_dir else ROOT / 'runs'
@@ -80,6 +105,9 @@ def main():
         estimate_sigma_link=not args.fixed_sigma_link,
         zero_sum_users=args.zero_sum_users,
         marginalize_singles=args.marginalize_singles,
+        center_user_offsets=args.center_user_offsets,
+        marginalize_all=args.marginalize_all,
+        n_quad=args.n_quad,
         orthogonal_design=args.orthogonal_design,
     )
 
@@ -90,9 +118,19 @@ def main():
         # you cannot see chains starting dispersed and pulling together, and it
         # is unrecoverable once the trace is written.
         idata = pm.sample(draws=args.draws, tune=args.tune, chains=args.chains,
-                          target_accept=args.target_accept, progressbar=False,
-                          discard_tuned_samples=False,
+                          target_accept=args.target_accept,
+                          max_treedepth=args.max_treedepth,
+                          progressbar=False,
+                          discard_tuned_samples=False, random_seed=args.seed,
                           idata_kwargs={'log_likelihood': args.gender_mode == 'point'})
+    # Stamp the seed into the trace itself. The result JSON carries it too, but
+    # a trace outlives its result file in practice, and merge_chains.py has to
+    # be able to refuse a merge of two runs that shared one.
+    idata.posterior.attrs['kaya_seed'] = (
+        'unset' if args.seed is None else str(args.seed))
+    idata.posterior.attrs['kaya_fit_args'] = json.dumps(
+        {k: v for k, v in vars(args).items()
+         if k not in ('name', 'out_dir', 'data_dir', 'seed')}, sort_keys=True)
     elapsed = time.time() - t0
 
     # Save the trace FIRST. Summarising can fail (it has, on an arviz/numba
@@ -115,6 +153,23 @@ def main():
            'elapsed_min': elapsed / 60, 'divergences': ndiv,
            'max_rhat': float(summ['r_hat'].max()), 'min_ess': float(summ['ess_bulk'].min()),
            'params': summ.to_dict('index')}
+
+    # How often NUTS ran out of trajectory instead of finishing one. The v7
+    # sweep hit the ceiling on 100% of iterations, which is what made every
+    # draw correlated with the last -- and it is invisible in R-hat and ESS,
+    # so it has to be recorded separately or the next run rediscovers it.
+    if 'tree_depth' in idata.sample_stats:
+        td = np.asarray(idata.sample_stats['tree_depth'].values)
+        ss = np.asarray(idata.sample_stats['step_size'].values)
+        res['tree_depth'] = {
+            'mean': float(td.mean()), 'max': int(td.max()),
+            'frac_at_limit': float((td >= args.max_treedepth).mean()),
+            'limit': args.max_treedepth,
+            'step_size': float(ss.mean()),
+        }
+        print(f"[{args.name}] tree depth {td.mean():.2f} mean, "
+              f"{100 * (td >= args.max_treedepth).mean():.0f}% at the limit of "
+              f"{args.max_treedepth}, step size {ss.mean():.5f}", flush=True)
 
     # Under --orthogonal-design the names above are Deterministic transforms of
     # what the sampler actually moved, which keeps max_rhat comparable to every
@@ -142,7 +197,43 @@ def main():
         print(f'[{args.name}] {verdict.describe()}', flush=True)
     if args.gender_mode == 'point':
         try:
-            if args.marginalize_singles:
+            if args.marginalize_all:
+                # Under --marginalize-all the multi-climber term is a
+                # pm.Potential, and PyMC emits no log_likelihood group for a
+                # Potential -- so arviz sees only m_single and az.loo either
+                # fails or, worse, silently scores a sixth of the dataset.
+                #
+                # The terms are not lost: build_model_v2 records them as the
+                # Deterministic `log_lik_multi`, one entry per multi-climber.
+                # Reassembling them gives a complete pointwise log-likelihood.
+                #
+                # The UNIT changes, and that is not a detail. Integrating a
+                # climber's offset out makes their rows conditionally dependent,
+                # so leave-one-OBSERVATION-out no longer exists in closed form;
+                # the natural unit becomes leave-one-CLIMBER-out. Every climber
+                # contributes exactly one term -- singles through m_single,
+                # multis through log_lik_multi -- so the elpd here is over
+                # climbers, NOT over observations.
+                #
+                # Consequence: this elpd is comparable ACROSS the marginalized
+                # sweep and NOT comparable to any v7 number, which was per
+                # observation over a larger, differently-sized set of units.
+                import xarray as xr
+                single = idata.log_likelihood['m_single']
+                sdim = [d for d in single.dims if d not in ('chain', 'draw')][0]
+                multi = idata.posterior['log_lik_multi']
+                mdim = [d for d in multi.dims if d not in ('chain', 'draw')][0]
+                merged = xr.concat(
+                    [single.rename({sdim: 'climber'}),
+                     multi.rename({mdim: 'climber'})], dim='climber')
+                merged = merged.assign_coords(climber=np.arange(merged.sizes['climber']))
+                idata.log_likelihood = xr.Dataset({'climber_obs': merged})
+                res['loo_unit'] = 'climber'
+                print(f'[{args.name}] LOO unit is the climber '
+                      f'({single.sizes[sdim]} single + {multi.sizes[mdim]} multi '
+                      f'= {merged.sizes["climber"]}); not comparable to a v7 elpd',
+                      flush=True)
+            elif args.marginalize_singles:
                 # The marginalized model has TWO observed variables --
                 # m_single (offset integrated out) and m_multi (offset still
                 # sampled) -- so arviz sees two log-likelihood groups and has

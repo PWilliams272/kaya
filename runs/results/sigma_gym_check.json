@@ -1,0 +1,157 @@
+{
+ "emcee_tag": "lin2",
+ "pymc_name": "v3_lin_marg",
+ "prior_spread": 9.094947017729282e-13,
+ "quad_nodes": [
+  31,
+  61,
+  121,
+  201
+ ],
+ "quad_gaps": {
+  "31": -4.0960571727046045,
+  "61": -4.096052268279891,
+  "121": -4.096052267144842,
+  "201": -4.096052267144842
+ },
+ "quad_drift": 4.9055597628466785e-06,
+ "n_quad_used": 31,
+ "verdict": "sampling",
+ "pymc_fleet": [
+  {
+   "fit": "v3_lin_marg",
+   "mean": 0.304,
+   "lo": 0.232,
+   "hi": 0.371,
+   "ess": 109.0,
+   "rhat": 1.02,
+   "tune": 600,
+   "draws": 500,
+   "height_form": "linear",
+   "orthogonal": false
+  },
+  {
+   "fit": "v3_conf_marg",
+   "mean": 0.299,
+   "lo": 0.233,
+   "hi": 0.367,
+   "ess": 121.0,
+   "rhat": 1.02,
+   "tune": 600,
+   "draws": 500,
+   "height_form": "quadratic_x_gender",
+   "orthogonal": false
+  },
+  {
+   "fit": "v5_conf_marg_long",
+   "mean": 0.303,
+   "lo": 0.234,
+   "hi": 0.37,
+   "ess": 279.0,
+   "rhat": 1.02,
+   "tune": 2000,
+   "draws": 2000,
+   "height_form": "quadratic_x_gender",
+   "orthogonal": false
+  },
+  {
+   "fit": "v6_conf_orth",
+   "mean": 0.309,
+   "lo": 0.227,
+   "hi": 0.382,
+   "ess": 113.0,
+   "rhat": 1.02,
+   "tune": 600,
+   "draws": 500,
+   "height_form": "quadratic_x_gender",
+   "orthogonal": true
+  },
+  {
+   "fit": "v3_zero_orth",
+   "mean": 0.304,
+   "lo": 0.233,
+   "hi": 0.365,
+   "ess": 184.0,
+   "rhat": 1.01,
+   "tune": 600,
+   "draws": 500,
+   "height_form": "zero",
+   "orthogonal": true
+  },
+  {
+   "fit": "v3_lin_orth",
+   "mean": 0.303,
+   "lo": 0.239,
+   "hi": 0.373,
+   "ess": 70.0,
+   "rhat": 1.06,
+   "tune": 600,
+   "draws": 500,
+   "height_form": "linear",
+   "orthogonal": true
+  },
+  {
+   "fit": "v3_quad_orth",
+   "mean": 0.302,
+   "lo": 0.235,
+   "hi": 0.365,
+   "ess": 207.0,
+   "rhat": 1.01,
+   "tune": 600,
+   "draws": 500,
+   "height_form": "quadratic",
+   "orthogonal": true
+  },
+  {
+   "fit": "v4_linxg_orth",
+   "mean": 0.309,
+   "lo": 0.239,
+   "hi": 0.373,
+   "ess": 72.0,
+   "rhat": 1.05,
+   "tune": 600,
+   "draws": 500,
+   "height_form": "linear_x_gender",
+   "orthogonal": true
+  },
+  {
+   "fit": "v3_sat_orth",
+   "mean": 0.298,
+   "lo": 0.227,
+   "hi": 0.363,
+   "ess": 184.0,
+   "rhat": 1.03,
+   "tune": 600,
+   "draws": 500,
+   "height_form": "saturating",
+   "orthogonal": true
+  },
+  {
+   "fit": "v3_vtx_orth",
+   "mean": 0.306,
+   "lo": 0.23,
+   "hi": 0.372,
+   "ess": 97.0,
+   "rhat": 1.02,
+   "tune": 600,
+   "draws": 500,
+   "height_form": "vertex_quadratic",
+   "orthogonal": true
+  }
+ ],
+ "emcee": {
+  "mean": 0.390292508144701,
+  "lo": 0.31195586734115166,
+  "hi": 0.4797883304129695,
+  "ess": 4045.0406532237066,
+  "tau": 474.6553037655754,
+  "drift_2nd_half": 0.0002725461697953291
+ },
+ "pymc": {
+  "mean": 0.304,
+  "lo": 0.232,
+  "hi": 0.371,
+  "ess": 109.0,
+  "rhat": 1.02
+ }
+}
