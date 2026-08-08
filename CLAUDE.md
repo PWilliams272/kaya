@@ -15,7 +15,15 @@ viewer's structural conventions here has downstream consequences.
   Analytical data lives in S3, never in the website RDS.
 - `src/kaya/analysis.py` — transformations over pulled data.
 - `src/kaya/grading_model.py`, `grading_model_v2.py`, `marginal_v2.py` — Bayesian grade-consensus
-  modelling. `v2` is current; `v1` is kept for comparison, not for new work.
+  modelling. `v2` is current; `v1` is kept for comparison, not for new work. `grading_model_v2`
+  is the PyMC build, `marginal_v2` an independent NumPy implementation of the same likelihood —
+  `scripts/check_pymc_marginal.py` asserts they agree, and **any term added to one goes in both**.
+- `src/kaya/advancement.py` — the climber-advancement offset: a known number of grades added to
+  each ceiling for when that send happened, relative to the climber's own other sends. **Fixed,
+  never fitted** — a free parameter has nothing to separate it from the gym corrections and
+  absorbed 3.4× its true value in simulation. `runs/base_bouldering.pkl` must carry
+  `max_send_date` for it to apply; `build_model_v2(advancement=True)` raises rather than
+  silently doing nothing.
 - `src/kaya/viewer_payloads.py`, `build_viewer_payloads.py` — precompute each page's full response
   JSON offline. The viewer reads these; it does not compute on request.
 - `src/kaya/build_viewer_cache_lambda.py` — the `kaya-viewer-cache` Lambda (container image, daily
@@ -24,10 +32,28 @@ viewer's structural conventions here has downstream consequences.
   `Jinja2Templates` and serves `viewer_static/`. There is no `index.html` — the page is one
   template per tab (`viewer_templates/tabs/`), with the two explainer tabs split again by
   article section. Add a tab by adding a fragment and an `{% include %}`, not by growing a file.
-  The `/api/*` routes are development-only; production registers only `/` and the static mounts.
-- `src/kaya/viewer_static/js/` — the client, 16 **classic** scripts (not ES modules) sharing one
+  The `/api/*` routes are development-only; production registers `/`, `/prelim` and the static
+  mounts, and nothing else.
+- `src/kaya/viewer_copy.py`, `viewer_content/*.json` — author-editable page copy, added blocks,
+  review notes and chart layout for `/prelim`, stored as git-tracked JSON and rendered
+  server-side. An added block keeps its STRUCTURE in `_blocks.json` and its WORDS in
+  `_copy.json` under the same id, so new and drafted blocks share one edit-and-sanitise path.
+  Deleting a **drafted** block cannot be a removal — the template would put it back — so it is
+  recorded as a hidden key in `_hidden.json`: dropped entirely in production, struck through with
+  a restore control in development. Deleting an **added** block removes its record instead.
+  `@claude ...@` written anywhere in the copy is an inline note to the agent: marked in
+  development, **stripped in production**, and listed by `viewer_copy.inline_notes('prelim')` —
+  read that at the start of a session on this page, alongside `prelim_notes.json`.
+  **Every write path is development-only** (`POST /api/prelim-{copy,blocks,notes,layout,hidden}` on `dev_api`) because
+  `kaya.peterwilliams.dev` is public and unauthenticated — a live page that can rewrite its own
+  text is a defacement vector. Stored copy renders unescaped, so it goes through the allowlist
+  sanitiser on the way in *and* on the way out; the files are meant to be hand-edited too.
+  Notes never render in production. Chart heights and dragged label positions do.
+- `src/kaya/viewer_static/js/` — the client, 28 **classic** scripts (not ES modules) sharing one
   global scope. **Load order in `base.html` is load-bearing** — `09-shell.js` boots at top level
   before the `v2/` files evaluate. Numeric prefixes encode that; don't reorder or drop one.
+  `v2/17`–`21` belong to `/prelim` and are loaded by `prelim.html`, not `base.html`; `20`/`21`
+  (edit and review mode) are behind `{% if editable %}` and never ship to production.
 - `src/kaya/viewer_static/tokens.css` — design tokens. **Source of truth for the whole workspace**;
   other repos sync from here. Do not edit a downstream copy. See `scripts/sync-design-tokens.sh`
   in `system-overview`.

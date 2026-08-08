@@ -31,6 +31,9 @@ on:
       - prod
     paths:
       - 'src/kaya/viewer_app.py'
+      - 'src/kaya/viewer_copy.py'
+      # Author-edited page copy: a wording change IS a viewer change.
+      - 'src/kaya/viewer_content/**'
       - 'src/kaya/viewer_payloads.py'
       - 'src/kaya/viewer_paths.py'
       - 'src/kaya/viewer_static/**'

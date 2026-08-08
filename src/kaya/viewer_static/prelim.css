@@ -1,0 +1,590 @@
+/* Working-notes page (/prelim).
+ *
+ * Built on tokens.css, which is the workspace's design-token source of truth,
+ * so this page stays in the same visual family as the main viewer without
+ * pulling in research.css — that file carries the whole four-tab article
+ * shell, sidebar, glossary and tab chrome, none of which exists here.
+ *
+ * Deliberately narrow: one column, one typographic scale, no components that
+ * are not on the page. If something here starts being reused, it belongs in
+ * research.css or tokens.css instead of being copied.
+ */
+
+/* ---- categorical series palette ----
+ * Duplicated from research.css rather than imported, because importing that
+ * file would bring the article shell with it. Keep the two in step: these are
+ * the same ten hues, picked to stay distinguishable on both grounds. */
+:root {
+  --lg-cat-1: #1565c0;
+  --lg-cat-2: #b8752e;
+  --lg-cat-3: #2e8b57;
+  --lg-cat-4: #b8382e;
+  --lg-cat-5: #7448a8;
+  --pm-measure: 68ch;
+  --pm-max: 1080px;
+  /* Chart axis: thick, grey and translucent, so it reads as a ground for the
+     marks rather than as a hard boundary competing with them. Spelled as an
+     explicit rgba rather than a color-mix because Plotly parses the computed
+     value and does not understand color-mix(). The bare triple is for the
+     feathered axis stroke, which composes its own alphas per pass. */
+  --pm-axis: rgba(87, 101, 122, 0.42);
+  --pm-axis-rgb: 87, 101, 122;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --lg-cat-1: #7ac2ff;
+    --lg-cat-2: #d99a52;
+    --lg-cat-3: #6cc794;
+    --lg-cat-4: #e0685f;
+    --lg-cat-5: #b18ce0;
+    --pm-axis: rgba(160, 176, 196, 0.40);
+    --pm-axis-rgb: 160, 176, 196;
+  }
+}
+:root[data-theme='dark'] {
+  --lg-cat-1: #7ac2ff;
+  --lg-cat-2: #d99a52;
+  --lg-cat-3: #6cc794;
+  --lg-cat-4: #e0685f;
+  --lg-cat-5: #b18ce0;
+  --pm-axis: rgba(160, 176, 196, 0.40);
+  --pm-axis-rgb: 160, 176, 196;
+}
+:root[data-theme='light'] {
+  --pm-axis: rgba(87, 101, 122, 0.42);
+  --pm-axis-rgb: 87, 101, 122;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--lg-bg);
+  color: var(--lg-text);
+  font-size: var(--fs-md);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+.pm-wrap {
+  max-width: var(--pm-max);
+  margin: 0 auto;
+  padding: 0 var(--lg-pad) 72px;
+}
+
+/* ---- masthead ---- */
+.pm-top {
+  border-bottom: 1px solid var(--lg-border);
+  background: var(--lg-surface);
+  padding: 44px 0 28px;
+  margin-bottom: 36px;
+}
+.pm-top .pm-wrap { padding-bottom: 0; }
+.pm-eyebrow {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--lg-gold);
+  margin-bottom: 12px;
+}
+.pm-top h1 {
+  font-size: clamp(26px, 4vw, 38px);
+  line-height: 1.12;
+  letter-spacing: -0.022em;
+  margin: 0 0 12px;
+  font-weight: 700;
+  text-wrap: balance;
+}
+.pm-dek {
+  font-size: var(--fs-lg);
+  color: var(--lg-text-2);
+  max-width: 60ch;
+  margin: 0;
+}
+.pm-stamp {
+  margin-top: 16px;
+  font-size: var(--fs-base);
+  color: var(--lg-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.pm-nav { margin-top: 18px; font-size: var(--fs-base); }
+.pm-nav a { color: var(--lg-gold); text-decoration: none; }
+.pm-nav a:hover { text-decoration: underline; }
+
+/* ---- sections ---- */
+main section { margin-bottom: 52px; }
+main h2 {
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  margin: 0 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--lg-border);
+}
+main p {
+  max-width: var(--pm-measure);
+  color: var(--lg-text-2);
+  margin: 0 0 14px;
+}
+main p b { color: var(--lg-text); font-weight: 650; }
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+  background: var(--lg-active);
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-xs);
+  padding: 0.5px 4px;
+}
+
+/* ---- callouts ---- */
+.pm-callout {
+  display: flex;
+  gap: 12px;
+  background: var(--lg-card);
+  border: 1px solid var(--lg-border);
+  border-left: 3px solid var(--lg-gold);
+  border-radius: var(--lg-radius-md);
+  padding: 16px 18px;
+  margin: 20px 0;
+  box-shadow: var(--lg-shadow-sm);
+  font-size: var(--fs-md);
+  line-height: 1.6;
+  color: var(--lg-text-2);
+}
+.pm-callout-warn { border-left-color: var(--lg-warning); }
+.pm-callout-good { border-left-color: var(--lg-success); }
+.pm-callout b { color: var(--lg-text); font-weight: 650; }
+/* Each leading <b> in a stacked callout starts its own paragraph; without
+   this the separate points run together into one wall. */
+.pm-callout > div > b:first-child { display: block; margin-bottom: 3px; }
+
+/* ---- controls ---- */
+.pm-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: flex-end;
+  margin: 18px 0 14px;
+}
+.pm-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--fs-base);
+}
+.pm-controls label > span {
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lg-text-3);
+}
+.pm-controls select {
+  background: var(--lg-surface);
+  color: var(--lg-text);
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-sm);
+  padding: 6px 9px;
+  font: inherit;
+  font-size: var(--fs-base);
+  min-width: 190px;
+}
+.pm-controls select:hover { border-color: var(--lg-border-h); }
+.pm-controls select:focus-visible {
+  outline: 2px solid var(--lg-gold);
+  outline-offset: 1px;
+}
+
+/* ---- tables ---- */
+/* The wrapper scrolls, not the page: a wide table must never make the whole
+   document scroll sideways. */
+.pm-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-md);
+  background: var(--lg-card);
+  margin: 18px 0 8px;
+}
+.pm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-base);
+  font-variant-numeric: tabular-nums;
+}
+.pm-table th,
+.pm-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--lg-border);
+  white-space: nowrap;
+}
+.pm-table thead th {
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lg-text-3);
+  background: var(--lg-active);
+  position: sticky;
+  top: 0;
+}
+.pm-table tbody tr:last-child td { border-bottom: none; }
+.pm-table .num { text-align: right; }
+.pm-table .row-highlight {
+  background: color-mix(in srgb, var(--lg-success) 10%, transparent);
+}
+.pm-table .row-highlight td:first-child { font-weight: 650; }
+
+.pill {
+  display: inline-block;
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border-radius: 100px;
+  vertical-align: middle;
+}
+.pill-ok {
+  color: var(--lg-success);
+  background: color-mix(in srgb, var(--lg-success) 14%, transparent);
+}
+
+/* ---- charts ---- */
+.pm-chart {
+  width: 100%;
+  min-height: 300px;
+  margin: 8px 0 6px;
+  background: var(--lg-card);
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-md);
+  padding: 10px 6px 4px;
+}
+.pm-chart-tall { min-height: 440px; }
+/* No tile: the figure sits directly on the page, so the plot's transparent
+   background reads as the page's own. For diagrams where the drawing is the
+   whole content and a card border would only box it in. */
+.pm-chart-bare {
+  background: transparent;
+  border: none;
+  padding: 0;
+  /* The card min-height exists to stop a loading tile collapsing; a bare
+     figure has no tile, so it would only add dead space under a short plot. */
+  min-height: 0;
+}
+
+.pm-caption {
+  font-size: var(--fs-base);
+  color: var(--lg-text-3);
+  max-width: var(--pm-measure);
+  line-height: 1.6;
+  margin: 6px 0 0;
+}
+.pm-caption b { color: var(--lg-text-2); font-weight: 650; }
+
+/* ---- footer ---- */
+.pm-foot {
+  margin-top: 56px;
+  padding-top: 20px;
+  border-top: 1px solid var(--lg-border);
+  font-size: var(--fs-base);
+  color: var(--lg-text-3);
+  max-width: var(--pm-measure);
+}
+.pm-foot a { color: var(--lg-gold); }
+
+@media (max-width: 640px) {
+  .pm-controls { gap: 12px; }
+  .pm-controls select { min-width: 100%; }
+}
+
+/* ---- displayed equations ---- */
+/* Centred, no box: the equation is part of the sentence around it, and a card
+   around each one turns four steps of an argument into four separate objects.
+   KaTeX defaults to black, so the colour is forced onto the text token for
+   dark mode. */
+.pm-eq-display {
+  margin: 14px 0 20px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.pm-eq-display .katex-display { margin: 0; }
+.pm-eq-display .katex { color: var(--lg-text); }
+
+/* ---- equation block ---- */
+/* Hand-set rather than typeset: KaTeX is ~300KB and this page's whole point is
+ * staying cheap. The notation matches the Findings page's five equations, so
+ * the two read as one argument even though one is typeset and one is not. */
+.pm-eqns {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 20px 0;
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-md);
+  background: var(--lg-card);
+  overflow: hidden;
+}
+.pm-eq {
+  display: grid;
+  grid-template-columns: minmax(240px, auto) 1fr;
+  gap: 20px;
+  align-items: baseline;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--lg-border);
+}
+.pm-eq:last-child { border-bottom: none; }
+.pm-eq-key { background: var(--lg-gold-soft); }
+.pm-eq-body {
+  font-family: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
+  font-size: var(--fs-lg);
+  color: var(--lg-text);
+  white-space: nowrap;
+}
+.pm-eq-note { font-size: var(--fs-base); color: var(--lg-text-3); }
+@media (max-width: 720px) {
+  .pm-eq { grid-template-columns: 1fr; gap: 4px; }
+  .pm-eq-body { white-space: normal; }
+}
+
+/* ---- sliders + button ---- */
+.pm-controls input[type="range"] {
+  width: 200px;
+  accent-color: var(--lg-gold);
+}
+.pm-controls output { font-variant-numeric: tabular-nums; font-weight: 650; }
+.pm-btn {
+  background: var(--lg-surface);
+  color: var(--lg-text);
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-sm);
+  padding: 6px 14px;
+  font: inherit;
+  font-size: var(--fs-base);
+  cursor: pointer;
+}
+.pm-btn:hover { border-color: var(--lg-border-h); background: var(--lg-active); }
+.pm-btn:focus-visible { outline: 2px solid var(--lg-gold); outline-offset: 1px; }
+
+/* ---- stat strip ---- */
+.pm-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px;
+  margin: 16px 0 10px;
+}
+.pm-stat {
+  background: var(--lg-card);
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-md);
+  padding: 11px 13px;
+}
+.pm-stat-k {
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lg-text-3);
+  margin-bottom: 5px;
+}
+.pm-stat-v {
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.pm-stat-s { font-size: var(--fs-sm); color: var(--lg-text-2); margin-top: 5px; }
+
+/* ---- edit mode (development only) ----
+ * The toolbar and these styles are rendered only when the viewer is not in
+ * production; the deployed page has no edit affordance and no save endpoint.
+ * See viewer_copy.py for why that boundary is not optional here. */
+.pm-edit-bar {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--lg-surface);
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-md);
+  box-shadow: var(--lg-shadow-md);
+  font-size: var(--fs-base);
+}
+.pm-edit-state {
+  color: var(--lg-text-3);
+  font-variant-numeric: tabular-nums;
+  margin-right: 2px;
+}
+.pm-edit-state[data-tone='ok'] { color: var(--lg-success); }
+.pm-edit-state[data-tone='bad'] { color: var(--lg-danger); }
+.pm-btn-primary {
+  border-color: var(--lg-gold);
+  color: var(--lg-gold);
+  font-weight: 650;
+}
+
+/* An editable block needs to look editable without the page reflowing when it
+   becomes one: the outline is drawn outside the box, so nothing shifts. */
+.pm-editing {
+  outline: 1px dashed color-mix(in srgb, var(--lg-gold) 55%, transparent);
+  outline-offset: 3px;
+  border-radius: var(--lg-radius-xs);
+}
+.pm-editing:hover { outline-style: solid; }
+.pm-editing:focus-visible,
+.pm-editing:focus {
+  outline: 2px solid var(--lg-gold);
+  outline-offset: 3px;
+  background: var(--lg-gold-soft);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pm-edit-bar { transition: none; }
+}
+
+/* ---- review tools (development only) ----
+ * Notes, resize grips and the "+ note" buttons are chrome for reviewing the
+ * page, not part of it, so they are hidden until review mode is switched on
+ * and never rendered at all in production. */
+.pm-block-tools,
+.pm-resize { display: none; }
+.pm-review-on .pm-block-tools { display: flex; gap: 4px; margin: 0 0 3px; }
+.pm-review-on .pm-resize { display: block; }
+
+.pm-tool {
+  padding: 1px 7px;
+  font: inherit;
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lg-text-3);
+  background: transparent;
+  border: 1px dashed var(--lg-border);
+  border-radius: 100px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pm-tool:hover { color: var(--lg-gold); border-color: var(--lg-gold); }
+.pm-tool-del:hover { color: var(--lg-danger); border-color: var(--lg-danger); }
+
+/* Author-added blocks carry a quiet left rule in review mode, so it is obvious
+   which prose is in the template and which was inserted here. Invisible
+   outside review mode -- to a reader they are just page content. */
+.pm-review-on [data-added] {
+  border-left: 2px solid color-mix(in srgb, var(--lg-gold) 40%, transparent);
+  padding-left: 10px;
+  margin-left: -12px;
+}
+
+/* An inline `@claude ...@` note: a message to the agent, sitting at the exact
+   spot in the prose it is about. Marked, not styled as copy -- it must never
+   read as part of the sentence it interrupts. Development only; production
+   strips these before render. */
+.pm-inline-note {
+  background: color-mix(in srgb, var(--lg-highlight) 20%, transparent);
+  color: var(--lg-text);
+  border-radius: var(--lg-radius-xs);
+  padding: 0 5px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lg-highlight) 45%, transparent);
+  font-style: italic;
+}
+
+.pm-inline-note::before {
+  content: '@claude ';
+  font-style: normal;
+  font-weight: 700;
+  font-size: 0.82em;
+  letter-spacing: 0.03em;
+  color: var(--lg-highlight);
+}
+
+/* A deleted DRAFTED block. It is gone from the published page; here it stays
+   struck through so the author can see what they removed and put it back. Dim
+   enough to read as absent, legible enough to still be read. */
+.pm-deleted {
+  opacity: 0.38;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.pm-deleted::after {
+  content: 'deleted';
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  vertical-align: middle;
+  color: var(--lg-highlight);
+}
+
+/* Sticky notes are always visible once they exist -- an unread note that only
+   appears in a mode nobody is in is a note that never gets read. */
+.pm-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: var(--pm-measure);
+  margin: 6px 0 14px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--lg-warning) 12%, var(--lg-card));
+  border: 1px solid color-mix(in srgb, var(--lg-warning) 45%, transparent);
+  border-left: 3px solid var(--lg-warning);
+  border-radius: var(--lg-radius-sm);
+}
+.pm-note-done {
+  opacity: 0.55;
+  border-left-color: var(--lg-success);
+  background: color-mix(in srgb, var(--lg-success) 10%, var(--lg-card));
+}
+.pm-note-text {
+  flex: 1;
+  resize: vertical;
+  min-height: 2.6em;
+  padding: 4px 6px;
+  font: inherit;
+  font-size: var(--fs-base);
+  line-height: 1.5;
+  color: var(--lg-text);
+  background: var(--lg-surface);
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-xs);
+}
+.pm-note-text:focus-visible {
+  outline: 2px solid var(--lg-gold);
+  outline-offset: 1px;
+}
+.pm-note-actions { display: flex; flex-direction: column; gap: 4px; }
+.pm-note-btn {
+  font: inherit;
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lg-text-3);
+  background: transparent;
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius-xs);
+  padding: 1px 6px;
+  cursor: pointer;
+}
+.pm-note-btn:hover { color: var(--lg-text); border-color: var(--lg-border-h); }
+
+/* A grip under each chart. Tall enough to hit, quiet enough to ignore. */
+.pm-resize {
+  height: 9px;
+  margin: -2px 0 8px;
+  border-radius: 100px;
+  background: repeating-linear-gradient(
+    90deg, var(--lg-border) 0 8px, transparent 8px 16px);
+  cursor: ns-resize;
+}
+.pm-resize:hover { background: repeating-linear-gradient(
+  90deg, var(--lg-gold) 0 8px, transparent 8px 16px); }
+/* While dragging, nothing on the page should select or fight the cursor. */
+.pm-resizing { cursor: ns-resize; user-select: none; }

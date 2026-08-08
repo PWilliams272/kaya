@@ -85,6 +85,8 @@ kaya = [
     "viewer_static/*",
     "viewer_static/fonts/*",
     "viewer_static/img/*/*",
+    # Author-edited page copy, read at request time.
+    "viewer_content/*.json",
     "config/*.json",
 ]
 

@@ -151,13 +151,23 @@ def test_every_referenced_script_exists(page: str) -> None:
 
 
 def test_no_script_is_orphaned(page: str) -> None:
-    """A file nobody loads is dead code that still looks live."""
+    """A file nobody loads is dead code that still looks live.
+
+    Checked across EVERY template, not just base.html. Since 2026-08-07 the
+    viewer serves a second top-level page (/prelim) which loads its own single
+    script and deliberately none of the `/` bundle, so "referenced by
+    base.html" stopped being the same question as "referenced at all".
+    """
     static = Path(viewer_app.STATIC_DIR)
     on_disk = {
         str(path.relative_to(static)) for path in (static / 'js').rglob('*.js')
     }
-    referenced = set(_script_srcs(page))
-    assert on_disk == referenced, f'not loaded by base.html: {sorted(on_disk - referenced)}'
+    templates = Path(viewer_app.TEMPLATE_DIR)
+    referenced = set()
+    for tpl in templates.rglob('*.html'):
+        referenced |= set(_script_srcs(tpl.read_text()))
+    assert on_disk <= referenced, (
+        f'loaded by no template at all: {sorted(on_disk - referenced)}')
 
 
 def test_scripts_load_in_numeric_order(page: str) -> None:

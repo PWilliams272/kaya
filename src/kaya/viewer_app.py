@@ -3,12 +3,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import uvicorn
-from fastapi import APIRouter, FastAPI, Query, Request
+from fastapi import APIRouter, Body, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from kaya import viewer_copy
 from kaya.viewer_payloads import VIEWER_ARTIFACTS_DIR, ViewerPayloadBuilder
 
 STATIC_DIR = Path(__file__).with_name('viewer_static')
@@ -95,6 +96,52 @@ def serve_index(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request, 'base.html')
 
 
+@app.get('/prelim', response_class=HTMLResponse)
+def serve_prelim(request: Request) -> HTMLResponse:
+    """Working notes: results still moving, published early on purpose.
+
+    The second top-level route this viewer has had, and it is one on purpose
+    rather than a fifth tab on `/`. Two reasons, both measured:
+
+    * Weight. `/` renders four tabs into one ~384KB document, and its Findings
+      tab pulls v2_posterior.json at 2.9MB. This page reads v2_prelim.json at
+      0.5MB and nothing else. As a tab it would have been the most expensive
+      thing on the site while sharing none of the cost it was paying for.
+    * Standard. `/` is published work. This is the working front. Putting
+      provisional numbers beside settled ones makes the settled ones read as
+      provisional too.
+
+    Still a precomputed-payload route like every other: it reads
+    v2_prelim.json off disk and never fits a model or touches a database.
+    """
+    return templates.TemplateResponse(request, 'prelim.html', {
+        # Author-edited copy, keyed by the data-copy attribute it fills; the
+        # template falls back to the draft written inline. `editable` gates the
+        # edit toolbar, and is false in production because the save endpoint
+        # only exists outside it -- see viewer_copy for why that boundary is
+        # not negotiable on a public, unauthenticated page.
+        # `@claude ...@` notes are marked in development and STRIPPED in
+        # production, so one left in the copy cannot reach the public page.
+        'copy': viewer_copy.render_copy('prelim', keep_notes=not IS_PRODUCTION),
+        'editable': not IS_PRODUCTION,
+        # Chart sizes and dragged label positions. Applied in BOTH environments
+        # -- once the author has sized a figure, that is the figure. Only the
+        # ability to CHANGE them is development-only.
+        'layout': viewer_copy.load_layout('prelim'),
+        # Author-added headings and paragraphs, grouped by the anchor they sit
+        # after. Real page content, so they render in production too -- only
+        # their TEXT lives in `copy`, keyed by the block id.
+        'blocks': viewer_copy.blocks_by_anchor('prelim'),
+        # Blocks the author deleted. Drafted copy lives in the template, so
+        # deletion is a hidden set rather than a removal; production drops them
+        # entirely, development keeps them struck through so they can come back.
+        'hidden': viewer_copy.load_hidden('prelim'),
+        # Review notes are development-only in both directions: they are
+        # messages about the page, not part of it.
+        'notes': [] if IS_PRODUCTION else viewer_copy.load_notes('prelim'),
+    })
+
+
 @dev_api.get('/summary')
 def get_summary(
     gym_id: Optional[str] = None,
@@ -164,6 +211,69 @@ def get_user_segmentation() -> Dict[str, Any]:
 @dev_api.get('/charts/gym-comparison-base')
 def get_gym_comparison_base() -> Dict[str, Any]:
     return payload_builder.build_gym_comparison_base()
+
+
+@dev_api.post('/prelim-copy')
+def save_prelim_copy(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
+    """Persist edited page copy. DEVELOPMENT ONLY -- see the router comment.
+
+    On `dev_api` deliberately: kaya.peterwilliams.dev is public and has no auth
+    gate, so a write endpoint there would let anyone rewrite the page. Locally
+    it writes viewer_content/prelim_copy.json, which is committed like source,
+    which is how an edit survives to the next session.
+    """
+    updates = payload.get('updates')
+    if not isinstance(updates, dict):
+        raise HTTPException(status_code=400, detail='expected an updates object')
+    try:
+        merged = viewer_copy.save_copy('prelim', updates)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {'saved': len(updates), 'keys': sorted(merged)}
+
+
+@dev_api.post('/prelim-notes')
+def save_prelim_notes(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
+    """Persist review notes. DEVELOPMENT ONLY, same reason as the copy route."""
+    try:
+        saved = viewer_copy.save_notes('prelim', payload.get('notes'))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {'saved': len(saved)}
+
+
+@dev_api.post('/prelim-blocks')
+def save_prelim_blocks(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
+    """Persist author-added blocks. DEVELOPMENT ONLY, same reason as the rest.
+
+    Structure only. A block's words go through the copy route, under the same
+    id, so they are sanitised by the one path that sanitises everything.
+    """
+    try:
+        saved = viewer_copy.save_blocks('prelim', payload.get('blocks'))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {'saved': len(saved)}
+
+
+@dev_api.post('/prelim-hidden')
+def save_prelim_hidden(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
+    """Persist which drafted blocks are deleted. DEVELOPMENT ONLY."""
+    try:
+        saved = viewer_copy.save_hidden('prelim', payload.get('hidden'))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {'hidden': saved}
+
+
+@dev_api.post('/prelim-layout')
+def save_prelim_layout(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
+    """Persist chart heights and dragged label positions. DEVELOPMENT ONLY."""
+    try:
+        merged = viewer_copy.save_layout('prelim', payload.get('layout'))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {'charts': sorted(merged)}
 
 
 @dev_api.get('/state-preview')

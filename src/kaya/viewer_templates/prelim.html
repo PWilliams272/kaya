@@ -1,0 +1,389 @@
+{# The working-notes page: /prelim
+
+   A SECOND top-level route, deliberately, and the first one this repo has had.
+   Everything else in the viewer is one document at `/` with tabs, and that is
+   still right for the published write-ups — they share payloads, so switching
+   between them refetches nothing.
+
+   This page is different on both counts, which is what earns it its own route:
+
+   * Weight. The `/` document is ~384 KB of HTML for four tabs at once, and the
+     Findings tab alone pulls v2_posterior.json at 2.9 MB. This page needs
+     v2_prelim.json (0.5 MB) and nothing else, so putting it in the tab set
+     would make it the most expensive thing on the site while sharing none of
+     the cost it was paying for.
+   * Standard. `/` is published work. This is the working front — results that
+     are still moving, published early on purpose, with the checks that would
+     overturn them stated rather than hidden. Mixing the two on one page makes
+     the published pages read as provisional.
+
+   Style comes from tokens.css, the workspace's design-token source of truth,
+   so this page and the main viewer stay in the same visual family without this
+   page inheriting research.css's whole article layout. #}
+{# ---- editable copy ----------------------------------------------------
+   `ed` renders a block whose words the author can edit in the page itself.
+   The text written inline here is the DRAFT: it is what shows until someone
+   saves over it, and it is what shows again if the saved version is deleted.
+   Saved copy lives in viewer_content/prelim_copy.json, keyed by `data-copy`,
+   and is committed like source -- which is how an edit made in the browser is
+   still there in the next session.
+
+   Editing is development-only. See viewer_copy.py: the deployed site has no
+   save endpoint, because it is public and unauthenticated. #}
+{# `slot` renders any blocks the author inserted after `anchor`. Their text
+   comes from the copy store under the block's own id, so a new block is edited
+   and saved by exactly the same path as a drafted one -- the blocks file holds
+   structure only. Charts get an explicit slot; `ed` calls this itself. #}
+{% macro slot(anchor) -%}
+{%- for b in (blocks.get(anchor, []) if blocks else []) -%}
+<{{ b.kind }} data-copy="{{ b.id }}" data-added="{{ anchor }}">{{ (copy.get(b.id) or 'New text.')|safe }}</{{ b.kind }}>
+{%- endfor -%}
+{%- endmacro %}
+
+
+{# A drafted block. `gone` means the author deleted it: drafted copy lives in
+   this template, so deleting it is recorded as a hidden key rather than a
+   removal. Production drops it entirely. Development still renders it, struck
+   through, with its words intact -- a delete with no way back is a trap, and
+   there is nowhere else the author could go to undo it. #}
+{% macro ed(key, tag='p', cls=None) -%}
+{%- set gone = hidden and key in hidden -%}
+{%- if editable or not gone -%}
+<{{ tag }} data-copy="{{ key }}"{% if gone %} data-hidden="1"{% endif %}{% if cls or gone %} class="{{ cls or '' }}{% if gone %} pm-deleted{% endif %}"{% endif %}>{% if copy and copy.get(key) %}{{ copy[key]|safe }}{% else %}{{ caller() }}{% endif %}</{{ tag }}>
+{%- endif -%}{{ slot(key) }}
+{%- endmacro %}
+
+<!-- Loaded through Jinja2Templates like base.html; see viewer_app.serve_prelim. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Working notes — Kaya grading model</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="/static/tokens.css">
+  <link rel="stylesheet" href="/static/prelim.css">
+  <!-- KaTeX, same version and CDN as base.html, so the equations here are
+       typeset identically to the Findings tab's "model in five equations"
+       rather than being hand-set glyphs that nearly match. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+</head>
+<body>
+  {% if editable %}
+  <!-- Development only. `editable` is false in production, where the save
+       endpoint does not exist at all -- see viewer_copy.py. -->
+  <div class="pm-edit-bar" id="pm-edit-bar" hidden>
+    <span class="pm-edit-state" id="pm-edit-state">Editing copy</span>
+    <button type="button" class="pm-btn" id="pm-edit-toggle">Edit copy</button>
+    <button type="button" class="pm-btn" id="pm-review-toggle">Review tools</button>
+    <button type="button" class="pm-btn pm-btn-primary" id="pm-edit-save" hidden>Save</button>
+    <button type="button" class="pm-btn" id="pm-edit-cancel" hidden>Cancel</button>
+  </div>
+  {% endif %}
+  <header class="pm-top">
+    <div class="pm-wrap">
+      <div class="pm-eyebrow">Kaya &middot; working notes</div>
+      {% call ed('pm-title', 'h1') %}Which shape height really has{% endcall %}
+      {% call ed('pm-dek', 'p', cls='pm-dek') %}Five fits of the same model, differing only in how height enters, run
+        at identical settings. Published while still moving, with the checks
+        that would overturn them named rather than hidden.{% endcall %}
+      <div class="pm-stamp" id="gf-prelim-stamp"></div>
+      <nav class="pm-nav">
+        <a href="/">&larr; Back to the viewer</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="pm-wrap">
+
+    <div class="pm-callout pm-callout-warn" id="gf-prelim-status">
+      <div>
+        <b>Preliminary, and here is exactly what is missing.</b>
+        <span id="gf-prelim-status-text"></span>
+      </div>
+    </div>
+
+    <!-- ============ THE ABILITY MODEL ============
+         Copy here is a placeholder sketch; the structure, equations and
+         controls are the finished part. Notation matches the Findings page's
+         "model in five equations" deliberately. -->
+    <section id="ab-section">
+      {% call ed('ab-h2', 'h2') %}The climber ability model{% endcall %}
+
+      {% call ed('ab-lede', 'p') %}<i>[Sketch &mdash; copy to come.]</i> Kaya records sends, not attempts.
+        The hardest grade someone logged is not their ceiling: it sits below it
+        by a non-negative gap, and the gap shrinks the more they climbed there.{% endcall %}
+
+      <!-- The lay of the land: static on purpose. No controls, no fitted
+           curve, nothing to drive -- it exists to name the objects before the
+           equations use them. Everything interactive comes after the maths. -->
+      {% call ed('ab-land-h3', 'h3') %}The lay of the land{% endcall %}
+      {% call ed('ab-land-p', 'p') %}<i>[Sketch.]</i> One climber, one gym. Two of these four things are in
+        the data and two are not.{% endcall %}
+
+      <div id="ab-landscape" class="pm-chart pm-chart-bare"></div>
+      {{ slot('ab-landscape') }}
+
+      {% call ed('ab-eq-h3', 'h3') %}The model, in four equations{% endcall %}
+      {% call ed('ab-eq-p', 'p') %}<i>[Sketch.]</i> Same notation as the Findings tab, so the two read as
+        one argument.{% endcall %}
+
+      {% call ed('ab-eq1-p', 'p') %}The gap rate rises with how much someone climbed there &mdash;
+        <i>n&#771;</i> is their standardised visit count:{% endcall %}
+      <div class="pm-eq-display">$$\log \lambda_{u,g} = \log\lambda_0 + \kappa\,\tilde n_{u,g} + \rho\,\tilde r_u$$</div>
+
+      {% call ed('ab-eq2-p', 'p') %}The gap itself is one-sided. You can fall short of your ceiling by not
+        trying; you cannot exceed it by not trying:{% endcall %}
+      <div class="pm-eq-display">$$\text{gap}_{u,g}\sim\text{Exponential}(\lambda_{u,g})$$</div>
+
+      {% call ed('ab-eq3-p', 'p') %}What gets logged is the ceiling less that gap, plus grading noise
+        &mdash; &sigma;<sub>link</sub>, because a soft climb reads harder than
+        it is:{% endcall %}
+      <div class="pm-eq-display">$$m_{u,g} = C_{u,g} - \text{gap}_{u,g} + \varepsilon,\qquad \varepsilon\sim\mathcal{N}(0,\sigma_{\text{link}})$$</div>
+
+      {% call ed('ab-eq4-p', 'p') %}A Normal minus an Exponential is an Exponentially Modified Gaussian,
+        so the gap integrates out in closed form and is never sampled:{% endcall %}
+      <div class="pm-eq-display">$$-m_{u,g} \;\sim\; \text{ExGaussian}\!\left(-C_{u,g},\ \sigma_{\text{link}},\ 1/\lambda_{u,g}\right)$$</div>
+
+      {% call ed('ab-model-h3', 'h3') %}What the model says{% endcall %}
+      {% call ed('ab-model-p', 'p') %}<i>[Sketch.]</i> That last line, drawn. The ceiling is fixed at V6.2
+        and never moves; the two sliders move only what the logbook shows and
+        how sharp the grades are.{% endcall %}
+
+      <div class="pm-controls" id="ab-model-controls">
+        <label><span>Visits <i>n</i> &mdash; <output id="ab-visits-val"></output></span>
+          <input type="range" id="ab-visits" min="1" max="60" step="1" value="13"></label>
+        <label><span>&sigma;<sub>link</sub> &mdash; <output id="ab-sigma-val"></output></span>
+          <input type="range" id="ab-sigma" min="0.05" max="1" step="0.05" value="0.25"></label>
+      </div>
+
+      <div id="ab-model" class="pm-chart pm-chart-bare"></div>
+      {{ slot('ab-model') }}
+      <p class="pm-caption" id="ab-model-note"></p>
+
+      {% call ed('ab-gap-h3', 'h3') %}Where the gap comes from{% endcall %}
+      <div class="pm-callout pm-callout-warn">
+        {% call ed('ab-gap-callout', 'div') %}<b>Everything below this line is illustration, not the model.</b>
+          There is no probability of sending an individual climb anywhere in the
+          fitted likelihood &mdash; it goes straight to the maximum and never
+          sees an attempt. This is a generative story that would produce the
+          gap above, drawn to make it legible.{% endcall %}
+      </div>
+
+      {% call ed('ab-sim-p', 'p') %}<i>[Sketch.]</i> One session, with the two things the data never
+      records: the climbs that were tried and not sent, and the sends that were
+      never logged.{% endcall %}
+
+      <div class="pm-controls" id="ab-sim-controls">
+        <label><span>Climbs attempted &mdash; <output id="ab-attempts-val"></output></span>
+          <input type="range" id="ab-attempts" min="3" max="60" step="1" value="12"></label>
+        <label><span>Logging behaviour</span>
+          <select id="ab-policy">
+            <option value="all" selected>Log every send</option>
+            <option value="proud">Log only the proud ones</option>
+            <option value="sporadic">Log sporadically, 1 in 4</option>
+            <option value="first">Log the first send at each grade</option>
+          </select></label>
+        <label><span>&nbsp;</span>
+          <button type="button" id="ab-resample" class="pm-btn">Resample</button></label>
+      </div>
+
+      <div class="pm-stats" id="ab-readout"></div>
+      <div id="ab-session" class="pm-chart"></div>
+      {{ slot('ab-session') }}
+      {% call ed('ab-session-cap', 'p', cls='pm-caption') %}<i>[Sketch.]</i> The red line is the true ceiling; the dashed line is
+        the hardest send that made it into the data. The shaded strip between
+        them is the gap the model has to infer.{% endcall %}
+
+      <div id="ab-send" class="pm-chart"></div>
+      {{ slot('ab-send') }}
+      {% call ed('ab-send-cap', 'p', cls='pm-caption') %}<i>[Sketch.]</i> The illustrative success curve. Sendable at or below
+        the ceiling, nothing above it &mdash; that hard edge is what makes the
+        gap one-sided. Sends recorded <i>above</i> the ceiling still happen, and
+        come from the grade being soft rather than the climber exceeding
+        themselves.{% endcall %}
+
+      <div id="ab-simgap" class="pm-chart"></div>
+      {{ slot('ab-simgap') }}
+      <p class="pm-caption" id="ab-simgap-note"></p>
+    </section>
+
+    <section>
+      <h2>The scores</h2>
+      <p>
+        Each fit is scored by <b>elpd</b> &mdash; expected log pointwise
+        predictive density, an estimate of how well the model predicts a
+        climber it has never seen, computed from the draws it already has
+        rather than by refitting ten thousand times. <b>Higher is better.</b>
+        The unit is the <b>climber</b>, not the send: integrating out a
+        climber&rsquo;s ability offset makes their rows conditionally
+        dependent, so leave-one-row-out no longer exists in closed form. These
+        numbers are comparable to each other and to nothing else on this site.
+      </p>
+
+      <div class="pm-table-wrap">
+        <table class="pm-table" id="gf-prelim-scores"></table>
+      </div>
+      <p class="pm-caption" id="gf-prelim-scores-note"></p>
+
+      <div class="pm-callout" id="gf-prelim-paired"><div></div></div>
+    </section>
+
+    <section>
+      <h2>What each shape says height buys</h2>
+      <p>
+        A coefficient on a squared z-score is not a quantity anyone has
+        intuition for, so here is each fitted form drawn back in inches: the
+        ability a climber gains or loses for their body size. Shaded bands are
+        89% credible intervals &mdash; the range the posterior actually
+        supports, not a standard error. Each curve is centred on its own mean,
+        because the model centres its design matrix and the <i>level</i> of
+        these curves is therefore arbitrary. Only the shape means anything.
+      </p>
+
+      <div class="pm-controls">
+        <label><span>Gender coding</span>
+          <select id="gf-prelim-gender">
+            <option value="male">Male-coded climbers</option>
+            <option value="female">Female-coded climbers</option>
+            <option value="average" selected>Population average</option>
+          </select>
+        </label>
+        <label><span>Bands</span>
+          <select id="gf-prelim-bands">
+            <option value="all" selected>Show all</option>
+            <option value="none">Lines only</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="gf-prelim-height" class="pm-chart"></div>
+      <p class="pm-caption" id="gf-prelim-height-note"></p>
+
+      <div id="gf-prelim-ape" class="pm-chart"></div>
+      <p class="pm-caption" id="gf-prelim-ape-note"></p>
+    </section>
+
+    <section>
+      <h2>The posteriors</h2>
+      <p>
+        Every sampled parameter of the selected fit, with the interval the
+        draws support and the two diagnostics that decide whether to believe
+        them. <b>R-hat</b> compares variation between chains to variation
+        within them &mdash; 1.00 is perfect, <b>lower is better</b>, bar 1.01.
+        <b>ESS</b> (effective sample size) is how many genuinely independent
+        draws came out once autocorrelation is accounted for &mdash;
+        <b>higher is better</b>, floor 400.
+      </p>
+
+      <div class="pm-controls">
+        <label><span>Fit</span><select id="gf-prelim-fit"></select></label>
+      </div>
+
+      <div class="pm-table-wrap">
+        <table class="pm-table" id="gf-prelim-params"></table>
+      </div>
+      <p class="pm-caption" id="gf-prelim-params-note"></p>
+    </section>
+
+    <section>
+      <h2>The chains</h2>
+      <p>
+        R-hat and ESS compress a whole run into two numbers, and both are blind
+        to real failures &mdash; the sweep before this one saturated its
+        trajectory limit on every single iteration without either diagnostic
+        noticing. Looking at the chains is the cheapest defence. What you want
+        is traces that overlap so completely you cannot tell them apart, with
+        no drift and no chain sitting apart from the others.
+      </p>
+
+      <div class="pm-controls">
+        <label><span>Parameter</span><select id="gf-prelim-trace-param"></select></label>
+      </div>
+
+      <div id="gf-prelim-trace" class="pm-chart"></div>
+      <p class="pm-caption" id="gf-prelim-trace-note"></p>
+    </section>
+
+    <section>
+      <h2>The joint posterior</h2>
+      <p>
+        A parameter&rsquo;s own interval hides the thing that most often makes
+        a fit untrustworthy: two parameters the data cannot tell apart. Those
+        show up as a diagonal ridge, meaning the pair is only <i>jointly</i>
+        identified &mdash; raise one, lower the other, and the model fits
+        equally well. Each off-diagonal panel is a genuine joint sample: the
+        draws are thinned with one shared stride, so point <i>i</i> in two
+        panels is the same draw rather than two unrelated numbers.
+      </p>
+
+      <div class="pm-controls">
+        <label><span>Parameters</span>
+          <select id="gf-prelim-corner-group">
+            <option value="height" selected>Height and arm span</option>
+            <option value="scale">Scales and shortfall</option>
+            <option value="all">Everything</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="gf-prelim-corner" class="pm-chart pm-chart-tall"></div>
+      <p class="pm-caption" id="gf-prelim-corner-note"></p>
+    </section>
+
+    <div class="pm-callout pm-callout-good" id="gf-prelim-agree"><div></div></div>
+
+    <footer class="pm-foot">
+      Every number here is read from <code>runs/traces/</code> through
+      <code>scripts/build_v2_prelim.py</code>; nothing is hand-typed. Frozen
+      chains are dropped and said so. The published write-ups live at
+      <a href="/">the main viewer</a>.
+    </footer>
+  </main>
+
+  <script>
+    // Seeded from the server. `tojson` escapes for a script context, and note
+    // text is only ever put into a textarea's value, never into innerHTML.
+    const PM_INITIAL_NOTES = {{ notes|tojson }};
+    const PM_INITIAL_LAYOUT = {{ layout|tojson }};
+    // Flattened: the template wants blocks grouped by anchor, the client
+    // wants one list to post back.
+    const PM_INITIAL_BLOCKS = {{ blocks.values()|sum(start=[])|tojson }};
+    const PM_INITIAL_HIDDEN = {{ hidden|tojson }};
+  </script>
+  <script src="/static/js/01-core.js"></script>
+  <script src="/static/js/v2/17-prelim.js"></script>
+  <script src="/static/js/v2/18-ability.js"></script>
+  <script src="/static/js/v2/19-ability-sim.js"></script>
+{% if editable %}  <script src="/static/js/v2/20-edit.js"></script>
+  <script src="/static/js/v2/21-review.js"></script>
+{% endif %}
+  <script>
+    // Prelim first: the ability section reads the fitted lambda0/kappa out of
+    // the payload it loads, and falls back to literals if it is missing.
+    document.addEventListener('DOMContentLoaded', async () => {
+      await renderV2Prelim();
+      renderAbilityModel();
+      // KaTeX is deferred, so it may not have parsed yet when DOMContentLoaded
+      // fires. Same delimiters and options as the Findings tab.
+      const typeset = () => {
+        if (typeof window.renderMathInElement !== 'function') return false;
+        window.renderMathInElement(document.body, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '\\(', right: '\\)', display: false },
+          ],
+          throwOnError: false,
+        });
+        return true;
+      };
+      if (!typeset()) window.addEventListener('load', typeset, { once: true });
+      if (typeof initCopyEditor === 'function') initCopyEditor();
+      if (typeof initReviewTools === 'function') initReviewTools();
+    });
+  </script>
+</body>
+</html>
