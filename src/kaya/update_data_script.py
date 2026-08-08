@@ -282,7 +282,12 @@ def lambda_handler(
 
     mode = event.get('mode', 'incremental')
     batch_size = event.get('batch_size', 1000)
-    max_offset_retries = event.get('max_offset_retries', 3)
+    # The FOURTH place this number lives, and the one that actually runs in
+    # production: EventBridge invokes this handler directly. A literal here
+    # silently voided the retry budget for every scheduled run, exactly as the
+    # fanout's own literal did before it.
+    max_offset_retries = event.get('max_offset_retries',
+                                   DEFAULT_OFFSET_RETRIES)
     log_level = event.get('log_level', logging.INFO)
     storage_backend = event.get('storage_backend', 'auto')
     gym_ids = event.get('gym_ids')

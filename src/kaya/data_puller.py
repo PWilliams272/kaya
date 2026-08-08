@@ -562,6 +562,25 @@ _BACKOFF_SCHEDULE = (5.0, 30.0, 120.0, 300.0, 900.0)
 # literal creeps back into either end.
 DEFAULT_OFFSET_RETRIES = 6
 
+# A page that fails every retry is SKIPPED, not fatal.
+#
+# Gym 944 (Bouldering Project - Salt Lake) went 37 days without a successful
+# update because offset 90 returned INTERNAL_SERVER_ERROR deterministically --
+# not a blip, not a rate limit: the same page, every attempt, every night. The
+# old behaviour raised and abandoned the gym, so one bad page also blocked
+# every page after it, and the gym silently stopped updating entirely.
+#
+# No retry budget fixes that. Retrying a deterministic error more times still
+# fails. The only thing that recovers the gym is to step over the page, accept
+# a gap of at most one page, and keep going.
+#
+# Two budgets keep "step over it" from becoming "grind through a dead API":
+# a RUN of consecutive failures is an outage rather than a bad page, and a
+# large total is a gym whose history is not worth walking. Both abort, so a
+# genuine outage still lands in the DLQ where it belongs.
+DEFAULT_MAX_CONSECUTIVE_SKIPS = 2
+DEFAULT_MAX_SKIPPED_PAGES = 20
+
 
 def _backoff_seconds(attempt: int) -> float:
     """Seconds to wait after `attempt` consecutive failures at one offset."""
@@ -576,6 +595,8 @@ def update_gym_data(
     batch_size: int = 1000,
     start_offset: int = 0,
     max_offset_retries: int = DEFAULT_OFFSET_RETRIES,
+    max_consecutive_skips: int = DEFAULT_MAX_CONSECUTIVE_SKIPS,
+    max_skipped_pages: int = DEFAULT_MAX_SKIPPED_PAGES,
     log_level: Optional[int] = None
 ) -> Optional[pd.DataFrame]:
     """Pull data for a gym and write to the database in batches.
@@ -622,6 +643,8 @@ def update_gym_data(
     existing_recent_send_ids: List[str] = []
     s3_writer: Optional[S3SendRunWriter] = None
     offset_retry_count = 0
+    consecutive_skips = 0
+    skipped_offsets: List[int] = []
 
     if storage_backend == 's3':
         s3_writer = S3SendRunWriter(str(gym_id))
@@ -664,6 +687,7 @@ def update_gym_data(
         try:
             df = get_data_for_gym(gym_id, offset=offset)
             offset_retry_count = 0
+            consecutive_skips = 0
         except Exception as e:
             offset_retry_count += 1
             logger.debug(
@@ -683,13 +707,36 @@ def update_gym_data(
                 e,
             )
             if offset_retry_count >= max_offset_retries:
-                raise RuntimeError(
-                    f"Exceeded max retries at offset {offset} for gym "
-                    f"{gym_id} after waiting "
-                    f"{sum(_backoff_seconds(i) for i in range(1, max_offset_retries)):.0f}s "
-                    f"in total. If the error is INTERNAL_SERVER_ERROR this is "
-                    f"most likely rate limiting, not a problem with this gym."
-                ) from e
+                waited = sum(_backoff_seconds(i)
+                             for i in range(1, max_offset_retries))
+                consecutive_skips += 1
+                skipped_offsets.append(offset)
+                # Abort only when the evidence says the API is down, not when
+                # one page is poisoned. Either budget blown means this gym
+                # belongs in the DLQ after all.
+                if (consecutive_skips > max_consecutive_skips
+                        or len(skipped_offsets) > max_skipped_pages):
+                    raise RuntimeError(
+                        f"Exceeded max retries at offset {offset} for gym "
+                        f"{gym_id} after waiting {waited:.0f}s in total, and "
+                        f"{consecutive_skips} page(s) in a row / "
+                        f"{len(skipped_offsets)} page(s) this run have now "
+                        f"failed outright. If the error is "
+                        f"INTERNAL_SERVER_ERROR this is most likely rate "
+                        f"limiting, not a problem with this gym."
+                    ) from e
+                logger.error(
+                    "SKIPPING offset %s for gym_id=%s after %s attempts and "
+                    "%.0fs of waiting -- this page is failing "
+                    "deterministically. Up to 15 sends are lost here; the "
+                    "offset is recorded in the gym's S3 state so it can be "
+                    "backfilled. Continuing with the rest of the gym.",
+                    offset, gym_id, max_offset_retries, waited,
+                )
+                offset += 15
+                offset_retry_count = 0
+                iteration += 1
+                continue
             wait = _backoff_seconds(offset_retry_count)
             logger.warning(
                 "backing off %.0fs before retrying offset %s for gym_id=%s",
@@ -780,6 +827,13 @@ def update_gym_data(
         logger.info(f"No new data found. Total rows written: {total_written}")
         final_batch_df = None
 
+    if skipped_offsets:
+        logger.error(
+            "gym_id=%s completed with %s page(s) SKIPPED at offsets %s. "
+            "Those sends are missing until backfilled.",
+            gym_id, len(skipped_offsets), skipped_offsets,
+        )
+
     if storage_backend == 's3' and s3_writer is not None:
         write_recent_send_state(
             gym_id=str(gym_id),
@@ -788,6 +842,7 @@ def update_gym_data(
             total_written=total_written,
             run_id=s3_writer.run_id,
             run_started_at=s3_writer.run_started_at,
+            skipped_offsets=skipped_offsets,
         )
 
     return final_batch_df

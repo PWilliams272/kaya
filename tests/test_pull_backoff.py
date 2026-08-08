@@ -49,8 +49,15 @@ def test_a_full_run_of_retries_waits_minutes_not_seconds():
     assert total > 20 * 60
 
 
-def _drive_a_failing_pull(monkeypatch, max_offset_retries=6):
-    """Run the loop against an API that always 500s; return the sleeps it took."""
+def _drive_a_failing_pull(monkeypatch, max_offset_retries=6,
+                          max_consecutive_skips=0):
+    """Run the loop against an API that always 500s; return the sleeps it took.
+
+    `max_consecutive_skips=0` so these tests still measure ONE offset's retry
+    schedule. With skipping enabled the loop steps past an exhausted page and
+    starts the schedule again on the next one, which is the right behaviour and
+    the wrong thing to measure here.
+    """
     slept = []
     monkeypatch.setattr(dp.time, 'sleep', slept.append)
     monkeypatch.setattr(dp, '_resolve_storage_backend', lambda b, use_aws=False: 'db')
@@ -62,7 +69,8 @@ def _drive_a_failing_pull(monkeypatch, max_offset_retries=6):
     monkeypatch.setattr(dp, 'get_data_for_gym', always_500)
     with pytest.raises(RuntimeError) as exc:
         dp.update_gym_data('904', mode='full',
-                           max_offset_retries=max_offset_retries)
+                           max_offset_retries=max_offset_retries,
+                           max_consecutive_skips=max_consecutive_skips)
     return slept, str(exc.value)
 
 
@@ -191,3 +199,155 @@ def test_the_consumer_falls_back_to_the_shared_budget_not_a_literal():
         'the whole point of the change was more patience than the 3 attempts '
         'that were losing ~8 gyms a day to the DLQ.'
     )
+
+
+# --- skipping a poisoned page ------------------------------------------------
+#
+# Gym 944 went 37 days without a successful update because offset 90 returned
+# INTERNAL_SERVER_ERROR deterministically. Raising abandoned the whole gym --
+# including every page after the bad one -- and no retry budget can fix a
+# deterministic error. These pin the behaviour that recovers it.
+
+
+def _pull_with_one_bad_page(monkeypatch, bad_offset=90, n_pages=8,
+                            **kwargs):
+    """An API where exactly one page always fails and the rest are fine."""
+    import pandas as pd
+
+    monkeypatch.setattr(dp.time, 'sleep', lambda _s: None)
+    monkeypatch.setattr(dp, '_resolve_storage_backend', lambda b, use_aws=False: 'db')
+    written = []
+    monkeypatch.setattr(dp, '_write_batch',
+                        lambda df, **kw: written.append(df))
+
+    seen = []
+
+    def api(gym_id, offset=0):
+        seen.append(offset)
+        if offset == bad_offset:
+            raise RuntimeError(
+                '{"errors":[{"message":"INTERNAL_SERVER_ERROR"}]}')
+        if offset >= n_pages * 15:
+            return pd.DataFrame()
+        return pd.DataFrame({'send_id': [f'{offset}-{i}' for i in range(15)]})
+
+    monkeypatch.setattr(dp, 'get_data_for_gym', api)
+    dp.update_gym_data('944', mode='full', max_offset_retries=2, **kwargs)
+    return seen, written
+
+
+def test_a_deterministically_failing_page_is_stepped_over(monkeypatch):
+    """The whole point: one bad page must not cost the whole gym."""
+    seen, written = _pull_with_one_bad_page(monkeypatch)
+    assert 105 in seen, 'the puller stopped at the bad page instead of stepping past it'
+    assert max(seen) >= 105, 'nothing after the bad page was fetched'
+    rows = sum(len(d) for d in written)
+    assert rows > 0, 'no data was written at all'
+
+
+def test_the_pages_after_the_bad_one_are_all_pulled(monkeypatch):
+    """A gap of one page, not a gap of everything from there on."""
+    seen, _ = _pull_with_one_bad_page(monkeypatch, bad_offset=30, n_pages=6)
+    assert [o for o in seen if o > 30] == sorted({45, 60, 75, 90})[:4]
+
+
+def test_the_skipped_offset_reaches_the_state_file(monkeypatch):
+    """A skip is a success with a KNOWN hole. Unrecorded, it is just data loss."""
+    import pandas as pd
+
+    monkeypatch.setattr(dp.time, 'sleep', lambda _s: None)
+    monkeypatch.setattr(dp, '_resolve_storage_backend', lambda b, use_aws=False: 's3')
+    monkeypatch.setattr(dp, '_write_batch', lambda df, **kw: None)
+    monkeypatch.setattr(dp, 'get_existing_send_ids', lambda *a, **k: [])
+
+    class FakeWriter:
+        run_id = 'r1'
+        run_started_at = None
+        bucket = 'b'
+
+        def __init__(self, gym_id):
+            pass
+
+    monkeypatch.setattr(dp, 'S3SendRunWriter', FakeWriter)
+    captured = {}
+    monkeypatch.setattr(dp, 'write_recent_send_state',
+                        lambda **kw: captured.update(kw))
+
+    def api(gym_id, offset=0):
+        if offset == 15:
+            raise RuntimeError('{"errors":[{"message":"INTERNAL_SERVER_ERROR"}]}')
+        if offset >= 45:
+            return pd.DataFrame()
+        return pd.DataFrame({'send_id': [f'{offset}-{i}' for i in range(15)]})
+
+    monkeypatch.setattr(dp, 'get_data_for_gym', api)
+    dp.update_gym_data('944', mode='full', max_offset_retries=2)
+    assert captured.get('skipped_offsets') == [15]
+
+
+def test_a_run_of_failures_still_fails_the_gym(monkeypatch):
+    """Skipping must not turn an outage into a silent no-op.
+
+    Consecutive failures are the API being down, not a poisoned page, and that
+    belongs in the DLQ where something can notice it.
+    """
+    import pandas as pd
+
+    monkeypatch.setattr(dp.time, 'sleep', lambda _s: None)
+    monkeypatch.setattr(dp, '_resolve_storage_backend', lambda b, use_aws=False: 'db')
+    monkeypatch.setattr(dp, '_write_batch', lambda df, **kw: None)
+
+    def api(gym_id, offset=0):
+        if offset == 0:
+            return pd.DataFrame({'send_id': [f'a{i}' for i in range(15)]})
+        raise RuntimeError('{"errors":[{"message":"INTERNAL_SERVER_ERROR"}]}')
+
+    monkeypatch.setattr(dp, 'get_data_for_gym', api)
+    with pytest.raises(RuntimeError) as exc:
+        dp.update_gym_data('944', mode='full', max_offset_retries=2,
+                           max_consecutive_skips=2)
+    assert 'in a row' in str(exc.value)
+
+
+def test_the_total_skip_budget_stops_a_grind(monkeypatch):
+    """Alternating good/bad pages never trips the consecutive rule, so the
+    total budget is what stops the loop walking a broken gym forever."""
+    import pandas as pd
+
+    monkeypatch.setattr(dp.time, 'sleep', lambda _s: None)
+    monkeypatch.setattr(dp, '_resolve_storage_backend', lambda b, use_aws=False: 'db')
+    monkeypatch.setattr(dp, '_write_batch', lambda df, **kw: None)
+
+    def api(gym_id, offset=0):
+        if (offset // 15) % 2 == 1:
+            raise RuntimeError('{"errors":[{"message":"INTERNAL_SERVER_ERROR"}]}')
+        return pd.DataFrame({'send_id': [f'{offset}-{i}' for i in range(15)]})
+
+    monkeypatch.setattr(dp, 'get_data_for_gym', api)
+    with pytest.raises(RuntimeError) as exc:
+        dp.update_gym_data('944', mode='full', max_offset_retries=1,
+                           max_consecutive_skips=2, max_skipped_pages=3)
+    assert 'page(s) this run' in str(exc.value)
+
+
+def test_the_lambda_handler_does_not_hold_its_own_retry_literal():
+    """The FOURTH place this number lived, and the one production actually ran.
+
+    EventBridge invokes `lambda_handler` directly, so its default is the value
+    every scheduled run used. It said 3 while the library said 6, which voided
+    the retry-budget fix for the entire deployed path -- the same failure as
+    the fanout's literal, one layer further out.
+    """
+    import inspect
+
+    from kaya import update_data_script as uds
+    from kaya.data_puller import DEFAULT_OFFSET_RETRIES
+
+    src = inspect.getsource(uds.lambda_handler)
+    assert "'max_offset_retries', 3" not in src, (
+        'the handler is back to hardcoding a retry budget'
+    )
+    assert 'DEFAULT_OFFSET_RETRIES' in src, (
+        'the handler must fall back to the shared budget'
+    )
+    assert DEFAULT_OFFSET_RETRIES > 3

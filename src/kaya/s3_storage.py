@@ -168,8 +168,15 @@ def write_recent_send_state(
     total_written: int = 0,
     run_id: Optional[str] = None,
     run_started_at: Optional[datetime] = None,
+    skipped_offsets: Optional[List[int]] = None,
 ) -> Dict[str, Any]:
-    """Persist the recent send-ID frontier and run metadata for a gym."""
+    """Persist the recent send-ID frontier and run metadata for a gym.
+
+    `skipped_offsets` records pages the puller stepped over because they failed
+    deterministically. A run with skips is a SUCCESS with a known hole in it,
+    not a failure -- the distinction matters, because the alternative was
+    abandoning the gym entirely and losing every page after the bad one.
+    """
     if existing_send_ids is None:
         existing_send_ids = []
     if run_started_at is None:
@@ -183,6 +190,7 @@ def write_recent_send_state(
         "last_successful_run_at": run_started_at.isoformat(),
         "total_written": total_written,
         "recent_send_ids": recent_send_ids,
+        "skipped_offsets": list(skipped_offsets or []),
     }
     payload = json.dumps(state, indent=2, sort_keys=True).encode("utf-8")
     _get_s3_client().put_object(
