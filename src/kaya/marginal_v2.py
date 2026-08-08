@@ -75,6 +75,7 @@ import numpy as np
 from numpy.polynomial.hermite_e import hermegauss
 from scipy.special import log_ndtr, logsumexp
 
+from kaya.advancement import advancement_offset
 from kaya.grading_model_v2 import PRIOR_SD as _PRIOR_SD
 from kaya.grading_model_v2 import DatasetV2, _design_columns, orthogonal_transform
 
@@ -125,7 +126,8 @@ def zero_sum_basis(n):
 
 def prepare_design(dataset: DatasetV2, *, height_form='linear',
                    ape_quadratic=True, ape_x_gender=False, consts=None,
-                   orthogonal_design=False):
+                   orthogonal_design=False, advancement=False,
+                   use_n_at_max=False):
     """Build the design matrix and per-observation vectors from a dataset.
 
     Every centring and scaling here is copied from `build_model_v2`
@@ -153,6 +155,8 @@ def prepare_design(dataset: DatasetV2, *, height_form='linear',
     ape = users['ape_index'].to_numpy(float)
     nsps = users['n_sends_per_sesh'].to_numpy(float)
     nv_raw = obs['n_visits'].to_numpy(float)
+    nm_raw = (obs['n_at_max'].to_numpy(float) if 'n_at_max' in obs
+              else np.ones(len(obs)))
 
     own = consts is None
     c = {} if own else dict(consts)
@@ -163,8 +167,12 @@ def prepare_design(dataset: DatasetV2, *, height_form='linear',
         c['h_med'] = float(np.nanmedian(height))
         c['a_med'] = float(np.nanmedian(ape))
         c['r_scale'] = float(np.nanmedian(nsps))
+        c['nm_scale'] = float(np.nanmedian(nm_raw)) or 1.0
 
     n_visits = nv_raw / c['nv_scale'] - 1.0
+    # Same centring as n_visits and for the same reason: raw counts make the
+    # coefficient little more than a rescaling of lambda0.
+    n_at_max = nm_raw / c.get('nm_scale', 1.0) - 1.0
     h_c = np.nan_to_num((height - c['h_med']) / c['h_sd'], nan=0.0)
     a_c = np.nan_to_num((ape - c['a_med']) / c['a_sd'], nan=0.0)
     h_miss = np.isnan(height).astype(float)
@@ -195,8 +203,16 @@ def prepare_design(dataset: DatasetV2, *, height_form='linear',
               else np.zeros_like(nsps))
     r_obs = np.nan_to_num(r_user[obs_u], nan=0.0)
 
+    # Data, not a parameter: a known number of grades added to each ceiling for
+    # when the send happened relative to that climber's other sends. It carries
+    # no `consts` entry because it is computed only from each climber's own
+    # rows, so a held-out fold cannot be scaled by the training set even in
+    # principle. See kaya.advancement for why it is fixed rather than fitted.
+    adv = (advancement_offset(obs) if advancement else np.zeros(len(m)))
+
     return {'Xc': Xc, 'Xnames': Xnames, 'obs_u': obs_u, 'obs_g': obs_g,
-            'm': m, 'n_visits': n_visits, 'r_obs': r_obs,
+            'm': m, 'n_visits': n_visits, 'r_obs': r_obs, 'adv': adv,
+            'n_at_max': n_at_max if use_n_at_max else np.zeros(len(m)),
             'user_ids': user_ids, 'gym_ids': gym_ids,
             'w_female': w_female, 'consts': c}
 
@@ -218,6 +234,8 @@ class MarginalModel:
     m: np.ndarray             # (n_obs,) hardest grade
     n_visits: np.ndarray      # (n_obs,) centred, scaled
     r_obs: np.ndarray         # (n_obs,) centred, scaled sends-per-session
+    adv: np.ndarray           # (n_obs,) fixed advancement offset, in grades
+    n_at_max: np.ndarray      # (n_obs,) centred; all zeros when psi is off
     n_users: int
     n_gyms: int
     median_m: float
@@ -249,7 +267,8 @@ class MarginalModel:
     def from_dataset(cls, dataset: DatasetV2, *, height_form='linear',
                      ape_quadratic=True, ape_x_gender=False,
                      sigma_link_fixed=0.5, n_quad=21,
-                     orthogonal_design=False):
+                     orthogonal_design=False, advancement=False,
+                     use_n_at_max=False):
         """Mirror build_model_v2's data preparation exactly.
 
         Every scaling and centring below is copied from `build_model_v2`
@@ -259,7 +278,9 @@ class MarginalModel:
         d = prepare_design(dataset, height_form=height_form,
                            ape_quadratic=ape_quadratic,
                            ape_x_gender=ape_x_gender,
-                           orthogonal_design=orthogonal_design)
+                           orthogonal_design=orthogonal_design,
+                           advancement=advancement,
+                           use_n_at_max=use_n_at_max)
         Xc, Xnames = d['Xc'], d['Xnames']
         obs_u, obs_g, m = d['obs_u'], d['obs_g'], d['m']
         n_visits, r_obs = d['n_visits'], d['r_obs']
@@ -283,11 +304,13 @@ class MarginalModel:
         param_names = (['beta0', 'log_sigma_user'] + Xnames
                        + ['log_sigma_gym']
                        + [f'gym_raw[{i}]' for i in range(len(gym_ids) - 1)]
-                       + ['log_lambda0', 'kappa', 'rho'])
+                       + ['log_lambda0', 'kappa', 'rho']
+                       + (['psi'] if use_n_at_max else []))
 
         return cls(
             Xc=Xc, Xnames=Xnames, obs_u=obs_u, obs_g=obs_g, m=m,
-            n_visits=n_visits, r_obs=r_obs,
+            n_visits=n_visits, r_obs=r_obs, adv=d['adv'],
+            n_at_max=d['n_at_max'],
             n_users=len(user_ids), n_gyms=len(gym_ids),
             median_m=float(np.nanmedian(m)), sigma_link_fixed=sigma_link_fixed,
             single_obs=single_obs, multi_obs=multi_obs, multi_seg=multi_seg,
@@ -330,12 +353,15 @@ class MarginalModel:
         log_lambda0 = theta[i]; i += 1
         kappa = theta[i]; i += 1
         rho = theta[i]; i += 1
+        # psi is present only when the fit asked for n_at_max, so the vector
+        # stays the same length as param_names either way.
+        psi = theta[i] if 'psi' in self.param_names else 0.0
         gym_raw = self.gym_basis @ gym_free
         return dict(beta0=beta0, sigma_user=np.exp(log_sigma_user),
                     log_sigma_user=log_sigma_user, beta=beta,
                     sigma_gym=np.exp(log_sigma_gym), log_sigma_gym=log_sigma_gym,
                     gym_raw=gym_raw, log_lambda0=log_lambda0,
-                    kappa=kappa, rho=rho)
+                    kappa=kappa, rho=rho, psi=psi)
 
     # ---- the likelihood -----------------------------------------------
 
@@ -346,10 +372,15 @@ class MarginalModel:
         # c_i: the ceiling with the climber's own offset left out.
         user_term = p['beta0'] + self.Xc @ p['beta']
         gym_term = p['sigma_gym'] * p['gym_raw']
-        c = user_term[self.obs_u] + gym_term[self.obs_g]
+        # `adv` is data, not a parameter: the ceiling this climber had on the
+        # DAY of this send, rather than their career-average ceiling. Zero
+        # unless the fit asked for the advancement correction.
+        c = user_term[self.obs_u] + gym_term[self.obs_g] + self.adv
 
+        # Repeatedly topping out at the same grade is direct evidence the
+        # ceiling is near it, so it raises the rate and shrinks the shortfall.
         log_rate = (p['log_lambda0'] + p['kappa'] * self.n_visits
-                    + p['rho'] * self.r_obs)
+                    + p['rho'] * self.r_obs + p['psi'] * self.n_at_max)
         nu = np.exp(-log_rate)
 
         total = 0.0
@@ -404,9 +435,9 @@ class MarginalModel:
         p = self.unpack(theta)
         user_term = p['beta0'] + self.Xc @ p['beta']
         gym_term = p['sigma_gym'] * p['gym_raw']
-        c = user_term[self.obs_u] + gym_term[self.obs_g]
+        c = user_term[self.obs_u] + gym_term[self.obs_g] + self.adv
         nu = np.exp(-(p['log_lambda0'] + p['kappa'] * self.n_visits
-                      + p['rho'] * self.r_obs))
+                      + p['rho'] * self.r_obs + p['psi'] * self.n_at_max))
         return c, nu, self.sigma_link_fixed, p['sigma_user']
 
     def _laplace(self, m, c, nu, sl, su, seg, nseg, iters=4):
@@ -462,6 +493,8 @@ class MarginalModel:
         lp += _norm_lp(p['log_lambda0'], 0.0, 1.0)
         lp += _norm_lp(p['kappa'], 0.0, 0.5)
         lp += _norm_lp(p['rho'], 0.0, 0.5)
+        if 'psi' in self.param_names:
+            lp += _norm_lp(p['psi'], 0.0, 0.5)
         return float(lp)
 
     def log_posterior(self, theta):

@@ -56,7 +56,7 @@ function fxLedger(F) {
       what: 'they improved between the two visits',
       size: F.advancement.timing.bias_max,
       note: `worst gym pair; median ${F.advancement.timing.bias_median}`,
-      state: 'measured', how: 'fixed offset, needs only the send date' },
+      state: 'in', how: 'fixed offset on the ceiling, keyed to the send date' },
     { name: 'Gym grading drift',
       what: 'the gym&rsquo;s own standards moved over time',
       size: F.drift.accum_sd,
@@ -65,7 +65,7 @@ function fxLedger(F) {
     { name: 'Grade quantization',
       what: 'V-grades are integers and the max is often a single send',
       size: null, note: 'absorbed, not isolated', state: 'partial',
-      how: '<code>n_at_max</code> exists but is unused in the fitted model' },
+      how: '<code>n_at_max</code> is now in both likelihoods, off by default' },
     { name: 'Gender coding',
       what: 'inferred from a first name, not recorded',
       size: null, note: 'attenuates the effect it acts on', state: 'partial',
@@ -221,19 +221,22 @@ function renderFxPlan(F) {
         + `reproduced the old snapshot row for row, so no fitted result moved. `
         + `This was the blocker under the two items below.`,
       state: 'done' },
-    { title: 'Add climber advancement as a fixed offset',
-      why: `The best ratio of correction to effort on this page. It needs only `
-        + `the send date carried through an aggregation that currently discards `
-        + `it — no new rows, no re-derived dataset — and it removes up to `
-        + `${F.advancement.timing.bias_max.toFixed(3)} grades of bias from the `
-        + `worst gym pair. Fixed, never fitted: a free parameter absorbs 3.4× `
-        + `its true value.`,
-      state: 'next' },
-    { title: 'Put <code>n_at_max</code> into the marginalized likelihood',
-      why: `A port, not a design question — it is already in the data and `
-        + `already in the PyMC path, just absent from the likelihood the `
-        + `current fits sample. It strengthens the effect that is already `
-        + `doing the most work.`,
+    { title: 'Climber advancement as a fixed offset <i>(done)</i>',
+      why: `Each ceiling now carries the grades that climber had gained by the `
+        + `day of that send, relative to their own other sends — fixed at the `
+        + `rate measured within gyms, never fitted. Recovering the corrections `
+        + `by least squares with and without it, the spread drops 0.4008 → `
+        + `0.3806 and 11 of 29 gyms change rank. Against a null that reassigns `
+        + `each climber's own shifts among their own gyms, z = +13.9. The `
+        + `paired fits are queued.`,
+      state: 'done' },
+    { title: 'Put <code>n_at_max</code> into the marginalized likelihood <i>(ported)</i>',
+      why: `Done as a port: the term is now in the NumPy likelihood as well as `
+        + `the PyMC one, and the two agree to 1.3e-9 relative with it on. It `
+        + `stays off by default until a fit measures whether it earns its `
+        + `parameter — repeating your hardest grade twelve times says `
+        + `something different from sending it once, and that is exactly the `
+        + `signal the shortfall term is guessing at.`,
       state: 'next' },
     { title: 'Add per-gym grade compression, quadratic',
       why: `${F.compression.differential} grades across the ability range, `

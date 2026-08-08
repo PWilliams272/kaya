@@ -330,6 +330,28 @@ def build_jobs():
                     note='linear, same settings as v10_lin_marg, different '
                          'seed — the elpd gap between the two is the noise '
                          'floor the sweep must clear to be a ranking'))
+
+    # 3. The advancement arm, added 2026-08-07 once the snapshot carried dates.
+    #
+    #    Each ceiling is shifted by the grades that climber had gained by the
+    #    day of that send, relative to their own other sends -- fixed at the
+    #    rate measured WITHIN gyms, never fitted (fitted, it absorbs 3.4x its
+    #    true value and drags every gym correction with it).
+    #
+    #    Paired against the v10 twins directly above, so the elpd difference is
+    #    a paired one: same climbers, same folds, shared variation cancelling.
+    #    The model-free probe already says the timing carries information --
+    #    z = +13.9 against a within-climber shuffle null, correction spread
+    #    0.4008 -> 0.3806, 11 of 29 gyms changing rank. What least squares
+    #    cannot say is whether the corrected model PREDICTS better.
+    for prefix, form, off in [('lin', 'linear', 0), ('quad', 'quadratic', 1)]:
+        jobs.append(fit(f'v11_{prefix}_adv', form,
+                        extra=MARGALL + ['--advancement'],
+                        tune=1500, draws=1500, chains=4,
+                        seed=NIGHT_SEED + 300 + off, gate='quadrature_viable',
+                        note=f'{form} with the fixed advancement offset — '
+                             f'paired against v10_{prefix}_marg, which is '
+                             'identical but for the offset and the seed'))
     return jobs
 
 

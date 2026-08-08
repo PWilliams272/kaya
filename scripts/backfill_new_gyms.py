@@ -351,7 +351,12 @@ def main() -> int:
             state = rec.get('state', 'pending')
             extra = ''
             if state == 'done':
-                extra = f"  {rec.get('rows_written', '?')} rows, run {rec.get('run_id', '?')[:20]}"
+                # `or` rather than a get() default: a gym finished by an older
+                # version of this script has the keys present but set to None,
+                # and a default only fires on a missing key.
+                rows = rec.get('rows_written')
+                run = rec.get('run_id') or '?'
+                extra = f"  {'?' if rows is None else rows} rows, run {run[:20]}"
             elif not args.dry_run:
                 orph = orphan_run_ids(g['gym_id'], manifest)
                 if orph:

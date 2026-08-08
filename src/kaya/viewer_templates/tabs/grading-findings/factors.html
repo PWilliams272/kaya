@@ -104,16 +104,18 @@
               <p class="caption" id="gf-fx-exposure-note"></p>
 
               <h3>Climber advancement &mdash; they got better in between</h3>
-              <div class="finding open">
+              <div class="finding confirmed">
                 <div class="finding-head">
-                  <span class="finding-title">Measured, real, and currently not in the model at all</span>
-                  <span class="verdict-pill verdict-open">Measured, not modelled</span>
+                  <span class="finding-title">Measured, then put in &mdash; as a fixed offset, on 2026-08-07</span>
+                  <span class="verdict-pill verdict-confirmed">In the model</span>
                 </div>
                 <p>
-                  There is no \(t\) anywhere in \(C_{u,g}\). A climber is one
-                  number for all time. So when someone logged at one gym two
-                  years ago and another last month, the improvement in between
-                  has nowhere to go except the second gym&rsquo;s correction.
+                  Until 2026-08-07 there was no \(t\) anywhere in
+                  \(C_{u,g}\): a climber was one number for all time, so when
+                  someone logged at one gym two years ago and another last
+                  month, the improvement in between had nowhere to go except
+                  the second gym&rsquo;s correction. Each ceiling now carries a
+                  known, fixed shift for <i>when</i> that send happened.
                 </p>
               </div>
               <p class="prose">
@@ -196,11 +198,11 @@
                 what is now answerable.
               </p>
               <p class="prose">
-                <b>How to handle it.</b> Cheaply, and &mdash; unlike gym drift
+                <b>How it is handled.</b> Cheaply, and &mdash; unlike gym drift
                 &mdash; <b>without rebuilding the dataset</b>. Each
                 (climber, gym) row already comes from one hardest send with one
-                date; that date is currently discarded at the aggregation step.
-                Carry it through and subtract a <b>fixed</b> offset:
+                date; the aggregation used to discard it. It now carries it
+                through, and each ceiling gets a <b>fixed</b> offset:
               </p>
               <div class="eqn">$$C_{u,g} \;\rightarrow\; C_{u,g} + r(v_u)\,\bigl(t_{u,g} - \bar{t}_u\bigr), \qquad r(v) = 0.338 - 0.035\,v$$</div>
               <p class="prose">
@@ -210,6 +212,43 @@
                 against a real improvement rate near 0.24 &mdash; and would drag
                 every gym correction with it. That is the one firm decision in
                 this section.
+              </p>
+              <p class="prose">
+                <b>What it actually did.</b> Recovering the gym corrections by
+                least squares, with and without the offset &mdash; the same
+                two-way decomposition the model performs, minus the priors, so
+                it runs in seconds rather than four hours:
+              </p>
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead><tr><th>quantity</th><th class="num">without</th><th class="num">with</th></tr></thead>
+                  <tbody>
+                    <tr><td>Spread of the gym corrections (SD, grades)</td><td class="num">0.4008</td><td class="num">0.3806</td></tr>
+                    <tr><td>Largest single gym&rsquo;s shift (grades)</td><td class="num">&mdash;</td><td class="num">0.088</td></tr>
+                    <tr><td>Gyms whose rank changes, of 29</td><td class="num">&mdash;</td><td class="num">11</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="prose">
+                <b>Five percent of the spread</b> that had been read as gyms
+                grading differently was climbers improving. That the spread
+                shrinks is not by itself evidence &mdash; subtracting any
+                climber-centred vector removes some variance &mdash; so the
+                same measurement was repeated 200 times with each
+                climber&rsquo;s shifts randomly reassigned among their own
+                gyms. That preserves every magnitude and destroys only the link
+                between a gym and <i>when</i> the climber was there. Shuffled,
+                the spread stays at 0.4008 &plusmn; 0.0014; the real assignment
+                reaches 0.3806, <b>z = +13.9</b>, \(p &lt; 0.0001\). The
+                timing carries real information.
+              </p>
+              <p class="caption">
+                Least squares has no shortfall term and no uncertainties, so
+                this says the correction is worth fitting, not what it is
+                worth. The paired fits &mdash; identical but for the offset and
+                the seed &mdash; are queued.
+                <code>scripts/probe_advancement.py</code> reproduces the table;
+                <code>src/kaya/advancement.py</code> is the offset itself.
               </p>
 
               <h3>Gym grading drift &mdash; the gym itself changed</h3>

@@ -36,13 +36,17 @@ from kaya.grading_model_v2 import (
 )
 from kaya.marginal_v2 import MarginalModel, exgaussian_logpdf
 
-TMP = Path('/Users/peterwilliams/.claude/jobs/e4f1b508/tmp')
+# runs/, not a scratch directory: this used to read a copy in an agent job
+# folder that predated the dated snapshot, so the check could not see any
+# column added since. runs/ is what every fit reads and what
+# scripts/build_base_snapshot.py writes.
+RUNS = Path(__file__).resolve().parents[1] / 'runs'
 
 
 def dataset():
-    with open(TMP / 'base_bouldering.pkl', 'rb') as f:
+    with open(RUNS / 'base_bouldering.pkl', 'rb') as f:
         base = pickle.load(f)
-    nets = json.loads((TMP / 'networks.json').read_text())['networks']
+    nets = json.loads((RUNS / 'networks.json').read_text())['networks']
     return make_dataset(base, nets['net50'], name_filter='confident',
                         label='net50/confident')
 
@@ -51,19 +55,31 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--orthogonal-design', action='store_true',
                     help='run the check on the Gram-Schmidt basis instead')
+    ap.add_argument('--n-at-max', action='store_true',
+                    help='run the check with the psi / n_at_max term on')
+    ap.add_argument('--advancement', action='store_true',
+                    help='run the check with the fixed advancement offset on. '
+                         'The offset enters both implementations at a '
+                         'different place -- `correction` in PyMC, the `adv` '
+                         'vector in NumPy -- so agreeing with it on is a real '
+                         'check, not a restatement')
     args = ap.parse_args()
     orth = args.orthogonal_design
     ds = dataset()
     mm = MarginalModel.from_dataset(ds, height_form='linear',
                                     sigma_link_fixed=0.5, n_quad=31,
-                                    orthogonal_design=orth)
+                                    orthogonal_design=orth,
+                                    advancement=args.advancement,
+                                    use_n_at_max=args.n_at_max)
     rng = np.random.default_rng(3)
     theta = mm.initial_point(rng)
     p = mm.unpack(theta)
 
     model = build_model_v2(ds, height_form='linear', gender_mode='point',
                            estimate_sigma_link=False, sigma_link_fixed=0.5,
-                           marginalize_singles=True, orthogonal_design=orth)
+                           marginalize_singles=True, orthogonal_design=orth,
+                           advancement=args.advancement,
+                           use_n_at_max=args.n_at_max)
     print(f'PyMC model with marginalize_singles=True, '
           f'orthogonal_design={orth}')
     free = {v.name: v for v in model.free_RVs}
@@ -105,6 +121,8 @@ def main():
             pt_[k] = np.array(p['kappa'])
         elif base_name == 'rho':
             pt_[k] = np.array(p['rho'])
+        elif base_name == 'psi':
+            pt_[k] = np.array(p['psi'])
         elif base_name.removesuffix('_orth') in mm.Xnames:
             # Under --orthogonal-design the sampled names carry an _orth
             # suffix and mm's design matrix is already in that basis, so the
@@ -141,9 +159,9 @@ def main():
         f'{np.abs(gym_raw - p["gym_raw"]).max():.2e}')
     user_term = p['beta0'] + mm.Xc @ p['beta']
     gym_term = p['sigma_gym'] * gym_raw
-    c = user_term[mm.obs_u] + gym_term[mm.obs_g]
+    c = user_term[mm.obs_u] + gym_term[mm.obs_g] + mm.adv
     nu = np.exp(-(p['log_lambda0'] + p['kappa'] * mm.n_visits
-                  + p['rho'] * mm.r_obs))
+                  + p['rho'] * mm.r_obs + p['psi'] * mm.n_at_max))
     sl, su = mm.sigma_link_fixed, p['sigma_user']
 
     s, o = mm.single_obs, mm.multi_obs
@@ -167,7 +185,9 @@ def main():
 
     # And the parameter count, which is the point of the exercise.
     full = build_model_v2(ds, height_form='linear', gender_mode='point',
-                          estimate_sigma_link=False, sigma_link_fixed=0.5)
+                          estimate_sigma_link=False, sigma_link_fixed=0.5,
+                          advancement=args.advancement,
+                          use_n_at_max=args.n_at_max)
     def count(m):
         ipt = m.initial_point()
         return int(sum(np.asarray(v).size for v in ipt.values()))

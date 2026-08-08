@@ -116,11 +116,15 @@ def test_the_quadrature_arm_sweeps_every_height_form_at_matched_settings():
     0.141) -- so its settings must match across forms. The noise-floor
     replicate also carries --marginalize-all and deliberately repeats the
     linear form, so it is excluded from the form set and checked separately by
-    test_the_noise_floor_replicate_differs_only_in_its_seed.
+    test_the_noise_floor_replicate_differs_only_in_its_seed. The advancement
+    arm repeats forms for the same reason -- it is a paired comparison, not a
+    sweep entry -- and is checked by
+    test_the_advancement_arm_is_paired_against_its_twin.
     """
     import run_batch
     marg = [j for j in ov.build_jobs()
-            if '--marginalize-all' in j.args and not j.name.endswith('_s2')]
+            if '--marginalize-all' in j.args and not j.name.endswith('_s2')
+            and '--advancement' not in j.args]
     forms = [j.args[j.args.index('--height-form') + 1] for j in marg]
     assert set(forms) == set(run_batch.HEIGHT_FORMS.values())
     assert len(forms) == len(set(forms)), 'a form is fitted twice'
@@ -169,6 +173,33 @@ def test_the_noise_floor_replicate_differs_only_in_its_seed():
         'the replicate must differ from its twin in the seed and nothing else')
     assert base.args[base.args.index('--seed') + 1] != \
         rep.args[rep.args.index('--seed') + 1], 'a shared seed measures nothing'
+
+
+def test_the_advancement_arm_is_paired_against_its_twin():
+    """A paired difference only cancels shared variation if it IS paired.
+
+    v11_lin_adv exists to be subtracted from v10_lin_marg. Any settings
+    difference beyond the offset itself -- a different tune, a different
+    n_quad, a different network -- turns that subtraction into a comparison of
+    two unrelated things, and the paired standard error (0.63 against a raw
+    284.8 on the height sweep) stops being the right yardstick.
+    """
+    jobs = {j.name: j for j in ov.build_jobs()}
+    for prefix in ('lin', 'quad'):
+        base, adv = jobs[f'v10_{prefix}_marg'], jobs[f'v11_{prefix}_adv']
+
+        def strip(args):
+            a = [x for x in args if x != '--advancement']
+            i = a.index('--seed')
+            return a[:i] + a[i + 2:]
+
+        assert strip(base.args) == strip(adv.args), (
+            f'v11_{prefix}_adv differs from its twin in more than the offset')
+        assert '--advancement' in adv.args
+        assert '--advancement' not in base.args
+        assert base.args[base.args.index('--seed') + 1] != \
+            adv.args[adv.args.index('--seed') + 1], (
+                'a shared seed makes the two the same chains twice')
 
 
 def test_every_job_is_gated_on_the_quadrature():

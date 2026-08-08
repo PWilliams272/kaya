@@ -17,7 +17,8 @@ import arviz as az
 import numpy as np
 import pymc as pm
 
-from kaya.convergence import assess_result
+from kaya.advancement import describe as advancement_describe
+from kaya.convergence import assess_result, frozen_chains
 from kaya.grading_model_v2 import build_model_v2, make_dataset
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -59,6 +60,21 @@ def main():
                         'instead of sigma_user * Normal(0,1). The data '
                         'dominates the prior 21-64x per climber, which is the '
                         'regime where centered samples better')
+    p.add_argument('--n-at-max', action='store_true',
+                   help='let the shortfall shrink with how many times the '
+                        'climber repeated their hardest grade at that gym. '
+                        'Direct evidence the ceiling is near it, and stronger '
+                        'than raw visit count -- 100 visits with one send at '
+                        'the top says something different from 100 visits '
+                        'with twelve')
+    p.add_argument('--advancement', action='store_true',
+                   help='shift each ceiling by the grades that climber had '
+                        'gained by the day of that send, relative to their own '
+                        'other sends. Without it a 2022 send at one gym and a '
+                        '2025 send at another are compared as if simultaneous, '
+                        'which hands the newer gym the climber\'s own progress '
+                        'as a softness correction. FIXED at the rate measured '
+                        'within gyms -- fitted, it absorbs 3.4x its true value')
     p.add_argument('--orthogonal-design', action='store_true',
                    help='sample the covariate block on a Gram-Schmidt '
                         'orthogonalised basis; raw-basis coefficients are '
@@ -109,7 +125,12 @@ def main():
         marginalize_all=args.marginalize_all,
         n_quad=args.n_quad,
         orthogonal_design=args.orthogonal_design,
+        advancement=args.advancement,
+        use_n_at_max=args.n_at_max,
     )
+    if args.advancement:
+        print(f'[{args.name}] advancement offset: '
+              f'{advancement_describe(ds.observations)}', flush=True)
 
     t0 = time.time()
     with model:
@@ -149,8 +170,20 @@ def main():
     print(f'\n[{args.name}] gym corrections (mean-centered):', flush=True)
     print(gc.to_string(), flush=True)
 
+    # Recorded before anything is judged. R-hat and ESS are BETWEEN-chain
+    # statistics, so a single chain that never moved makes a healthy model
+    # report as a catastrophic failure -- and identically so for models that
+    # share no parameters, which is how this was caught.
+    frozen = frozen_chains(idata)
+    if frozen:
+        print(f'\n[{args.name}] WARNING: chain(s) {frozen} never moved '
+              f'(step size adapted to zero). The R-hat and ESS below describe '
+              f'that dead chain, not the model. Re-run at a different seed.',
+              flush=True)
+
     res = {'name': args.name, 'args': vars(args), 'dataset': ds.summary(),
            'elapsed_min': elapsed / 60, 'divergences': ndiv,
+           'frozen_chains': frozen,
            'max_rhat': float(summ['r_hat'].max()), 'min_ess': float(summ['ess_bulk'].min()),
            'params': summ.to_dict('index')}
 

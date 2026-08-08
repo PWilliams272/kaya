@@ -45,6 +45,8 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 
+from kaya.advancement import DATE_COL as ADVANCEMENT_DATE_COL
+from kaya.advancement import advancement_offset
 from kaya.data_access import BOULDER_GRADE_TO_NUM, KayaDataAccessor, route_grade_to_num
 from kaya.marginal_pt import build_layout, multi_log_integral_pt
 
@@ -515,6 +517,7 @@ def build_model_v2(
     marginalize_all: bool = False,
     n_quad: int = 31,
     orthogonal_design: bool = False,
+    advancement: bool = False,
 ) -> pm.Model:
     """Build the v2 PyMC model.
 
@@ -553,6 +556,16 @@ def build_model_v2(
     n_at_max_raw = obs['n_at_max'].to_numpy(float) if 'n_at_max' in obs else np.ones(len(obs))
     nm_scale = float(np.nanmedian(n_at_max_raw)) or 1.0
     n_at_max = n_at_max_raw / nm_scale - 1.0
+    # Kept in raw grades on purpose: it is added straight to the ceiling, which
+    # is also in grades, so there is nothing to scale it against.
+    adv_offset = (advancement_offset(obs) if advancement else np.zeros(len(obs)))
+    if advancement and not np.any(adv_offset):
+        # Silent no-ops are how the retry budget shipped as a fix that changed
+        # nothing. If the correction was asked for and cannot apply, say so.
+        raise ValueError(
+            'advancement=True but the offset is identically zero -- this '
+            f'dataset has no usable {ADVANCEMENT_DATE_COL!r} column. Rebuild '
+            'the snapshot with scripts/build_base_snapshot.py.')
     n_users = len(user_ids)
 
     # Centered AND standardized. The original model used raw centered inches,
@@ -747,6 +760,13 @@ def build_model_v2(
                          dims='gym')
 
         correction = gym_correction[obs_g]
+        if advancement:
+            # Data, not a parameter. Each observation's ceiling is shifted by
+            # the grades that climber had gained (or not yet gained) by the day
+            # of that send, relative to their own other sends. It rides on
+            # `correction` because that is the one term every likelihood branch
+            # below shares. Fixed, never fitted -- see kaya.advancement.
+            correction = correction + adv_offset
         if climb_quantization:
             # Bounded per-climb offset: grades are continuous, labels are
             # integers, so a climb truly at 5.3 labelled 5 understates every

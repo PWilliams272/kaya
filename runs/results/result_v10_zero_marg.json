@@ -1,0 +1,200 @@
+{
+  "name": "v10_zero_marg",
+  "args": {
+    "name": "v10_zero_marg",
+    "data_dir": null,
+    "out_dir": null,
+    "network": "net50",
+    "name_filter": "confident",
+    "height_form": "zero",
+    "gender_mode": "point",
+    "climb_quant": false,
+    "ape_x_gender": false,
+    "ape_linear": false,
+    "fixed_sigma_link": true,
+    "zero_sum_users": false,
+    "marginalize_singles": true,
+    "marginalize_all": true,
+    "n_quad": 21,
+    "center_user_offsets": false,
+    "orthogonal_design": false,
+    "draws": 1500,
+    "tune": 1500,
+    "chains": 4,
+    "target_accept": 0.9,
+    "max_treedepth": 10,
+    "seed": 20260911
+  },
+  "dataset": {
+    "label": "net50/confident",
+    "n_obs": 20014,
+    "n_users": 10357,
+    "n_gyms": 29,
+    "n_climbs": 11187,
+    "pct_multi_gym": 0.40561938785362556,
+    "median_visits": 8.0
+  },
+  "elapsed_min": 222.81787856817246,
+  "divergences": 1500,
+  "max_rhat": 1.53,
+  "min_ess": 7.0,
+  "params": {
+    "beta0": {
+      "mean": 5.633,
+      "sd": 0.019,
+      "hdi_5.5%": 5.598,
+      "hdi_94.5%": 5.659,
+      "mcse_mean": 0.003,
+      "mcse_sd": 0.002,
+      "ess_bulk": 52.0,
+      "ess_tail": 3191.0,
+      "r_hat": 1.09
+    },
+    "beta_gender": {
+      "mean": -0.79,
+      "sd": 0.74,
+      "hdi_5.5%": -1.26,
+      "hdi_94.5%": 0.491,
+      "mcse_mean": 0.369,
+      "mcse_sd": 0.212,
+      "ess_bulk": 7.0,
+      "ess_tail": 3974.0,
+      "r_hat": 1.52
+    },
+    "log_lambda0": {
+      "mean": 0.285,
+      "sd": 0.354,
+      "hdi_5.5%": 0.066,
+      "hdi_94.5%": 0.899,
+      "mcse_mean": 0.177,
+      "mcse_sd": 0.102,
+      "ess_bulk": 7.0,
+      "ess_tail": 3947.0,
+      "r_hat": 1.52
+    },
+    "delta1": {
+      "mean": 0.15,
+      "sd": 0.233,
+      "hdi_5.5%": -0.251,
+      "hdi_94.5%": 0.315,
+      "mcse_mean": 0.116,
+      "mcse_sd": 0.066,
+      "ess_bulk": 7.0,
+      "ess_tail": 4.0,
+      "r_hat": 1.53
+    },
+    "delta2": {
+      "mean": 0.029,
+      "sd": 0.071,
+      "hdi_5.5%": -0.022,
+      "hdi_94.5%": 0.152,
+      "mcse_mean": 0.035,
+      "mcse_sd": 0.02,
+      "ess_bulk": 7.0,
+      "ess_tail": 3701.0,
+      "r_hat": 1.53
+    },
+    "sigma_user": {
+      "mean": 1.592,
+      "sd": 0.073,
+      "hdi_5.5%": 1.468,
+      "hdi_94.5%": 1.649,
+      "mcse_mean": 0.036,
+      "mcse_sd": 0.02,
+      "ess_bulk": 7.0,
+      "ess_tail": 4.0,
+      "r_hat": 1.53
+    },
+    "sigma_gym": {
+      "mean": 0.745,
+      "sd": 0.763,
+      "hdi_5.5%": 0.259,
+      "hdi_94.5%": 2.065,
+      "mcse_mean": 0.38,
+      "mcse_sd": 0.219,
+      "ess_bulk": 7.0,
+      "ess_tail": 624.0,
+      "r_hat": 1.53
+    },
+    "lambda0": {
+      "mean": 1.427,
+      "sd": 0.594,
+      "hdi_5.5%": 1.069,
+      "hdi_94.5%": 2.456,
+      "mcse_mean": 0.296,
+      "mcse_sd": 0.171,
+      "ess_bulk": 7.0,
+      "ess_tail": 3947.0,
+      "r_hat": 1.52
+    },
+    "kappa": {
+      "mean": 0.435,
+      "sd": 0.272,
+      "hdi_5.5%": 0.267,
+      "hdi_94.5%": 0.906,
+      "mcse_mean": 0.136,
+      "mcse_sd": 0.078,
+      "ess_bulk": 7.0,
+      "ess_tail": 3744.0,
+      "r_hat": 1.52
+    },
+    "rho": {
+      "mean": 0.096,
+      "sd": 0.194,
+      "hdi_5.5%": -0.077,
+      "hdi_94.5%": 0.417,
+      "mcse_mean": 0.093,
+      "mcse_sd": 0.049,
+      "ess_bulk": 7.0,
+      "ess_tail": 3523.0,
+      "r_hat": 1.52
+    },
+    "beta_h_missing": {
+      "mean": -0.442,
+      "sd": 0.097,
+      "hdi_5.5%": -0.551,
+      "hdi_94.5%": -0.298,
+      "mcse_mean": 0.042,
+      "mcse_sd": 0.017,
+      "ess_bulk": 7.0,
+      "ess_tail": 3526.0,
+      "r_hat": 1.53
+    },
+    "beta_a_missing": {
+      "mean": -0.357,
+      "sd": 0.438,
+      "hdi_5.5%": -0.652,
+      "hdi_94.5%": 0.399,
+      "mcse_mean": 0.218,
+      "mcse_sd": 0.125,
+      "ess_bulk": 7.0,
+      "ess_tail": 3852.0,
+      "r_hat": 1.53
+    }
+  },
+  "tree_depth": {
+    "mean": 4.05,
+    "max": 7,
+    "frac_at_limit": 0.0,
+    "limit": 10,
+    "step_size": 0.08968128654865085
+  },
+  "convergence": {
+    "converged": false,
+    "usable": false,
+    "max_rhat": 1.53,
+    "min_ess": 7.0,
+    "divergences": 1500,
+    "reasons": [
+      "R-hat 1.530 exceeds the gate of 1.2",
+      "effective sample size 7 below 400",
+      "1500 divergent transitions"
+    ]
+  },
+  "loo_unit": "climber",
+  "loo": {
+    "elpd_loo": -55362.70570820905,
+    "se": 693.8641063075701,
+    "p_loo": 19227.750238603927
+  }
+}
