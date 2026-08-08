@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/peterwilliams/projects/system-overview/scripts/repo-briefing.py kaya",
+            "timeout": 10,
+            "statusMessage": "Checking cross-repo changes"
+          }
+        ]
+      }
+    ]
+  }
+}

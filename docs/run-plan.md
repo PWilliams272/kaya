@@ -13,10 +13,11 @@ Status as of 2026-08-05. Q2, Q3 and Q4 are queued as one unattended chain —
 
 | # | question | what settles it | blocks |
 |---|---|---|---|
-| Q1 | Does the zero-sum prior fix hold up under an independent sampler? | emcee `lin2` | nothing — it is a cross-check |
+| Q1 | Does the zero-sum prior fix hold up under an independent sampler? | emcee `lin2` | **answered — and it opened Q1b** |
+| Q1b | Which sampler is right about `sigma_gym`? | `v5_conf_marg_long` + 9 more fits | **answered — emcee is the outlier** |
 | Q2 | Is the R-hat problem underadapted warm-up? | `v5_conf_marg_long` | Q3's settings |
-| Q3 | Does orthogonalising the design fix the height block? | `v6_conf_orth` vs `v3_conf_marg` | Q4 |
-| Q4 | Which height form is best, measured properly? | 7-form sweep + noise floor | the page's primary |
+| Q3 | Does orthogonalising the design fix the height block? | 7 paired fits, raw vs orthogonal | **answered — no. Dropped.** |
+| Q4 | Which height form is best, measured properly? | `v7_*` sweep, raw basis, 8 chains | the page's primary |
 | Q5 | Can the model predict a climber it has never seen? | grouped k-fold | nothing — it is the honest headline |
 | Q6 | What are the Bayes factors between forms? | nested / bridge sampling | nothing |
 
@@ -24,12 +25,52 @@ Status as of 2026-08-05. Q2, Q3 and Q4 are queued as one unattended chain —
 
 | run | settings | cost | status |
 |---|---|---|---|
-| emcee `lin2` | 128 walkers × 20,000 steps, DE moves | 7 h | running |
-| `v5_conf_marg_long` | quad × gender, marginalized, tune 2000 / draws 2000 | 5–6 h | queued behind emcee |
-| `v6_conf_orth` | quad × gender, marginalized, orthogonal, tune 600 / draws 500 | ~1.5 h | queued, runs beside Q2 |
+| emcee `lin2` | 128 walkers × 20,000 steps, DE moves | 7.1 h | **done** |
+| `v5_conf_marg_long` | quad × gender, marginalized, tune 2000 / draws 2000 | 5–6 h | **running** (also answers Q1b) |
+| `v6_conf_orth` | quad × gender, marginalized, orthogonal, tune 600 / draws 500 | ~1.5 h | **running** beside Q2 |
 
-**Q1** is answered by whether `sigma_gym` comes back near PyMC's 0.301 rather
-than the pre-fix run's 0.193.
+**Q1 is answered, and the answer was not clean.** The zero-sum fix held: eleven
+of the twelve parameters emcee and `v3_lin_marg` share agree to within **0.24
+posterior standard deviations**, which is a strong statement that the PyTensor
+graph and the NumPy reference describe the same posterior.
+
+**`sigma_gym` did not.** emcee puts it at **0.390**, PyMC at **0.304** — a gap of
+1.86 posterior sd, on the parameter that *is* the page's headline. Three
+explanations were eliminated by `scripts/check_sigma_gym.py`:
+
+| candidate | measurement | verdict |
+|---|---|---|
+| different prior | log-priors profiled across a `sigma_gym` grid differ by a constant to 9.1e-13 | same shape exactly |
+| different likelihood | 1.3e-9 relative at matched parameters (`check_pymc_marginal.py`) | same function |
+| under-resolved quadrature | 31 → 201 Gauss-Hermite nodes moves the gap by 4.9e-6 | 31 already resolves it |
+
+So it is a **sampling** difference, and the diagnostics point at PyMC: it drew
+this parameter with **ESS 109 and R-hat 1.02** — its worst-mixed parameter and
+the only one over threshold — while emcee drew it with **ESS 4,045** and a
+running mean that moves 0.0003 between the halves of the kept chain. A
+hierarchical scale under-explored by a short-adaptation gradient sampler is
+biased *downward*, which is the direction seen, and four chains failing the same
+way is that failure's expected signature rather than evidence against it.
+
+**Q1b is answered, and it went against emcee.** `v5_conf_marg_long` ran at tune
+2,000 / draws 2,000 — 2.6× the effective sample size of the short fit — and
+`sigma_gym` came back at **0.303**, exactly where it started. It did not climb.
+
+Nor is it one fit against one fit. **Ten PyMC fits report `sigma_gym`, and all
+ten land between 0.298 and 0.309** — across seven height forms, both the raw and
+the orthogonalised design basis, and warm-ups differing by 4×. emcee's 0.390 is
+outside that band entirely.
+
+So the outlier is emcee, and the mechanism is a documented weakness of ensemble
+samplers at ~40 dimensions: walkers propose from each other's positions, so
+unlike independently started chains they can contract onto a subspace
+*together*, and a flat running mean is not the proof of convergence for an
+ensemble that it is for independent chains. emcee declined to certify the run
+itself — its rule wants 50×τ and this chain is 31×.
+
+`sigma_gym ≈ 0.30` is therefore **the number, not a lower bound**. The page said
+lower bound for one day and has been corrected. The remaining check is a
+different *kind* of algorithm rather than a longer chain — see Q6.
 **Q2** is answered by whether max R-hat drops below 1.01 from `v3_conf_marg`'s
 **1.069**. If it does, the fix is a settings change and Phase 1 gets cheaper.
 
@@ -236,3 +277,112 @@ The page's primary fit is still `v3_conf` (unmarginalized, quadratic × gender).
 Switching it to a marginalized fit is a one-flag rebuild: correlation 0.9999
 across the 29 gyms, largest shift 0.012 grades, **0 of 29 rank changes**. Only
 the height figures change shape. Phase 1 may make the choice for us.
+
+
+## 2026-08-06 — what changed after the overnight run
+
+### Q3 answered: orthogonalisation is dropped
+
+Both arms are now fitted for all seven height forms, so the comparison is
+paired rather than anecdotal. Effective sample size on the reported quantities,
+orthogonal ÷ raw:
+
+| | |
+|---|---|
+| geometric mean | **1.01×** |
+| median | 1.01× |
+| range | 0.09× to 5.00× |
+| wins for orthogonal | 4 of 7 — P(≥4 of 7 by chance) = **0.50** |
+
+A coin flip. And **both** bases produced a catastrophic failure — linear
+collapsed to ESS 9 orthogonalised, linear × gender to ESS 13 on the raw basis —
+which places the blow-ups on the 600-iteration warm-up rather than the basis.
+
+Dropped, for three reasons beyond the null result: it is **not
+prior-preserving** (independent priors on the orthogonal basis imply correlated
+priors on the raw coefficients); it requires the transform to be stored with the
+fit and the *training* fold's version applied to held-out climbers, which is a
+live cross-validation leak that needs an explicit guard; and it buys nothing.
+
+The code stays — it is tested and this is a clean negative result worth being
+able to point at. `build_jobs()` no longer sets the flag, and a test now asserts
+it does not come back by accident.
+
+### Diagnostics are noisier than they were being read
+
+Measured, not assumed. Under **perfect** mixing (4 chains × 500 genuinely
+independent draws, 2,000 simulated replicates), R-hat reaches 1.0035 at the 99th
+percentile and 1.0066 at worst. So the 1.01 threshold is well calibrated and
+anything above it is real signal — but on actual chains R-hat swings hard: the
+*same* fit's four 500-draw windows gave `sigma_gym` R-hat **1.009 / 1.041 /
+1.075 / 1.057** while its window means agreed to within 2.4 × Monte Carlo error.
+
+The answer is stable; the diagnostic is not. Consequences for the plan:
+
+* **More chains is the fix, bought incrementally.** R-hat's between-chain term
+  is estimated from the chain count, so 4 is where the noise comes from. But
+  chains merge *exactly* — splitting a real 4-chain fit into halves and merging
+  them back reproduces R-hat and ESS to four decimal places — so the sweep runs
+  at 4 chains, two fits at a time, and only the forms whose diagnostics warrant
+  it get topped up with `scripts/merge_chains.py`. Committing all seven to 8
+  chains up front would spend the compute whether it was needed or not.
+* **Every fit carries an explicit `--seed`** (new on `run_fit.py`, stamped into
+  the trace as well as the result JSON). Without one PyMC draws a fresh seed
+  per run, which makes fits irreproducible and a top-up indistinguishable from
+  a repeat. `merge_chains.py` refuses to merge two runs that shared a seed:
+  those are the same chains twice, so between-chain variance is zero and R-hat
+  would read 1.000 no matter how badly the sampler mixed.
+* **Stop leading with `max_rhat`.** It is a maximum over thousands of
+  parameters, most of which appear on no page. The useful summary is R-hat and
+  the ESS floor on the *reported* quantities.
+
+### Priors audited, and three were doing real work
+
+`scripts/check_priors.py` (new) varies each parameter alone and requires the
+PyMC and NumPy log-priors to differ by a constant. All 18 directions agree to
+**4.5e-13**, including the gym block — which had never been compared, and is
+exactly where the original zero-sum bug lived, because that bug was invisible to
+a likelihood-only check.
+
+Sensibility was the other half, and it found three problems. Prior SD ÷
+posterior SD, where large means the data dominates:
+
+| parameter | was | posterior | z | ratio | now |
+|---|---|---|---|---|---|
+| `vq_peak` | N(0, 1.5) | −2.553 ± 0.528 | **1.70** | 2.8× | **N(0, 3.0)** |
+| `sat_amp` | N(0, 1.0) | −1.172 ± 0.393 | 1.17 | 2.5× | **N(0, 2.0)** |
+| `sat_h0` | N(0, 1.5) | 1.068 ± 0.555 | 0.71 | 2.7× | **N(0, 3.0)** |
+| `sat_scale` | HalfNormal(1.0) | 1.014 ± 0.379 | 0.36 | 1.6× | **HalfNormal(2.0)** |
+
+`vq_peak` is the serious one: it is the *best height*, in SDs from the median,
+and the vertex form exists precisely to estimate it directly instead of deriving
+−γ₁/2γ₂ and propagating error through a ratio. A prior contributing ~12% of its
+posterior precision and dragging the estimate from about −2.9 to −2.55 defeats
+the point of the form. Widened priors leave all four at 3–10% of the posterior
+precision.
+
+This also confounded Q4 directly: comparing height forms whose priors constrain
+them to *different degrees* is not a comparison of the forms.
+
+**Not changed:** `gamma2_x` (N(0, 0.15), z = 1.09, ratio 4×, ~8% shrinkage). It
+is the parameter the gender question turns on, and the tight prior there is
+deliberate regularisation — but it should be stated on the page rather than
+left silent.
+
+**Core priors are fine.** The data dominates by 17–88× on every shared
+parameter, and no posterior sits more than 1 prior SD from its prior mean. Prior
+predictive is loose but harmless: 17% of prior mass on negative grades, killed
+instantly by 20,014 observations.
+
+### The queued sweep
+
+Seven forms, **raw basis**, tune 2,000 / draws 1,000, **4 chains**, seeds
+20260806–20260812, two fits at a time (4 waves). ~11 hours. Nothing is gated,
+because nothing is left to gate on.
+
+Then read the diagnostics and top up only what needs it:
+
+```bash
+scripts/run_fit.py --name v7_v3_lin_b --seed 20260906 ...   # 4 more chains
+scripts/merge_chains.py --out v7_v3_lin_merged v7_v3_lin v7_v3_lin_b
+```
